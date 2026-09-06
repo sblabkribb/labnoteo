@@ -2,6 +2,9 @@
 import {
   getSeoulDateString,
   findDateFieldsInDocument,
+  findMetaDateFieldInLine,
+  fromDateTimeLocalValue,
+  toDateTimeLocalValue,
   updateAllDateFields,
 } from '../lib/dateUtils';
 
@@ -58,5 +61,56 @@ describe('updateAllDateFields', () => {
   it('leaves content unchanged when there is no front matter', () => {
     const content = ['# Body', '', "last_updated_date: '2024-01-01'"].join('\n');
     expect(updateAllDateFields(content, 'last_updated_date', '2025-05-05')).toBe(content);
+  });
+});
+
+describe('findMetaDateFieldInLine', () => {
+  it('locates the value inside the quotes', () => {
+    const line = "- Start_date: '2026-09-06 23:31'";
+    const m = findMetaDateFieldInLine(line);
+    expect(m).not.toBeNull();
+    expect(m!.field).toBe('Start_date');
+    expect(m!.value).toBe('2026-09-06 23:31');
+    expect(m!.quote).toBe("'");
+    expect(line.slice(m!.valueStart, m!.valueEnd)).toBe('2026-09-06 23:31');
+  });
+
+  it('returns an empty range between the quotes of an unset field', () => {
+    const line = "- End_date: ''";
+    const m = findMetaDateFieldInLine(line)!;
+    expect(m.field).toBe('End_date');
+    expect(m.value).toBe('');
+    expect(m.valueStart).toBe(m.valueEnd);
+    expect(line.slice(0, m.valueStart)).toBe("- End_date: '");
+  });
+
+  it('handles an unquoted value and trailing whitespace', () => {
+    const m = findMetaDateFieldInLine('  - end_date: 2026-09-06   ')!;
+    expect(m.field).toBe('End_date');
+    expect(m.value).toBe('2026-09-06');
+    expect(m.quote).toBeNull();
+  });
+
+  it('ignores lines that are not Meta date bullets', () => {
+    expect(findMetaDateFieldInLine('- Experimenter: Haseong')).toBeNull();
+    expect(findMetaDateFieldInLine("start_date: '2026-09-06'")).toBeNull();
+    expect(findMetaDateFieldInLine('The Start_date: is set later')).toBeNull();
+  });
+});
+
+describe('datetime-local conversions', () => {
+  it('round-trips a stored value', () => {
+    expect(toDateTimeLocalValue('2026-09-06 23:31')).toBe('2026-09-06T23:31');
+    expect(fromDateTimeLocalValue('2026-09-06T23:31')).toBe('2026-09-06 23:31');
+  });
+
+  it('defaults a date-only value to midnight', () => {
+    expect(toDateTimeLocalValue('2026-09-06')).toBe('2026-09-06T00:00');
+  });
+
+  it('returns an empty string for unusable input', () => {
+    expect(toDateTimeLocalValue('')).toBe('');
+    expect(toDateTimeLocalValue('not a date')).toBe('');
+    expect(fromDateTimeLocalValue('2026-09-06')).toBe('');
   });
 });

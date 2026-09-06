@@ -54,6 +54,38 @@
   padding: 0 2px;
 }
 
+/* --- Meta date fields (click to pick a date/time) ------------------------ */
+.labnote-date-value {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--text-accent);
+}
+
+.labnote-date-value:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.labnote-date-pick {
+  cursor: pointer;
+  padding-left: 4px;
+  opacity: 0.6;
+}
+
+.labnote-date-pick:hover {
+  opacity: 1;
+}
+
+.labnote-datetime-picker {
+  position: fixed;
+  z-index: var(--layer-popover);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow-s);
+  padding: 2px 4px;
+}
+
 /* --- Pickers / suggestions ---------------------------------------------- */
 .labnote-pick-desc,
 .labnote-suggest-detail {
