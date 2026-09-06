@@ -6,29 +6,9 @@
  * `@labnoteo/core/node`.
  */
 
-export const CORE_VERSION = '0.69.0';
-
-// === Section domain model + parsers (shared by extension host and webview) ===
-export type {
-  LabNoteFrontMatter,
-  WorkflowReference,
-  LabNoteSection,
-  LabNoteDocument,
-  WorkflowFrontMatter,
-  UnitOpSection,
-  UnitOperationBlock,
-  WorkflowDocument,
-} from './sections/sectionTypes';
-
+// === Surgical unit-op TOC edits (whitespace-preserving; used by the Obsidian
+// insert-unit-operation flow) ===
 export {
-  parseLabNoteMd,
-  serializeLabNoteMd,
-} from './sections/labnoteSectionParser';
-
-export {
-  parseWorkflowMd,
-  serializeWorkflowMd,
-  validateWorkflowDocument,
   buildUnitOpTocLine,
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
@@ -91,7 +71,6 @@ export {
 
 // === Platform-neutral tree model (VS Code providers + Obsidian ItemViews) ===
 export {
-  computeReorder,
   buildWorkflowTree,
   buildSampleTree,
   type TreeNode,
@@ -105,12 +84,6 @@ export {
 export type { LabnoteFs } from './fs/labnoteFs';
 // In-memory implementation for tests (browser + node safe; no fs import).
 export { MemFileSystem } from './fs/memFileSystem';
-
-export type {
-  SampleDefMap,
-  ExtensionToWebviewMessage,
-  WebviewToExtensionMessage,
-} from './sections/messages';
 
 // === Bundled default catalogs (browser-safe pure data; tree-shaken from webview) ===
 export {

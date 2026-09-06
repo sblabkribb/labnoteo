@@ -27,6 +27,19 @@ export interface LabnoteFs {
    * responsible for doing so as durably/atomically as its platform allows.
    */
   write(path: string, content: string): Promise<void>;
+  /**
+   * Atomically read-modify-write a text file. `updater` receives the current
+   * contents (the empty string `''` when the file does not exist yet) and
+   * returns the bytes to persist.
+   *
+   * The implementation MUST guarantee that the read and the write happen without
+   * another write to the same path interleaving between them, so that concurrent
+   * callers targeting one file never lose updates (the classic lost-update race
+   * behind `{Type}.json` corruption). `updater` MUST be synchronous — Obsidian's
+   * `vault.process()` callback is synchronous, so any async work (e.g. reading a
+   * second file) has to be hoisted out and captured before calling `modify`.
+   */
+  modify(path: string, updater: (data: string) => string): Promise<void>;
   /** True if a file or directory exists at `path`. */
   exists(path: string): Promise<boolean>;
   /** Recursively create `path` as a directory. No-op if it already exists. */

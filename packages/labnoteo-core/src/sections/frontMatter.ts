@@ -15,7 +15,11 @@ export function parseFrontMatterYaml(md: string): {
   frontMatter: Record<string, unknown>;
   body: string;
 } {
-  const fmMatch = md.match(/^---\n([\s\S]*?)\n---/);
+  // The closing fence must be a line that is exactly `---` (optional trailing
+  // spaces/tabs) followed by a newline or end-of-input. Without the line anchor
+  // a `----` (4-dash) body line was mistaken for the closing fence and ate part
+  // of the document.
+  const fmMatch = md.match(/^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
   if (!fmMatch) {
     return { frontMatter: {}, body: md };
   }
@@ -39,16 +43,17 @@ export function parseFrontMatterYaml(md: string): {
 /**
  * Serialize a single non-known front-matter entry.
  *
- * Scalars keep the legacy compact `key: value` one-liner so existing notes are
- * unchanged; lists and nested maps are emitted as proper YAML (2-space indent,
- * no line wrapping) so Obsidian `tags`/`aliases` survive the round-trip.
+ * Every non-null value (scalars included) goes through `yaml.dump`, so a scalar
+ * that needs quoting — most importantly one containing a colon, e.g.
+ * `Exp: run 1` — is emitted as valid YAML (`title: 'Exp: run 1'`) and survives a
+ * serialize → parse round-trip instead of silently resetting the whole block to
+ * `{}`. Lists and nested maps are emitted as proper YAML (2-space indent, no
+ * line wrapping) so Obsidian `tags`/`aliases` survive too. `null`/`undefined`
+ * keep the compact empty `key: ` form used by the workflow/readme templates.
  */
 export function serializeFrontMatterEntry(key: string, val: unknown): string {
   if (val === null || val === undefined) {
     return `${key}: `;
-  }
-  if (typeof val !== 'object') {
-    return `${key}: ${val}`;
   }
   const dumped = yaml.dump({ [key]: val }, {
     schema: yaml.CORE_SCHEMA,

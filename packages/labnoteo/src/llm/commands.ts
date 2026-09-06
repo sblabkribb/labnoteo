@@ -7,18 +7,10 @@
  * mutation flowing through the tested core helpers (`create_sample`, section
  * edits).
  */
-import { MarkdownView, Notice } from 'obsidian';
+import { Notice } from 'obsidian';
 import { createLabnoteTools, runTool, type ToolContext } from '@labnoteo/core';
 import type LabnotePlugin from '../main';
 import { createLlmProvider, type ChatMessage } from './provider';
-
-function activeSelectionOrDoc(plugin: LabnotePlugin): { text: string; selection: boolean } {
-  const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-  if (!view) return { text: '', selection: false };
-  const sel = view.editor.getSelection();
-  if (sel) return { text: sel, selection: true };
-  return { text: view.editor.getValue(), selection: false };
-}
 
 async function complete(
   plugin: LabnotePlugin,
@@ -69,7 +61,10 @@ export async function summarizeResultsCommand(plugin: LabnotePlugin): Promise<vo
     new Notice(plugin.t('Open a note to insert into.'));
     return;
   }
-  const { text } = activeSelectionOrDoc(plugin);
+  // Read from the SAME target we insert into (previously this read the active
+  // MarkdownView, which could differ from the insert target when a sidebar had
+  // focus — reading note A while writing to note B).
+  const text = await target.getText();
   if (!text.trim()) {
     new Notice(plugin.t('Nothing to summarize.'));
     return;
@@ -113,7 +108,8 @@ export async function extractSamplesCommand(plugin: LabnotePlugin): Promise<void
     new Notice(plugin.t('Open a note first.'));
     return;
   }
-  const { text } = activeSelectionOrDoc(plugin);
+  // Read from the same target we persist samples against (see above).
+  const text = await target.getText();
   if (!text.trim()) {
     new Notice(plugin.t('Nothing to extract.'));
     return;

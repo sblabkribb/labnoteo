@@ -10,46 +10,17 @@ import {
   UNIT_OPERATIONS_HW_CATALOG,
   UNIT_OPERATIONS_SW_CATALOG,
   CATALOG_FILE_NAMES,
+  type WorkflowItem,
+  type WorkflowJson,
+  type UnitOperationItem,
+  type UnitOperationJson,
 } from '../catalog';
 
-// Type definitions
-export interface WorkflowItem {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-}
-
-export interface WorkflowJson {
-  version: string;
-  language: string;
-  lastUpdated: string;
-  workflows: WorkflowItem[];
-}
-
-export interface UnitOperationItem {
-  id: string;
-  name: string;
-  description: string;
-  equipment?: string; // HW unit operations
-  software?: string;  // SW unit operations
-}
-
-export interface UnitOperationJson {
-  version: string;
-  language: string;
-  lastUpdated: string;
-  unitOperations: UnitOperationItem[];
-}
-
-// Category prefixes for ID generation
-const CATEGORY_PREFIXES: Record<string, string> = {
-  'Design': 'WD',
-  'Build': 'WB',
-  'Test': 'WT',
-  'Learn': 'WL',
-  'General': 'WG',
-};
+// The catalog shapes live in `../catalog` (the single source of truth for both
+// the bundled constants and their types). They were previously re-declared here
+// verbatim; re-export instead so existing `@labnoteo/core/lib/workflowDataLoader`
+// consumers keep importing the same names.
+export type { WorkflowItem, WorkflowJson, UnitOperationItem, UnitOperationJson };
 
 /**
  * Get the file path for workflow-related JSON files
@@ -124,7 +95,11 @@ export async function loadWorkflows(fs: LabnoteFs, workspaceRoot: string): Promi
 
   try {
     const content = await fs.read(filePath);
-    return JSON.parse(content) as WorkflowJson;
+    const parsed = JSON.parse(content) as Partial<WorkflowJson>;
+    // Guard the shape: a malformed file (or one missing `workflows`) must not
+    // hand a non-array through to callers that iterate it.
+    if (!parsed || !Array.isArray(parsed.workflows)) return empty();
+    return { ...empty(), ...parsed, workflows: parsed.workflows };
   } catch {
     return empty();
   }
@@ -158,43 +133,12 @@ export async function loadUnitOperations(
 
   try {
     const content = await fs.read(filePath);
-    return JSON.parse(content) as UnitOperationJson;
+    const parsed = JSON.parse(content) as Partial<UnitOperationJson>;
+    if (!parsed || !Array.isArray(parsed.unitOperations)) return empty();
+    return { ...empty(), ...parsed, unitOperations: parsed.unitOperations };
   } catch {
     return empty();
   }
-}
-
-/**
- * Save workflows to JSON file
- */
-export async function saveWorkflows(
-  fs: LabnoteFs,
-  workspaceRoot: string,
-  data: WorkflowJson
-): Promise<void> {
-  const filePath = getWorkflowFilePath(workspaceRoot, 'workflows');
-
-  // Update lastUpdated
-  data.lastUpdated = new Date().toISOString().split('T')[0];
-
-  await fs.write(filePath, JSON.stringify(data, null, 2));
-}
-
-/**
- * Save unit operations to JSON file
- */
-export async function saveUnitOperations(
-  fs: LabnoteFs,
-  workspaceRoot: string,
-  type: 'hw' | 'sw',
-  data: UnitOperationJson
-): Promise<void> {
-  const filePath = getWorkflowFilePath(workspaceRoot, `unitoperations_${type}`);
-
-  // Update lastUpdated
-  data.lastUpdated = new Date().toISOString().split('T')[0];
-
-  await fs.write(filePath, JSON.stringify(data, null, 2));
 }
 
 /**
@@ -211,115 +155,4 @@ export function groupWorkflowsByCategory(
     acc[category].push(workflow);
     return acc;
   }, {} as Record<string, WorkflowItem[]>);
-}
-
-/**
- * Generate next workflow ID for a category
- */
-export function generateNextWorkflowId(
-  workflows: WorkflowItem[],
-  category: string
-): string {
-  const prefix = CATEGORY_PREFIXES[category] || 'WX';
-  
-  // Find all IDs with this prefix
-  const existingIds = workflows
-    .filter(w => w.id.startsWith(prefix))
-    .map(w => parseInt(w.id.substring(2), 10))
-    .filter(n => !isNaN(n));
-  
-  // Get max ID and add 10 (IDs are in increments of 10)
-  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-  const nextNum = Math.ceil((maxId + 1) / 10) * 10;
-  
-  return `${prefix}${String(nextNum).padStart(3, '0')}`;
-}
-
-/**
- * Generate next unit operation ID
- */
-export function generateNextUnitOpId(
-  operations: UnitOperationItem[],
-  type: 'hw' | 'sw'
-): string {
-  const prefix = type === 'hw' ? 'UHW' : 'USW';
-  
-  // Find all IDs with this prefix
-  const existingIds = operations
-    .filter(op => op.id.startsWith(prefix))
-    .map(op => parseInt(op.id.substring(3), 10))
-    .filter(n => !isNaN(n));
-  
-  // Get max ID and add 10
-  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-  const nextNum = Math.ceil((maxId + 1) / 10) * 10;
-  
-  return `${prefix}${String(nextNum).padStart(3, '0')}`;
-}
-
-/**
- * Add a new workflow
- */
-export function addWorkflow(
-  data: WorkflowJson,
-  workflow: Partial<WorkflowItem> & { name: string; description: string; category: string }
-): WorkflowJson {
-  const id = workflow.id || generateNextWorkflowId(data.workflows, workflow.category);
-  
-  const newWorkflow: WorkflowItem = {
-    id,
-    name: workflow.name,
-    description: workflow.description,
-    category: workflow.category,
-  };
-  
-  return {
-    ...data,
-    workflows: [...data.workflows, newWorkflow],
-  };
-}
-
-/**
- * Add a new unit operation
- */
-export function addUnitOperation(
-  data: UnitOperationJson,
-  operation: UnitOperationItem
-): UnitOperationJson {
-  return {
-    ...data,
-    unitOperations: [...data.unitOperations, operation],
-  };
-}
-
-/**
- * Search workflows by name, id, or description
- */
-export function searchWorkflows(
-  workflows: WorkflowItem[],
-  query: string
-): WorkflowItem[] {
-  const lowerQuery = query.toLowerCase();
-  return workflows.filter(
-    w =>
-      w.id.toLowerCase().includes(lowerQuery) ||
-      w.name.toLowerCase().includes(lowerQuery) ||
-      w.description.toLowerCase().includes(lowerQuery)
-  );
-}
-
-/**
- * Search unit operations by name, id, or description
- */
-export function searchUnitOperations(
-  operations: UnitOperationItem[],
-  query: string
-): UnitOperationItem[] {
-  const lowerQuery = query.toLowerCase();
-  return operations.filter(
-    op =>
-      op.id.toLowerCase().includes(lowerQuery) ||
-      op.name.toLowerCase().includes(lowerQuery) ||
-      op.description.toLowerCase().includes(lowerQuery)
-  );
 }

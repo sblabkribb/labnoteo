@@ -39,7 +39,14 @@ import {
   generateWorkflowChecklist,
   updateReadmeWorkflowSection,
   parseExperimenterFromReadme,
+  reconcileWorkflowChecklist,
+  type WorkflowRename,
 } from '@labnoteo/core/lib/workflowStructure';
+import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
+import {
+  removeSourcesForDocument,
+  type RemovedSampleRef,
+} from '@labnoteo/core/lib/sampleStorage';
 
 // Vault root sentinel. Core loaders treat a falsy root as "no workspace" and
 // bail, so we use '.' — it is truthy yet normalises away, keeping every derived
@@ -48,7 +55,7 @@ const VAULT_ROOT = '.';
 const README = 'README.labnote.md';
 
 /** Derive the `labnote/{###_Name}` experiment dir from a vault-relative path. */
-function labnoteDirFromPath(p: string): string | undefined {
+export function labnoteDirFromPath(p: string): string | undefined {
   const parts = posix.normalize(p).split('/');
   const idx = parts.lastIndexOf('labnote');
   if (idx === -1 || idx + 1 >= parts.length) return undefined;
@@ -237,6 +244,17 @@ export async function insertWorkflowLinkCommand(
   const created = await createWorkflowFile(app, host, labnoteDir, chosen);
   if (!created) return;
 
+  // `createWorkflowFile` already registered the workflow in the experiment
+  // README's "Related Workflows" checklist. When this command is invoked on the
+  // README itself, that checklist entry *is* the link — inserting another one at
+  // the cursor would duplicate it (the reported bug). So only add a cursor link
+  // when editing some other note.
+  const readmePath = posix.join(labnoteDir, README);
+  if (app.workspace.getActiveFile()?.path === readmePath) {
+    host.notify('info', host.t('Workflow created: {0}', created.fileName));
+    return;
+  }
+
   // Resolve the TFile for a settings-aware link. A file written through the
   // adapter may lag the vault index, so retry briefly before falling back.
   let file = app.vault.getAbstractFileByPath(created.path);
@@ -327,4 +345,114 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
     equipment: op.equipment,
     software: op.software,
   });
+}
+
+// === README auto-sync on native rename / delete ==============================
+//
+// Instead of custom rename/renumber/delete commands, we react to Obsidian's own
+// file-explorer rename/delete events (wired in main.ts) and keep the README
+// "Related Workflows" checklist — and, on delete, the sample tree — in sync.
+// The pure domain logic lives in `@labnoteo/core`
+// (reconcileWorkflowChecklist / removeWorkflowFromReadme / removeSourcesForDocument);
+// these helpers sequence the Obsidian-side reads/writes.
+
+/**
+ * Write note content, preferring the Vault API so an already-open README
+ * refreshes immediately. `vault.process` fires only a 'modify' event (never
+ * rename/delete), so it cannot re-enter the workflow README sync listeners.
+ * Falls back to the adapter when the file is not (yet) in the vault index.
+ * (Data files such as `{Type}.json` keep using the adapter directly.)
+ */
+async function writeNoteThroughVault(
+  app: App,
+  host: LabnoteHost,
+  notePath: string,
+  content: string
+): Promise<void> {
+  const file = app.vault.getFileByPath(notePath);
+  if (file instanceof TFile) {
+    await app.vault.process(file, () => content);
+  } else {
+    await host.fs.write(notePath, content);
+  }
+}
+
+/**
+ * After workflow files were renamed in the file explorer, reorder the README
+ * "Related Workflows" checklist to match the new `NNN` order. `renames` are the
+ * old->new basenames accumulated for one experiment folder; passing them lets
+ * reconcile relink correctly even when Obsidian's "Automatically update
+ * internal links" setting is off. Only writes when the section actually changes.
+ */
+export async function syncReadmeOrderOnRename(
+  app: App,
+  host: LabnoteHost,
+  labnoteDir: string,
+  renames: WorkflowRename[]
+): Promise<void> {
+  const readmePath = posix.join(labnoteDir, README);
+  if (!(await host.fs.exists(readmePath))) return;
+  const readme = await host.fs.read(readmePath);
+  const res = reconcileWorkflowChecklist(readme, renames);
+  if (res.changed) {
+    await writeNoteThroughVault(app, host, readmePath, res.content);
+  }
+}
+
+/** Sample-tree cleanup context for {@link syncReadmeAndSamplesOnDelete}. */
+export interface SampleCleanupOpts {
+  globalSampleFolder?: string;
+  customTypes?: string[];
+  /** Called after samples were pruned so the caller can refresh views/caches. */
+  onSamplesChanged?: () => void;
+}
+
+/**
+ * After workflow files were deleted in the file explorer, remove their README
+ * checklist entries (surgically — preserving order + any manual links) and
+ * prune the sample tree of sources only these documents defined. Returns every
+ * auto-removed sample so the caller can surface a toast + refresh views.
+ */
+export async function syncReadmeAndSamplesOnDelete(
+  app: App,
+  host: LabnoteHost,
+  labnoteDir: string,
+  deletedPaths: string[],
+  opts: SampleCleanupOpts = {}
+): Promise<RemovedSampleRef[]> {
+  // 1) README: drop each deleted entry in one read-modify-write. The README may
+  //    itself be gone (whole-folder delete); then there is nothing to prune.
+  const readmePath = posix.join(labnoteDir, README);
+  if (await host.fs.exists(readmePath)) {
+    let content = await host.fs.read(readmePath);
+    let changed = false;
+    for (const p of deletedPaths) {
+      const res = removeWorkflowFromReadme(content, posix.basename(p));
+      if (res.changed) {
+        content = res.content;
+        changed = true;
+      }
+    }
+    if (changed) await writeNoteThroughVault(app, host, readmePath, content);
+  }
+
+  // 2) Samples: a deleted document defines nothing, so pass empty text — every
+  //    record that listed this note as a source drops it (and is deleted if it
+  //    becomes orphaned). Failures are non-fatal: the file is already gone.
+  const removed: RemovedSampleRef[] = [];
+  for (const p of deletedPaths) {
+    try {
+      const r = await removeSourcesForDocument(
+        host.fs,
+        p,
+        '',
+        opts.globalSampleFolder,
+        opts.customTypes
+      );
+      removed.push(...r);
+    } catch (err) {
+      console.warn('[labnoteo] sample cleanup during workflow delete failed:', err);
+    }
+  }
+  return removed;
 }

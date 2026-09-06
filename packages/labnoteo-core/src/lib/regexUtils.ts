@@ -15,3 +15,22 @@
 export function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * Normalise an arbitrary title/name into a single safe path segment: collapse
+ * whitespace to `_`, drop anything that is not a Unicode letter/number/`_`, and
+ * trim redundant underscores.
+ *
+ * Uses the Unicode property escapes (`\p{L}\p{N}`) so non-ASCII names (Korean,
+ * CJK, accented Latin, …) survive intact. This is the SINGLE rule shared by both
+ * the experiment folder-name and the workflow file-name builders, which used to
+ * disagree (`[^\w\u3131-\uD79D_]` vs `[^\p{L}\p{N}_]u`) and could produce
+ * mismatched folder/file names for the same title in one vault.
+ */
+export function sanitizePathSegment(input: string): string {
+  return input
+    .replace(/\s+/g, '_')
+    .replace(/[^\p{L}\p{N}_]/gu, '')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+}

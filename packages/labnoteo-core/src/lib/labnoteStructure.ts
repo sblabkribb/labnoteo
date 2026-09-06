@@ -4,6 +4,8 @@
 
 import * as path from '../util/posixPath';
 import { getSeoulDateString } from './dateUtils';
+import { sanitizePathSegment } from './regexUtils';
+import { serializeFrontMatterEntry } from '../sections/frontMatter';
 
 /**
  * Structure returned by createLabnoteStructure
@@ -39,11 +41,7 @@ export function getNextLabnoteNumber(existingFolders: string[]): string {
  * - Removes special characters except Korean, alphanumeric, and underscores
  */
 export function sanitizeTitle(title: string): string {
-  return title
-    .replace(/\s+/g, '_')
-    .replace(/[^\w\u3131-\uD79D_]/g, '')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
+  return sanitizePathSegment(title);
 }
 
 /**
@@ -56,14 +54,20 @@ export function generateReadmeContent(title: string, author?: string): string {
   const today = getSeoulDateString(new Date());
   
   const authorValue = author || '';
-  
+
+  // Front matter goes through serializeFrontMatterEntry so a title/author
+  // containing a colon is emitted as valid, round-trippable YAML.
+  const frontMatter = [
+    serializeFrontMatterEntry('title', title),
+    serializeFrontMatterEntry('author', authorValue),
+    serializeFrontMatterEntry('experiment_type', 'labnote'),
+    serializeFrontMatterEntry('sample_tracking', 'yes'),
+    serializeFrontMatterEntry('created_date', today),
+    serializeFrontMatterEntry('last_updated_date', today),
+  ].join('\n');
+
   return `---
-title: ${title}
-author: ${authorValue}
-experiment_type: labnote
-sample_tracking: yes
-created_date: ${today}
-last_updated_date: ${today}
+${frontMatter}
 ---
 
 ## 🎯 Experiment Objective

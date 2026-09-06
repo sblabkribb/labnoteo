@@ -22,7 +22,11 @@ import {
   createWorkflowCommand,
   insertUnitOperationCommand,
   insertWorkflowLinkCommand,
+  syncReadmeOrderOnRename,
+  syncReadmeAndSamplesOnDelete,
+  labnoteDirFromPath,
 } from './commands';
+import * as posix from '@labnoteo/core/posix';
 import { SampleEditorSuggest } from './sampleSuggest';
 import { openSampleDefinition } from './sampleDefinitionModal';
 import {
@@ -40,7 +44,7 @@ import {
   extractSamplesCommand,
 } from './llm/commands';
 import { LabnoteMcpServer } from './llm/mcpServer';
-import { DEFAULT_SETTINGS, type LabnoteSettings } from './settings';
+import { CURRENT_SCHEMA_VERSION, migrateSettings, type LabnoteSettings } from './settings';
 
 export default class LabnotePlugin extends Plugin {
   // `Plugin` already declares `settings?: unknown`; re-type it concretely.
@@ -49,7 +53,14 @@ export default class LabnotePlugin extends Plugin {
   t!: Translator;
   host!: LabnoteHost;
   mcpServer!: LabnoteMcpServer;
+  private sampleSuggest?: SampleEditorSuggest;
   private readonly sampleSyncTimers = new Map<string, number>();
+  // Pending README auto-sync events, coalesced per experiment folder.
+  private readonly readmeSyncQueue = new Map<
+    string,
+    { renames: { from: string; to: string }[]; deletes: string[] }
+  >();
+  private readonly readmeSyncTimers = new Map<string, number>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -63,6 +74,7 @@ export default class LabnotePlugin extends Plugin {
     this.registerViews();
     this.registerFileMenu();
     this.registerEditorMenu();
+    this.registerWorkflowReadmeSync();
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
 
     if (this.settings.mcpEnabled) {
@@ -73,6 +85,19 @@ export default class LabnotePlugin extends Plugin {
 
   onunload(): void {
     this.mcpServer?.stop();
+    // Cancel any pending debounced sample-sync writes. registerInterval only
+    // covers setInterval, so these setTimeout handles must be cleared by hand —
+    // otherwise an unloaded instance still writes to the vault ~800ms later.
+    for (const handle of this.sampleSyncTimers.values()) {
+      window.clearTimeout(handle);
+    }
+    this.sampleSyncTimers.clear();
+    // Same for pending README auto-sync flushes.
+    for (const handle of this.readmeSyncTimers.values()) {
+      window.clearTimeout(handle);
+    }
+    this.readmeSyncTimers.clear();
+    this.readmeSyncQueue.clear();
     // Views/events registered via this.register*() are auto-cleaned by Obsidian.
   }
 
@@ -152,13 +177,41 @@ export default class LabnotePlugin extends Plugin {
       name: this.t('Toggle MCP server'),
       callback: () =>
         this.run(async () => {
-          if (this.mcpServer.running) this.mcpServer.stop();
-          else this.mcpServer.start();
+          // Keep the persisted `mcpEnabled` in lock-step with the live server so
+          // the command and the settings toggle can't drift out of sync.
+          if (this.mcpServer.running) {
+            this.mcpServer.stop();
+            this.settings.mcpEnabled = false;
+          } else {
+            this.mcpServer.start();
+            this.settings.mcpEnabled = true;
+          }
+          await this.saveSettings();
         }),
     });
   }
 
-  /** Right-click a markdown note → export its tables to CSV. */
+  /**
+   * Sample-tree cleanup context passed to the delete auto-sync so it can prune
+   * `{Type}.json` records and refresh the sample UI/autocomplete cache.
+   */
+  private sampleCleanupOpts() {
+    return {
+      globalSampleFolder: this.settings.globalSampleFolder,
+      customTypes: this.settings.customSampleTypes,
+      onSamplesChanged: () => {
+        this.sampleSuggest?.clearCache();
+        this.refreshSampleViews();
+      },
+    };
+  }
+
+  /**
+   * Right-click a markdown note in the file explorer → export its tables to CSV.
+   * Workflow rename/delete are no longer custom actions: renaming or deleting a
+   * workflow file in the explorer auto-syncs the README (see
+   * {@link registerWorkflowReadmeSync}).
+   */
   private registerFileMenu(): void {
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file) => {
@@ -204,16 +257,10 @@ export default class LabnotePlugin extends Plugin {
           }
         }
 
-        // The remaining items only belong in lab-note documents.
-        if (!file.path.endsWith('.labnote.md')) return;
-        menu.addItem(item =>
-          item
-            .setTitle(this.t('Insert workflow'))
-            .setIcon('git-branch-plus')
-            .onClick(() => this.run(() => insertWorkflowLinkCommand(this.app, this.host, editor)))
-        );
-        // Unit operations only belong in a workflow file (not the README nor a
-        // non-`NNN_` note), so gate this item on isValidWorkflowPath.
+        // Workflow-specific items depend on the file kind:
+        //  - a workflow file (NNN_WX###_*.labnote.md) → insert a unit operation,
+        //  - the experiment README (README.labnote.md) → insert a workflow link.
+        // Everything else (plain notes) gets no workflow item.
         if (isValidWorkflowPath(file.path)) {
           menu.addItem(item =>
             item
@@ -221,9 +268,110 @@ export default class LabnotePlugin extends Plugin {
               .setIcon('plus')
               .onClick(() => this.run(() => insertUnitOperationCommand(this.app, this.host)))
           );
+        } else if (file.name.toLowerCase() === 'readme.labnote.md') {
+          menu.addItem(item =>
+            item
+              .setTitle(this.t('Insert workflow'))
+              .setIcon('git-branch-plus')
+              .onClick(() => this.run(() => insertWorkflowLinkCommand(this.app, this.host, editor)))
+          );
         }
       })
     );
+  }
+
+  /**
+   * Keep the experiment README (and, on delete, the sample tree) in sync with
+   * the file explorer:
+   *  - renaming a workflow file inside its folder reorders the README checklist
+   *    to the new `NNN` order (and relinks the entry),
+   *  - deleting one removes its checklist entry and prunes samples it defined.
+   *
+   * Events are coalesced per experiment folder (~400ms) so bulk operations — or
+   * Obsidian's own backlink update racing our write — settle into a single
+   * README write. Our writes go through `vault.process` (a 'modify', never
+   * rename/delete), so they cannot re-enter these listeners. Cross-folder moves
+   * are intentionally not auto-listed in the destination README (documented
+   * limitation — use "Insert workflow").
+   */
+  private registerWorkflowReadmeSync(): void {
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        if (!(file instanceof TFile)) return;
+        const newPath = file.path;
+        // Only same-folder workflow-file renames auto-reorder the README.
+        if (!isValidWorkflowPath(newPath) || !isValidWorkflowPath(oldPath)) return;
+        const dir = labnoteDirFromPath(newPath);
+        if (!dir || dir !== labnoteDirFromPath(oldPath)) return;
+        this.queueReadmeSync(dir).renames.push({
+          from: posix.basename(oldPath),
+          to: posix.basename(newPath),
+        });
+        this.scheduleReadmeSync(dir);
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on('delete', file => {
+        if (!(file instanceof TFile) || !isValidWorkflowPath(file.path)) return;
+        const dir = labnoteDirFromPath(file.path);
+        if (!dir) return;
+        this.queueReadmeSync(dir).deletes.push(file.path);
+        this.scheduleReadmeSync(dir);
+      })
+    );
+  }
+
+  /** Get (or create) the pending-event queue for an experiment folder. */
+  private queueReadmeSync(dir: string): { renames: { from: string; to: string }[]; deletes: string[] } {
+    let q = this.readmeSyncQueue.get(dir);
+    if (!q) {
+      q = { renames: [], deletes: [] };
+      this.readmeSyncQueue.set(dir, q);
+    }
+    return q;
+  }
+
+  /** (Re)arm the per-folder debounce that flushes queued README-sync events. */
+  private scheduleReadmeSync(dir: string): void {
+    const prev = this.readmeSyncTimers.get(dir);
+    if (prev !== undefined) window.clearTimeout(prev);
+    const handle = window.setTimeout(() => {
+      this.readmeSyncTimers.delete(dir);
+      const q = this.readmeSyncQueue.get(dir);
+      this.readmeSyncQueue.delete(dir);
+      if (q) void this.flushReadmeSync(dir, q);
+    }, 400);
+    this.readmeSyncTimers.set(dir, handle);
+  }
+
+  /** Apply all queued deletes (prune + sample cleanup) then renames (reorder). */
+  private async flushReadmeSync(
+    dir: string,
+    q: { renames: { from: string; to: string }[]; deletes: string[] }
+  ): Promise<void> {
+    try {
+      if (q.deletes.length > 0) {
+        const removed = await syncReadmeAndSamplesOnDelete(
+          this.app,
+          this.host,
+          dir,
+          q.deletes,
+          this.sampleCleanupOpts()
+        );
+        if (removed.length > 0) {
+          this.sampleSuggest?.clearCache();
+          this.refreshSampleViews();
+          const ids = removed.map(r => `${r.type} ${r.id}`).join(', ');
+          this.host.notify('info', this.t('Removed from sample tree: {0}', ids));
+        }
+      }
+      if (q.renames.length > 0) {
+        await syncReadmeOrderOnRename(this.app, this.host, dir, q.renames);
+      }
+    } catch (err) {
+      console.warn('[labnoteo] README auto-sync failed:', err);
+    }
   }
 
   /** Register the two sidebar views + commands/ribbon to open them. */
@@ -266,14 +414,13 @@ export default class LabnotePlugin extends Plugin {
     if (!this.settings.sampleTracking) return;
 
     // Autocomplete (@type;… → sample IDs).
-    this.registerEditorSuggest(
-      new SampleEditorSuggest(this.app, {
-        fs: this.fs,
-        customTypes: () => this.settings.customSampleTypes,
-        globalFolder: () => this.settings.globalSampleFolder,
-        plugin: this,
-      })
-    );
+    this.sampleSuggest = new SampleEditorSuggest(this.app, {
+      fs: this.fs,
+      customTypes: () => this.settings.customSampleTypes,
+      globalFolder: () => this.settings.globalSampleFolder,
+      plugin: this,
+    });
+    this.registerEditorSuggest(this.sampleSuggest);
 
     // Highlighting — one live getter shared by both surfaces.
     const getState = (): HighlightState => getSampleDisplayMeta(this.settings.customSampleTypes);
@@ -310,6 +457,8 @@ export default class LabnotePlugin extends Plugin {
         this.settings.globalSampleFolder,
         this.settings.customSampleTypes
       );
+      // Freshly-written definitions should show up in autocomplete right away.
+      this.sampleSuggest?.clearCache();
       this.refreshSampleViews();
     } catch (err) {
       console.warn('[labnoteo] sample sync failed:', err);
@@ -345,7 +494,17 @@ export default class LabnotePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const raw = await this.loadData();
+    this.settings = migrateSettings(raw);
+    // Persist the upgraded shape once so old `data.json` files converge (and the
+    // legacy `llmEndpoint` migration isn't re-run every load).
+    const rawVersion =
+      raw && typeof raw === 'object'
+        ? (raw as Record<string, unknown>).schemaVersion
+        : undefined;
+    if (rawVersion !== CURRENT_SCHEMA_VERSION) {
+      await this.saveSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {

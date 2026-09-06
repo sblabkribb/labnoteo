@@ -184,6 +184,31 @@ describe('rebuildUnitOpToc', () => {
     expect(out).toContain('\r\n');
     expect(out).toContain('- [UHW010 A](#uhw010-a)');
   });
+
+  it('keeps non-entry lines interleaved between TOC entries (no over-splice)', () => {
+    // A comment/quote sitting between two entry lines must survive the rebuild.
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '> keep me between entries',
+      '- [USW020 B](#usw020-b)',
+      '',
+      '---',
+      '### [UHW010 A]',
+      '---',
+      '### [USW020 B]',
+      '',
+      '## Conclusions and Discussion',
+      '',
+    ].join('\n');
+
+    const out = rebuildUnitOpToc(md);
+    expect(out).toContain('> keep me between entries');
+    // Both entries still present and in document order.
+    expect(out.indexOf('- [UHW010 A]')).toBeGreaterThan(-1);
+    expect(out.indexOf('- [USW020 B]')).toBeGreaterThan(out.indexOf('- [UHW010 A]'));
+  });
 });
 
 describe('locateInsertedUnitOpHeading', () => {

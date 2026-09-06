@@ -30,10 +30,12 @@
 | MCP 서버 토글 | 로컬 MCP 서버 시작/중지 |
 | 워크플로/샘플 뷰 열기 | 사이드바 뷰 표시 |
 
+> 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
+
 ## 설치 (수동)
 
-1. 릴리스에서 `main.js`, `manifest.json`, `versions.json`을 내려받습니다.
-2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 세 파일을 복사합니다.
+1. 릴리스에서 `main.js`, `manifest.json`, `versions.json`, `styles.css`를 내려받습니다.
+2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 네 파일을 복사합니다.
 3. Obsidian 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
 
 ## 설정

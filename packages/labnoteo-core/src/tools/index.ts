@@ -16,7 +16,7 @@
 import type { LabnoteFs } from '../fs/labnoteFs';
 import {
   loadSamplesByType,
-  saveSamplesByType,
+  upsertSampleRecord,
   getLabsamplesFolder,
   type SampleRecord,
 } from '../lib/sampleStorage';
@@ -75,6 +75,22 @@ function str(args: Record<string, unknown>, key: string): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined;
 }
 
+/**
+ * Resolve a document path argument to a normalized, vault-relative path, or
+ * `undefined` when it is missing/empty OR escapes the workspace root (e.g. a
+ * traversal payload like `../../.obsidian/plugins/evil/note.md`). MCP/LLM
+ * callers can pass arbitrary strings, so every handler that touches a
+ * `documentPath` must funnel it through this guard — previously only
+ * `create_workflow` validated its path.
+ */
+function safePath(ctx: ToolContext, args: Record<string, unknown>, key: string): string | undefined {
+  const raw = str(args, key);
+  if (raw === undefined) return undefined;
+  const normalized = posix.normalize(raw);
+  const root = ctx.workspaceRoot && ctx.workspaceRoot !== '' ? ctx.workspaceRoot : '.';
+  return posix.isInside(root, normalized) ? normalized : undefined;
+}
+
 const README_NAME = 'README.labnote.md';
 
 /** Derive the `labnote/{###_Name}` experiment dir from any path inside it. */
@@ -122,7 +138,7 @@ export function createLabnoteTools(): ToolDef[] {
         const id = str(args, 'id');
         if (!type || !id) return { ok: false, error: 'type and id are required' };
 
-        const documentPath = str(args, 'documentPath');
+        const documentPath = safePath(ctx, args, 'documentPath');
         const folders: string[] = [];
         if (documentPath) folders.push(getLabsamplesFolder(documentPath));
         if (ctx.globalSampleFolder) folders.push(ctx.globalSampleFolder);
@@ -149,7 +165,7 @@ export function createLabnoteTools(): ToolDef[] {
       async handler(ctx, args) {
         const type = str(args, 'type');
         if (!type) return { ok: false, error: 'type is required' };
-        const documentPath = str(args, 'documentPath');
+        const documentPath = safePath(ctx, args, 'documentPath');
 
         const merged: Record<string, SampleRecord> = {};
         if (ctx.globalSampleFolder) {
@@ -184,23 +200,22 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async handler(ctx, args) {
         const type = str(args, 'type');
-        const documentPath = str(args, 'documentPath');
+        const documentPath = safePath(ctx, args, 'documentPath');
         if (!type || !documentPath) return { ok: false, error: 'type and documentPath are required' };
 
         const folder = getLabsamplesFolder(documentPath);
-        const existing = await loadSamplesByType(ctx.fs, folder, type);
         const id = str(args, 'id') ?? generateSampleId(type);
         const alias = str(args, 'alias') ?? null;
-        const description = str(args, 'description');
+        const description = str(args, 'description') ?? null;
 
-        const record: SampleRecord = {
-          type,
+        // Atomic upsert (binds this note as the sample's source), replacing the
+        // previous load → mutate → saveSamplesByType round-trip that raced the
+        // debounced sample-sync.
+        await upsertSampleRecord(ctx.fs, folder, type, id, {
           alias,
-          descriptions: description ? [description] : [],
+          description,
           sources: [posix.basename(documentPath)],
-        };
-        existing[id] = record;
-        await saveSamplesByType(ctx.fs, folder, type, existing);
+        });
         return { ok: true, data: { id, type } };
       },
     },
@@ -236,7 +251,7 @@ export function createLabnoteTools(): ToolDef[] {
         required: ['documentPath', 'heading', 'content'],
       },
       async handler(ctx, args) {
-        const documentPath = str(args, 'documentPath');
+        const documentPath = safePath(ctx, args, 'documentPath');
         const heading = str(args, 'heading');
         const content = typeof args.content === 'string' ? args.content : undefined;
         if (!documentPath || !heading || content === undefined) {
@@ -266,7 +281,7 @@ export function createLabnoteTools(): ToolDef[] {
         required: ['documentPath', 'workflowId'],
       },
       async handler(ctx, args) {
-        const documentPath = str(args, 'documentPath');
+        const documentPath = safePath(ctx, args, 'documentPath');
         const workflowId = str(args, 'workflowId');
         if (!documentPath || !workflowId) {
           return { ok: false, error: 'documentPath and workflowId are required' };

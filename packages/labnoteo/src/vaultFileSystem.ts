@@ -29,6 +29,23 @@ export class VaultFileSystem implements LabnoteFs {
     await this.adapter.write(p, content);
   }
 
+  /**
+   * Interim `modify`: a plain read-or-empty → update → write over the adapter.
+   *
+   * NOTE: this is NOT yet atomic. True per-file atomicity requires the Vault
+   * API (`vault.process`), which is the deferred Phase 3 rewrite. Behaviour here
+   * is intentionally identical to the previous read+write callers, so nothing
+   * regresses; the atomicity guarantee only becomes real once this class is
+   * migrated off the adapter. The core logic is already structured around
+   * `modify` so that migration is a drop-in.
+   */
+  async modify(path: string, updater: (data: string) => string): Promise<void> {
+    const p = normalize(path);
+    await this.ensureParent(p);
+    const current = (await this.adapter.exists(p)) ? await this.adapter.read(p) : '';
+    await this.adapter.write(p, updater(current));
+  }
+
   async exists(path: string): Promise<boolean> {
     return this.adapter.exists(normalize(path));
   }

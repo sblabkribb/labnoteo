@@ -4,7 +4,7 @@
  * Sample options mirror the companion VS Code extension's settings; the LLM section is
  * Obsidian-specific (the desktop build talks to Ollama/OpenAI directly).
  */
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type LabnotePlugin from './main';
 import type { LlmProviderKind } from './settings';
 
@@ -20,7 +20,7 @@ export class LabnoteSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => void this.plugin.saveSettings();
 
-    containerEl.createEl('h3', { text: this.plugin.t('Samples') });
+    new Setting(containerEl).setName(this.plugin.t('Samples')).setHeading();
 
     new Setting(containerEl)
       .setName(this.plugin.t('Sample tracking'))
@@ -58,7 +58,7 @@ export class LabnoteSettingTab extends PluginSettingTab {
         })
       );
 
-    containerEl.createEl('h3', { text: this.plugin.t('AI provider') });
+    new Setting(containerEl).setName(this.plugin.t('AI provider')).setHeading();
 
     new Setting(containerEl)
       .setName(this.plugin.t('Provider'))
@@ -75,10 +75,19 @@ export class LabnoteSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName(this.plugin.t('Endpoint'))
+      .setName(this.plugin.t('Ollama endpoint'))
       .addText(t =>
-        t.setValue(s.llmEndpoint).onChange(v => {
-          s.llmEndpoint = v.trim();
+        t.setValue(s.llmEndpointOllama).onChange(v => {
+          s.llmEndpointOllama = v.trim();
+          save();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t('OpenAI endpoint'))
+      .addText(t =>
+        t.setValue(s.llmEndpointOpenai).onChange(v => {
+          s.llmEndpointOpenai = v.trim();
           save();
         })
       );
@@ -97,9 +106,12 @@ export class LabnoteSettingTab extends PluginSettingTab {
       .setDesc(this.plugin.t('Only sent to OpenAI-compatible providers, never to Ollama.'))
       .addText(t => {
         t.inputEl.type = 'password';
+        // Debounce persistence so we don't hit disk on every keystroke of a key.
+        let timer: number | undefined;
         t.setValue(s.llmApiKey).onChange(v => {
           s.llmApiKey = v;
-          save();
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => void this.plugin.saveSettings(), 500);
         });
       });
 
@@ -108,8 +120,29 @@ export class LabnoteSettingTab extends PluginSettingTab {
       .setDesc(this.plugin.t('Desktop only. Exposes tools to external MCP clients.'))
       .addToggle(t =>
         t.setValue(s.mcpEnabled).onChange(v => {
+          // Drive the live server from the toggle so the setting and the running
+          // state stay consistent (matching the command's behaviour).
           s.mcpEnabled = v;
           save();
+          if (v) this.plugin.mcpServer.start();
+          else this.plugin.mcpServer.stop();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t('MCP token'))
+      .setDesc(
+        this.plugin.t('Copy the bearer token for external MCP clients (server must be running).')
+      )
+      .addButton(b =>
+        b.setButtonText(this.plugin.t('Copy token')).onClick(async () => {
+          const token = this.plugin.mcpServer.currentToken();
+          if (!token) {
+            new Notice(this.plugin.t('Start the MCP server first.'));
+            return;
+          }
+          await navigator.clipboard.writeText(token);
+          new Notice(this.plugin.t('MCP token copied to clipboard.'));
         })
       );
   }

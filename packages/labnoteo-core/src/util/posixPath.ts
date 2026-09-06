@@ -23,6 +23,11 @@ function toPosix(p: string): string {
 export function normalize(input: string): string {
   const p = toPosix(input);
 
+  // Preserve a leading `//` (UNC share, e.g. `//server/share`): POSIX permits an
+  // implementation-defined double leading slash, and collapsing it would drop the
+  // host. Exactly two slashes followed by a non-slash; 3+ collapse as usual.
+  const unc = /^\/\/[^/]/.test(p);
+
   // Split off a leading Windows drive (`C:`) so it isn't treated as a segment.
   let drive = '';
   let rest = p;
@@ -49,6 +54,10 @@ export function normalize(input: string): string {
 
   let result = out.join('/');
   if (rooted || drive) {
+    result = '/' + result;
+  }
+  if (unc) {
+    // Restore the second leading slash consumed by the split above.
     result = '/' + result;
   }
   result = drive + result;
@@ -103,4 +112,21 @@ export function extname(input: string): string {
  */
 export function normalizeForCompare(input: string): string {
   return normalize(input);
+}
+
+/**
+ * True when `target` is `root` itself or a path nested inside it, after both
+ * are normalized (separator + `.`/`..` collapse). This is the guard used to
+ * reject path-traversal payloads: `isInside('a/b', 'a/b/../../evil')` is
+ * `false`. Comparison is case-insensitive to match Windows/macOS filesystem
+ * semantics (mirrors the sample-storage de-dup logic).
+ */
+export function isInside(root: string, target: string): boolean {
+  const r = normalize(root).replace(/\/+$/, '').toLowerCase();
+  const t = normalize(target).toLowerCase();
+  if (r === '.' || r === '') {
+    // A relative root only excludes explicit upward escapes.
+    return t !== '..' && !t.startsWith('../');
+  }
+  return t === r || t.startsWith(r + '/');
 }

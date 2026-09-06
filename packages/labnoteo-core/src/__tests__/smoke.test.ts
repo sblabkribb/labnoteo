@@ -1,9 +1,9 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
-import { CORE_VERSION } from '../index';
+import { MemFileSystem, createLabnoteTools } from '../index';
 
 describe('@labnoteo/core smoke', () => {
-  it('is importable and exposes a version', () => {
-    expect(typeof CORE_VERSION).toBe('string');
-    expect(CORE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  it('is importable and exposes core entry points', () => {
+    expect(typeof MemFileSystem).toBe('function');
+    expect(Array.isArray(createLabnoteTools())).toBe(true);
   });
 });

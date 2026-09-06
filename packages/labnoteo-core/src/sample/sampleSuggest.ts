@@ -48,7 +48,9 @@ export function parseSampleTrigger(
 ): SampleTrigger | undefined {
   if (!linePrefix.includes('@')) return undefined;
 
-  const m = linePrefix.match(/@(\w+)[;:]?(\S*)$/);
+  // `.*` (was `\S*`) so the search term may contain spaces — otherwise aliases
+  // like "my plasmid" could not be searched after `@type;`.
+  const m = linePrefix.match(/@(\w+)[;:]?(.*)$/);
   if (!m || m.index === undefined) return undefined;
 
   const rawType = m[1].toLowerCase();

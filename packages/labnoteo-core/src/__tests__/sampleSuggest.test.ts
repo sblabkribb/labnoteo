@@ -22,6 +22,12 @@ describe('parseSampleTrigger', () => {
     expect(t!.searchTerm).toBe('abc');
   });
 
+  it('allows spaces in the search term (alias search)', () => {
+    const t = parseSampleTrigger('@DNA;my plasmid', TYPES);
+    expect(t!.typesToSearch).toEqual(['DNA']);
+    expect(t!.searchTerm).toBe('my plasmid');
+  });
+
   it('treats @sample as all types', () => {
     const t = parseSampleTrigger('@sample:', TYPES);
     expect(t!.typesToSearch).toEqual(TYPES);

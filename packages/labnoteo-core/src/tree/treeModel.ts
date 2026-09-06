@@ -41,41 +41,6 @@ export interface TreeNode {
 }
 
 // ===========================================================================
-// Reorder
-// ===========================================================================
-
-/**
- * Compute the new ordering after dragging `sourceIds` onto `targetId`.
- *
- * - Sources are removed from their current positions.
- * - They are re-inserted immediately *before* `targetId`.
- * - When `targetId` is undefined or not present, sources are appended.
- * - Relative order of the sources is preserved.
- */
-export function computeReorder(
-  currentIds: string[],
-  sourceIds: string[],
-  targetId?: string
-): string[] {
-  const sourceSet = new Set(sourceIds);
-  const remaining = currentIds.filter(id => !sourceSet.has(id));
-
-  let insertAt: number;
-  if (targetId != null) {
-    const idx = remaining.indexOf(targetId);
-    insertAt = idx === -1 ? remaining.length : idx;
-  } else {
-    insertAt = remaining.length;
-  }
-
-  return [
-    ...remaining.slice(0, insertAt),
-    ...sourceIds,
-    ...remaining.slice(insertAt),
-  ];
-}
-
-// ===========================================================================
 // Workflow catalog tree (read-only)
 // ===========================================================================
 
@@ -90,9 +55,17 @@ export interface WorkflowTreeData {
 /** Build the 3-level workflow / unit-operation catalog tree. */
 export function buildWorkflowTree(data: WorkflowTreeData): TreeNode[] {
   const grouped = groupWorkflowsByCategory(data.workflows);
-  const categories = Object.keys(grouped).sort(
-    (a, b) => DBTL_ORDER.indexOf(a) - DBTL_ORDER.indexOf(b)
-  );
+  // Rank known DBTL categories by their fixed order; any unknown category (e.g.
+  // "Uncategorized") gets a rank past the end so it sorts AFTER the known ones
+  // rather than before "Design" (raw indexOf returns -1 for unknowns).
+  const rank = (c: string): number => {
+    const i = DBTL_ORDER.indexOf(c);
+    return i === -1 ? DBTL_ORDER.length : i;
+  };
+  const categories = Object.keys(grouped).sort((a, b) => {
+    const d = rank(a) - rank(b);
+    return d !== 0 ? d : a.localeCompare(b);
+  });
 
   const workflowRoot: TreeNode = {
     id: 'workflows',

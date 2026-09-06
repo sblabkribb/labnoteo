@@ -2,6 +2,7 @@
  * Date utility functions for Lab Note Editor
  * Pure functions that can be shared between Extension and Webview
  */
+import { escapeRegExp } from './regexUtils';
 
 /**
  * Returns YYYY-MM-DD in Asia/Seoul timezone
@@ -36,6 +37,76 @@ export function getSeoulDateTimeString(date?: Date): string {
 }
 
 /**
+ * A `- Start_date: '...'` / `- End_date: '...'` line inside a unit operation's
+ * `#### Meta` block, located precisely enough to replace just the value.
+ */
+export interface MetaDateFieldMatch {
+  field: 'Start_date' | 'End_date';
+  /** Offset of the value within the line, excluding the surrounding quotes. */
+  valueStart: number;
+  /** End offset of the value (equals `valueStart` when the value is empty). */
+  valueEnd: number;
+  value: string;
+  /** The quote character wrapping the value, or null when unquoted. */
+  quote: "'" | '"' | null;
+}
+
+const META_DATE_LINE = /^(\s*[-*][ \t]+)(Start_date|End_date)([ \t]*:[ \t]*)(.*)$/i;
+
+/**
+ * Locate the editable date value on a Meta `Start_date`/`End_date` line.
+ * Returns null for any other line, including headings and prose that merely
+ * mention the field name.
+ */
+export function findMetaDateFieldInLine(line: string): MetaDateFieldMatch | null {
+  const m = META_DATE_LINE.exec(line);
+  if (!m) return null;
+
+  const [, bullet, rawField, separator, rest] = m;
+  const field = rawField.toLowerCase() === 'start_date' ? 'Start_date' : 'End_date';
+  const restStart = bullet.length + separator.length + rawField.length;
+  // Trailing whitespace is never part of the value, so excluding it here keeps
+  // the replacement range tight.
+  const text = rest.replace(/[ \t]+$/, '');
+
+  const first = text[0];
+  if ((first === "'" || first === '"') && text.length >= 2 && text[text.length - 1] === first) {
+    return {
+      field,
+      valueStart: restStart + 1,
+      valueEnd: restStart + text.length - 1,
+      value: text.slice(1, -1),
+      quote: first,
+    };
+  }
+
+  return {
+    field,
+    valueStart: restStart,
+    valueEnd: restStart + text.length,
+    value: text,
+    quote: null,
+  };
+}
+
+/**
+ * Convert a stored `YYYY-MM-DD HH:mm` (or bare `YYYY-MM-DD`) value into the
+ * `YYYY-MM-DDTHH:mm` form an `<input type="datetime-local">` expects. Returns
+ * an empty string when the value is missing or not a recognised date.
+ */
+export function toDateTimeLocalValue(value: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/.exec(value.trim());
+  if (!m) return '';
+  return `${m[1]}T${m[2] ?? '00:00'}`;
+}
+
+/** Inverse of {@link toDateTimeLocalValue}; returns '' for unparseable input. */
+export function fromDateTimeLocalValue(value: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value.trim());
+  return m ? `${m[1]} ${m[2]}` : '';
+}
+
+/**
  * Date field match result
  */
 export interface DateFieldMatch {
@@ -54,7 +125,7 @@ export interface DateFieldMatch {
  */
 export function updateDateFieldInLine(line: string, fieldName: string, newDate: string): string {
   // Match pattern: fieldName: 'value' or fieldName: "value" or fieldName: value
-  const pattern = new RegExp(`(${fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):\\s*['"]?[^'"]*['"]?`, 'i');
+  const pattern = new RegExp(`(${escapeRegExp(fieldName)}):\\s*['"]?[^'"]*['"]?`, 'i');
   if (!pattern.test(line)) {
     return line;
   }
@@ -157,13 +228,10 @@ export function updateAllDatesInLine(line: string, newDateTime: string): string 
  * @returns Array of date field matches
  */
 export function findDateFieldsInDocument(content: string): DateFieldMatch[] {
-  const dateFields = [
-    'created_date',
-    'last_updated_date',
-    'end_date',
-    'Start_date',
-    'End_date'
-  ];
+  // Canonical, case-insensitively-unique field names. The per-field pattern uses
+  // the `i` flag, so listing both `end_date` and `End_date` (as before) matched
+  // every such line twice and produced duplicate entries. One entry per name.
+  const dateFields = ['created_date', 'last_updated_date', 'end_date', 'start_date'];
   const matches: DateFieldMatch[] = [];
   const lines = content.split('\n');
 
@@ -171,7 +239,7 @@ export function findDateFieldsInDocument(content: string): DateFieldMatch[] {
     const line = lines[i];
     for (const field of dateFields) {
       // Match pattern: fieldName: 'value' or fieldName: "value" or fieldName: value
-      const pattern = new RegExp(`(${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):\\s*['"]?([^'"]*)['"]?`, 'i');
+      const pattern = new RegExp(`(${escapeRegExp(field)}):\\s*['"]?([^'"]*)['"]?`, 'i');
       const match = line.match(pattern);
       if (match) {
         matches.push({
@@ -196,6 +264,23 @@ export function findDateFieldsInDocument(content: string): DateFieldMatch[] {
  */
 export function updateAllDateFields(content: string, fieldName: string, newDate: string): string {
   const lines = content.split('\n');
-  const updatedLines = lines.map(line => updateDateFieldInLine(line, fieldName, newDate));
-  return updatedLines.join('\n');
+
+  // Restrict rewriting to the leading YAML front matter block. Without this the
+  // function also rewrote any `<field>:` appearing in the body or inside fenced
+  // code blocks. Front matter must open on the first line.
+  let fmEnd = -1;
+  if (lines[0]?.trim() === '---') {
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === '---') {
+        fmEnd = i;
+        break;
+      }
+    }
+  }
+  if (fmEnd === -1) return content; // no front matter → nothing in scope
+
+  for (let i = 1; i < fmEnd; i++) {
+    lines[i] = updateDateFieldInLine(lines[i], fieldName, newDate);
+  }
+  return lines.join('\n');
 }

@@ -65,10 +65,15 @@ export class WorkflowTreeView extends ItemView {
       swUnitOps: sw.unitOperations,
     });
 
-    renderTree(this.contentEl, nodes, {
-      expanded: this.expanded,
-      onContext: (node, evt) => this.onContext(node, evt),
-    });
+    renderTree(
+      this.contentEl,
+      nodes,
+      {
+        expanded: this.expanded,
+        onContext: (node, evt) => this.onContext(node, evt),
+      },
+      this
+    );
   }
 
   private onContext(node: TreeNode, evt: MouseEvent): void {

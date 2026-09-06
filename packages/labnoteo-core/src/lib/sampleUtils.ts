@@ -26,20 +26,6 @@ export function buildSampleIdPattern(type: string): RegExp {
 }
 
 /**
- * Replace every whole-token occurrence of `oldId` with `newId` in `text`.
- *
- * A plain `\boldId\b` replace is unsafe for sample IDs: because `-` is a word
- * boundary, renaming a base id like `DNA-170` would also rewrite the prefix of
- * a distinct collision-resolved multipart id such as `DNA-170-3`, corrupting it
- * into `DNA-999-3`. The trailing `(?!-\d)` lookahead rejects that case, while
- * the closing `\b` already prevents matching a longer-digit id (`DNA-1700`).
- */
-export function replaceWholeSampleId(text: string, oldId: string, newId: string): string {
-  const re = new RegExp(`\\b${escapeRegExp(oldId)}\\b(?!-\\d)`, 'g');
-  return text.replace(re, newId);
-}
-
-/**
  * Build the `;alias;description` suffix of a sample definition string while
  * keeping field positions stable.
  *
@@ -201,37 +187,3 @@ export function resetIdCounter(): void {
   lastTimestamp = 0;
 }
 
-/**
- * Find @type: prefix range at cursor position
- * Returns the range of the @type: prefix if found, null otherwise
- */
-export function findSamplePrefixRange(
-  document: { lineAt: (line: number) => { text: string; range: { start: { line: number; character: number }; end: { line: number; character: number } } } },
-  position: { line: number; character: number },
-  sampleType: string
-): { start: { line: number; character: number }; end: { line: number; character: number } } | null {
-  const line = document.lineAt(position.line);
-  const lineText = line.text;
-  const cursorChar = position.character;
-
-  // Check if cursor is at or after a @type; or @type: prefix
-  const prefixPattern = new RegExp(`@${sampleType.toLowerCase()}[;:]`, 'i');
-  let match: RegExpExecArray | null;
-  const regex = new RegExp(prefixPattern.source, 'gi');
-  
-  while ((match = regex.exec(lineText)) !== null) {
-    const prefixStart = match.index;
-    const prefixEnd = prefixStart + match[0].length;
-    
-    // Check if cursor is within or immediately after this prefix
-    // Cursor should be after the start of the prefix (not before it)
-    if (cursorChar > prefixStart && cursorChar <= prefixEnd) {
-      return {
-        start: { line: position.line, character: prefixStart },
-        end: { line: position.line, character: prefixEnd },
-      };
-    }
-  }
-
-  return null;
-}

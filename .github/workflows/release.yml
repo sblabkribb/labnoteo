@@ -45,10 +45,11 @@ jobs:
             packages/labnoteo/main.js
             packages/labnoteo/manifest.json
             packages/labnoteo/versions.json
+            packages/labnoteo/styles.css
           name: Labnote Assistant (Obsidian) v${{ steps.get_version.outputs.VERSION }}
           body: |
             ## 설치 방법 (수동)
 
-            1. 아래 세 파일을 내려받습니다: `main.js`, `manifest.json`, `versions.json`
-            2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 3개 파일을 복사합니다.
+            1. 아래 네 파일을 내려받습니다: `main.js`, `manifest.json`, `versions.json`, `styles.css`
+            2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 4개 파일을 복사합니다.
             3. Obsidian 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.

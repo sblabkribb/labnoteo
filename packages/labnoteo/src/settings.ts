@@ -8,7 +8,16 @@
  */
 export type LlmProviderKind = 'none' | 'ollama' | 'openai';
 
+/**
+ * Bumped whenever the persisted shape changes so {@link migrateSettings} can
+ * upgrade older `data.json` files instead of silently `Object.assign`-ing an
+ * incompatible blob onto the defaults.
+ */
+export const CURRENT_SCHEMA_VERSION = 1;
+
 export interface LabnoteSettings {
+  /** Persisted-shape version (see {@link CURRENT_SCHEMA_VERSION}). */
+  schemaVersion: number;
   /** Show the Samples sidebar view. */
   sampleTracking: boolean;
   /** Extra sample types beyond the built-ins (DNA, RNA, …). */
@@ -18,8 +27,13 @@ export interface LabnoteSettings {
 
   // --- LLM ---
   llmProvider: LlmProviderKind;
-  /** Base URL for the provider (Ollama default shown). */
-  llmEndpoint: string;
+  /**
+   * Base URL per provider. Split from the old single `llmEndpoint` so switching
+   * provider can never leak an `Authorization: Bearer <openai-key>` header to a
+   * local Ollama address (they no longer share a field).
+   */
+  llmEndpointOllama: string;
+  llmEndpointOpenai: string;
   /** Model id, e.g. `llama3.1` or `gpt-4o-mini`. */
   llmModel: string;
   /** API key for OpenAI-compatible providers (never sent to Ollama). */
@@ -29,12 +43,60 @@ export interface LabnoteSettings {
 }
 
 export const DEFAULT_SETTINGS: LabnoteSettings = {
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   sampleTracking: true,
   customSampleTypes: [],
   globalSampleFolder: 'resources/labsamples',
   llmProvider: 'none',
-  llmEndpoint: 'http://localhost:11434',
+  llmEndpointOllama: 'http://localhost:11434',
+  llmEndpointOpenai: 'https://api.openai.com',
   llmModel: 'llama3.1',
   llmApiKey: '',
   mcpEnabled: false,
 };
+
+/**
+ * Validate + upgrade a raw persisted blob into a well-typed {@link LabnoteSettings}.
+ *
+ * Replaces the previous shallow `Object.assign(defaults, loadData())`, which
+ * copied through any garbage (wrong types, stale keys) unchecked. Each field is
+ * type-checked before use, and the pre-schema single `llmEndpoint` is migrated
+ * onto the provider-specific field so existing users keep their endpoint.
+ */
+export function migrateSettings(raw: unknown): LabnoteSettings {
+  const data: Record<string, unknown> =
+    raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const out: LabnoteSettings = { ...DEFAULT_SETTINGS };
+
+  if (typeof data.sampleTracking === 'boolean') out.sampleTracking = data.sampleTracking;
+  if (Array.isArray(data.customSampleTypes)) {
+    out.customSampleTypes = data.customSampleTypes.filter(
+      (x): x is string => typeof x === 'string'
+    );
+  }
+  if (typeof data.globalSampleFolder === 'string') out.globalSampleFolder = data.globalSampleFolder;
+  if (data.llmProvider === 'none' || data.llmProvider === 'ollama' || data.llmProvider === 'openai') {
+    out.llmProvider = data.llmProvider;
+  }
+  if (typeof data.llmModel === 'string') out.llmModel = data.llmModel;
+  if (typeof data.llmApiKey === 'string') out.llmApiKey = data.llmApiKey;
+  if (typeof data.mcpEnabled === 'boolean') out.mcpEnabled = data.mcpEnabled;
+
+  // Provider-specific endpoints (new shape) win when present…
+  if (typeof data.llmEndpointOllama === 'string') out.llmEndpointOllama = data.llmEndpointOllama;
+  if (typeof data.llmEndpointOpenai === 'string') out.llmEndpointOpenai = data.llmEndpointOpenai;
+  // …otherwise migrate the legacy single `llmEndpoint` onto whichever provider
+  // was active (defaulting to Ollama, the old default).
+  if (
+    typeof data.llmEndpoint === 'string' &&
+    data.llmEndpoint &&
+    typeof data.llmEndpointOllama !== 'string' &&
+    typeof data.llmEndpointOpenai !== 'string'
+  ) {
+    if (data.llmProvider === 'openai') out.llmEndpointOpenai = data.llmEndpoint;
+    else out.llmEndpointOllama = data.llmEndpoint;
+  }
+
+  out.schemaVersion = CURRENT_SCHEMA_VERSION;
+  return out;
+}

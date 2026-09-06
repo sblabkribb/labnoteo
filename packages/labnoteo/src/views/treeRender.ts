@@ -4,7 +4,7 @@
  * state is caller-owned (a `Set<string>` of expanded node ids) so it survives
  * re-renders.
  */
-import { setIcon } from 'obsidian';
+import { setIcon, type Component } from 'obsidian';
 import type { TreeNode } from '@labnoteo/core';
 
 /** Map the core (VS Code codicon) icon names to Obsidian's Lucide set. */
@@ -25,22 +25,26 @@ export interface TreeRenderCtx {
 export function renderTree(
   container: HTMLElement,
   nodes: TreeNode[],
-  ctx: TreeRenderCtx
+  ctx: TreeRenderCtx,
+  component: Component
 ): void {
   container.empty();
   container.addClass('labnote-tree');
-  for (const node of nodes) renderNode(container, node, ctx, 0);
+  for (const node of nodes) renderNode(container, node, ctx, 0, component);
 }
 
 function renderNode(
   parent: HTMLElement,
   node: TreeNode,
   ctx: TreeRenderCtx,
-  depth: number
+  depth: number,
+  component: Component
 ): void {
   const hasChildren = !!node.children && node.children.length > 0;
   const row = parent.createDiv({ cls: 'labnote-tree-row' });
-  row.style.paddingLeft = `${depth * 14 + 4}px`;
+  // Indentation is data-driven, so it is passed as a CSS variable the stylesheet
+  // turns into padding — no styling is hardcoded in JS.
+  row.style.setProperty('--labnote-tree-depth', String(depth));
 
   const twistie = row.createSpan({ cls: 'labnote-tree-twistie' });
   const expanded = ctx.expanded.has(node.id);
@@ -48,8 +52,7 @@ function renderNode(
 
   if (node.color) {
     const dot = row.createSpan({ cls: 'labnote-tree-dot' });
-    dot.style.cssText =
-      `display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:${node.color};`;
+    dot.style.setProperty('--labnote-tree-dot-color', node.color);
   } else if (node.icon && ICON_MAP[node.icon]) {
     const iconEl = row.createSpan({ cls: 'labnote-tree-icon' });
     setIcon(iconEl, ICON_MAP[node.icon]);
@@ -59,15 +62,15 @@ function renderNode(
   if (node.tooltip) row.setAttr('aria-label', node.tooltip);
 
   const childrenEl = parent.createDiv({ cls: 'labnote-tree-children' });
-  childrenEl.style.display = expanded ? '' : 'none';
+  childrenEl.toggleClass('is-collapsed', !expanded);
   if (hasChildren) {
-    for (const child of node.children!) renderNode(childrenEl, child, ctx, depth + 1);
+    for (const child of node.children!) renderNode(childrenEl, child, ctx, depth + 1, component);
   }
 
-  row.addEventListener('click', evt => {
+  component.registerDomEvent(row, 'click', evt => {
     if (hasChildren) {
-      const nowExpanded = childrenEl.style.display === 'none';
-      childrenEl.style.display = nowExpanded ? '' : 'none';
+      const nowExpanded = childrenEl.hasClass('is-collapsed');
+      childrenEl.toggleClass('is-collapsed', !nowExpanded);
       if (nowExpanded) ctx.expanded.add(node.id);
       else ctx.expanded.delete(node.id);
       setIcon(twistie, nowExpanded ? 'chevron-down' : 'chevron-right');
@@ -75,7 +78,7 @@ function renderNode(
     ctx.onClick?.(node, evt);
   });
 
-  row.addEventListener('contextmenu', evt => {
+  component.registerDomEvent(row, 'contextmenu', evt => {
     evt.preventDefault();
     ctx.onContext?.(node, evt);
   });

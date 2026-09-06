@@ -35,6 +35,119 @@ export interface SampleRecord {
 export type SampleDatabase = Record<string, Record<string, SampleRecord>>;
 
 /**
+ * A sample `type` is used verbatim as a `{type}.json` filename, so it must stay
+ * a single path segment. Reject anything that could escape the labsamples
+ * folder (path separators, `.`/`..`, empty). Custom non-ASCII type names are
+ * still allowed — this is a denylist of dangerous shapes, not an allowlist.
+ *
+ * Reproduced attack: `type = '../../../../.obsidian/plugins/evil/main'` would
+ * otherwise write outside the vault-relative labsamples folder.
+ */
+function assertSafeSampleType(type: string): void {
+  if (!type || /[\\/]/.test(type) || type === '.' || type === '..') {
+    throw new Error(`Invalid sample type (path traversal blocked): ${JSON.stringify(type)}`);
+  }
+}
+
+/**
+ * Coerce an untrusted on-disk record into a well-formed {@link SampleRecord},
+ * tolerating older/partial shapes: a missing/`null` value, missing
+ * `sources`/`descriptions`, or wrong element types. This is the SINGLE guard
+ * that prevents `record.sources.length`-style TypeErrors on legacy `{Type}.json`
+ * data (previously each loader open-coded its own `?? []` defaults, and some
+ * paths had none). `fallbackType` is used only when the record omits `type`.
+ */
+function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord {
+  const r = (rec && typeof rec === 'object' ? rec : {}) as Partial<SampleRecord>;
+  return {
+    type: typeof r.type === 'string' && r.type ? r.type : fallbackType,
+    alias: typeof r.alias === 'string' ? r.alias : null,
+    descriptions: Array.isArray(r.descriptions)
+      ? r.descriptions.filter((d): d is string => typeof d === 'string')
+      : [],
+    sources: Array.isArray(r.sources)
+      ? r.sources.filter((s): s is string => typeof s === 'string')
+      : [],
+  };
+}
+
+/**
+ * Collapse `{Type}.json` keys that differ only in case into a single canonical
+ * record (unioning `descriptions`/`sources`, keeping the first non-empty
+ * `alias`). Returns `changed = true` when a collision was merged so the caller
+ * can rewrite the file and converge historical data (Phase 1-3b migration).
+ * Every record is passed through {@link normalizeSampleRecord} first.
+ */
+function mergeCaseCollidingIds(
+  raw: Record<string, SampleRecord>
+): { records: Record<string, SampleRecord>; changed: boolean } {
+  const out: Record<string, SampleRecord> = {};
+  const canonicalByLower = new Map<string, string>();
+  let changed = false;
+
+  for (const [id, rawRec] of Object.entries(raw)) {
+    const rec = normalizeSampleRecord(rawRec, '');
+    const lower = id.toLowerCase();
+    const canonical = canonicalByLower.get(lower);
+    if (canonical === undefined) {
+      canonicalByLower.set(lower, id);
+      out[id] = rec;
+      continue;
+    }
+
+    changed = true;
+    const target = out[canonical];
+    for (const d of rec.descriptions) {
+      if (!target.descriptions.includes(d)) target.descriptions.push(d);
+    }
+    for (const s of rec.sources) {
+      if (!target.sources.includes(s)) target.sources.push(s);
+    }
+    if (!target.alias && rec.alias) target.alias = rec.alias;
+  }
+
+  return { records: out, changed };
+}
+
+/**
+ * Parse the raw text of a `{Type}.json` into records, tolerating an empty/absent
+ * file (`''` → `{}`) and malformed JSON (warns, returns `{}`), then applies the
+ * Phase 1-3b case-collision merge so callers inside an atomic `fs.modify`
+ * callback see the same normalized shape `loadSamplesByType` returns. Kept
+ * synchronous so it can run inside `vault.process`'s sync callback.
+ */
+function parseSampleRecords(raw: string): Record<string, SampleRecord> {
+  if (!raw || !raw.trim()) return {};
+  let parsed: Record<string, SampleRecord>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, SampleRecord>;
+  } catch (error) {
+    console.warn('[labnoteo] Failed to parse sample JSON during modify:', error);
+    return {};
+  }
+  return mergeCaseCollidingIds(parsed).records;
+}
+
+/**
+ * Build the sample-definition matcher for one `type`. Capture groups:
+ *   [1] id (e.g. `DNA-12`; collision-resolved ids like `DNA-…-3` included)
+ *   [2] alias (when `;`/`|` delimited)     [3] description (after the alias)
+ *   [4] legacy `: description` form
+ *
+ * Shared by {@link extractSampleInfoFromText} and {@link findSampleDefinitionMatch}
+ * so the two never drift. `type` is regex-escaped (custom types may in theory
+ * contain metacharacters). The `gi` flags match the callers' stateful `exec`
+ * loops, so each caller builds its own instance (never share `lastIndex`).
+ */
+function buildSampleDefinitionPattern(type: string): RegExp {
+  const typeEsc = escapeRegExp(type);
+  return new RegExp(
+    `(?:@${typeEsc}[;:])?(${typeEsc}-\\d+(?:-\\d+)*)(?:[;|]([^;:\\n|]+)(?:[;:]([^\\n;|]+))?|:\\s*([^\\n;|]+))?`,
+    'gi'
+  );
+}
+
+/**
  * Extract sample information from document text
  * Supports formats (new ; delimiter + legacy |/: for backward compatibility):
  * - @type;ID;alias;description (definition format)
@@ -46,28 +159,25 @@ export type SampleDatabase = Record<string, Record<string, SampleRecord>>;
  * - ID (ID only)
  */
 export function extractSampleInfoFromText(text: string, additionalTypes?: string[]): SampleInfo[] {
-  const samples: SampleInfo[] = [];
-  const foundIds = new Set<string>();
+  // Collected in appearance order. `seenByLower` maps the case-normalized id to
+  // its slot so `DNA-55` and `dna-55` collapse to one sample (the match regex is
+  // case-insensitive but a case-sensitive Set would split them into two JSON
+  // keys). Each slot tracks whether it came from a *definition* (an `@type;`
+  // prefix or an explicit alias/description) so a real definition appearing
+  // after a bare reference upgrades that slot instead of being dropped.
+  const collected: Array<{ info: SampleInfo; index: number; isDef: boolean }> = [];
+  const seenByLower = new Map<string, number>();
 
   const allTypes: string[] = [...SAMPLE_TYPES, ...(additionalTypes ?? []).filter(t => !(SAMPLE_TYPES as readonly string[]).includes(t))];
   for (const type of allTypes) {
-    // Pattern to match sample ID with optional @type; prefix, alias and description.
+    // Match sample ids with optional @type; prefix, alias and description.
     // ID segment uses (?:-\d+)* (same as buildSampleIdPattern) so collision-resolved
-    // ids like DNA-1737000000000-3 are extracted. The type is escaped because custom
-    // types may contain regex metachars in theory (defense-in-depth).
-    const typeEsc = escapeRegExp(type);
-    const pattern = new RegExp(
-      `(?:@${typeEsc}[;:])?(${typeEsc}-\\d+(?:-\\d+)*)(?:[;|]([^;:\\n|]+)(?:[;:]([^\\n;|]+))?|:\\s*([^\\n;|]+))?`,
-      'gi'
-    );
+    // ids like DNA-1737000000000-3 are extracted. See buildSampleDefinitionPattern.
+    const pattern = buildSampleDefinitionPattern(type);
 
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const id = match[1];
-      
-      // Skip if already found (avoid duplicates)
-      if (foundIds.has(id)) continue;
-      foundIds.add(id);
 
       let alias: string | null = null;
       let description: string | null = null;
@@ -83,19 +193,33 @@ export function extractSampleInfoFromText(text: string, additionalTypes?: string
         description = match[4].trim();
       }
 
-      samples.push({
-        id,
-        type: type as SampleType,
-        alias,
-        description,
-      });
+      // A definition carries authoritative alias/description: it either uses the
+      // `@type;` prefix (match[0] starts with '@') or supplies an alias/legacy
+      // description. Bare references (`DNA-2`) do not.
+      const isDef = match[0].startsWith('@') || match[2] != null || match[4] != null;
+      const info: SampleInfo = { id, type: type as SampleType, alias, description };
+      const key = id.toLowerCase();
+      const slot = seenByLower.get(key);
+
+      if (slot === undefined) {
+        seenByLower.set(key, collected.length);
+        collected.push({ info, index: match.index, isDef });
+      } else if (isDef && !collected[slot].isDef) {
+        // Upgrade an earlier bare reference to the definition (its casing is the
+        // canonical JSON key), but keep the earliest position for ordering.
+        collected[slot] = {
+          info,
+          index: Math.min(collected[slot].index, match.index),
+          isDef: true,
+        };
+      }
     }
   }
 
-  // Sort by order of appearance in text
-  samples.sort((a, b) => text.indexOf(a.id) - text.indexOf(b.id));
+  // Sort by first appearance in text (captured match index, not indexOf).
+  collected.sort((a, b) => a.index - b.index);
 
-  return samples;
+  return collected.map(c => c.info);
 }
 
 /**
@@ -175,51 +299,6 @@ export function mergeSampleDatabases(
 }
 
 /**
- * Strict variant of {@link findSampleDefinitionMatch} that only matches an
- * `@type;ID...` / `@type:ID...` definition (or, for Equip, an `@equip;;Alias`
- * alias-only definition). Bare ID references like `DNA-123` are NOT matched.
- *
- * Used by Move to Definition flows where landing on the first body reference
- * instead of the actual definition would be incorrect.
- */
-export function findSampleDefinitionOnlyMatch(
-  text: string,
-  type: string,
-  id: string,
-  currentAlias?: string | null
-): { start: number; length: number } | null {
-  const typeEsc = escapeRegExp(type);
-
-  if (id && id.trim()) {
-    const defPattern = new RegExp(
-      `@${typeEsc}[;:](${typeEsc}-\\d+(?:-\\d+)*)(?:[;|]([^;:\\n|]+)(?:[;:]([^\\n;|]+))?|:\\s*([^\\n;|]+))?`,
-      'gi'
-    );
-    let match = defPattern.exec(text);
-    while (match) {
-      if (match[1] === id) {
-        return { start: match.index, length: match[0].length };
-      }
-      match = defPattern.exec(text);
-    }
-  }
-
-  if (type.toLowerCase() === 'equip' && currentAlias && currentAlias.trim()) {
-    const aliasEsc = escapeRegExp(currentAlias);
-    const equipAliasPattern = new RegExp(
-      `@equip[;:][;|]${aliasEsc}(?:[;:]([^\\n;|]*))?`,
-      'gi'
-    );
-    const equipMatch = equipAliasPattern.exec(text);
-    if (equipMatch) {
-      return { start: equipMatch.index, length: equipMatch[0].length };
-    }
-  }
-
-  return null;
-}
-
-/**
  * Find the range of a sample definition in document text for replacement.
  * Returns { start, length } of the first matching definition, or null.
  * - General types: matches @type:ID with optional |alias:description (same pattern as extractSampleInfoFromText).
@@ -231,14 +310,9 @@ export function findSampleDefinitionMatch(
   id: string,
   currentAlias?: string | null
 ): { start: number; length: number } | null {
-  const typeEsc = escapeRegExp(type);
-
   // 1) Match by @type;ID or @type:ID (supports ; and legacy |/: delimiters).
-  //    ID segment uses (?:-\d+)* for parity with buildSampleIdPattern.
-  const idPattern = new RegExp(
-    `(?:@${typeEsc}[;:])?(${typeEsc}-\\d+(?:-\\d+)*)(?:[;|]([^;:\\n|]+)(?:[;:]([^\\n;|]+))?|:\\s*([^\\n;|]+))?`,
-    'gi'
-  );
+  //    Shared with extraction via buildSampleDefinitionPattern.
+  const idPattern = buildSampleDefinitionPattern(type);
   let match = idPattern.exec(text);
   while (match) {
     if (match[1] === id) {
@@ -284,19 +358,33 @@ export async function loadSamplesByType(
   labsamplesFolder: string,
   type: string
 ): Promise<Record<string, SampleRecord>> {
+  assertSafeSampleType(type);
   const filePath = path.join(labsamplesFolder, `${type}.json`);
 
   if (!(await fs.exists(filePath))) {
     return {};
   }
 
+  let raw: Record<string, SampleRecord>;
   try {
-    const content = await fs.read(filePath);
-    return JSON.parse(content);
+    raw = JSON.parse(await fs.read(filePath)) as Record<string, SampleRecord>;
   } catch (error) {
     console.warn(`[labnoteo] Failed to load ${filePath}:`, error);
     return {};
   }
+
+  // Phase 1-3b: one-time in-memory migration for vaults written before the
+  // case-normalized de-dup fix. If keys collided only by case, converge them
+  // and write the merged result straight back so the file self-heals.
+  const { records, changed } = mergeCaseCollidingIds(raw);
+  if (changed) {
+    try {
+      await saveSamplesByType(fs, labsamplesFolder, type, records);
+    } catch (error) {
+      console.warn(`[labnoteo] Failed to rewrite migrated ${filePath}:`, error);
+    }
+  }
+  return records;
 }
 
 /**
@@ -328,15 +416,10 @@ export async function loadReferenceSamplesByType(
     const filePath = path.join(labsamplesFolder, name);
     try {
       const content = await fs.read(filePath);
-      const data = JSON.parse(content) as Record<string, SampleRecord>;
+      const data = JSON.parse(content) as Record<string, unknown>;
       for (const [id, record] of Object.entries(data)) {
         if (record && typeof record === 'object' && !merged[id]) {
-          merged[id] = {
-            type: record.type ?? type,
-            alias: record.alias ?? null,
-            descriptions: record.descriptions ?? [],
-            sources: record.sources ?? [],
-          };
+          merged[id] = normalizeSampleRecord(record, type);
         }
       }
     } catch (err) {
@@ -355,9 +438,45 @@ export async function saveSamplesByType(
   type: string,
   samples: Record<string, SampleRecord>
 ): Promise<void> {
+  assertSafeSampleType(type);
   const filePath = path.join(labsamplesFolder, `${type}.json`);
   // The adapter creates parent directories on demand and owns atomicity.
   await fs.write(filePath, JSON.stringify(samples, null, 2));
+}
+
+/**
+ * Atomically create-or-update a single sample record in `{Type}.json`.
+ *
+ * This is the shared "merge one record" primitive behind the sidebar's
+ * create/edit actions and the MCP `create_sample` tool, which previously each
+ * hand-rolled a `load → mutate → save` round-trip that a concurrent 800ms
+ * sample-sync could clobber. Running the read-modify-write inside `fs.modify`
+ * closes that lost-update window per `{Type}.json`.
+ *
+ * `sources` semantics:
+ *  - omit `sources` to preserve whatever the existing record had (sidebar edit),
+ *  - pass an explicit array to set them (tool create binds the note as source).
+ * `alias`/`descriptions` are overwritten from the given fields.
+ */
+export async function upsertSampleRecord(
+  fs: LabnoteFs,
+  labsamplesFolder: string,
+  type: string,
+  id: string,
+  fields: { alias: string | null; description: string | null; sources?: string[] }
+): Promise<void> {
+  assertSafeSampleType(type);
+  const filePath = path.join(labsamplesFolder, `${type}.json`);
+  await fs.modify(filePath, (raw) => {
+    const records = parseSampleRecords(raw);
+    records[id] = {
+      type,
+      alias: fields.alias,
+      descriptions: fields.description ? [fields.description] : [],
+      sources: fields.sources ?? records[id]?.sources ?? [],
+    };
+    return JSON.stringify(records, null, 2);
+  });
 }
 
 /**
@@ -393,22 +512,34 @@ export async function saveSamplesFromDocument(
     Boolean(globalLabsamplesFolder) && globalFolderResolved === localFolderResolved;
 
   for (const type of Object.keys(newDb)) {
-    const existing = await loadSamplesByType(fs, labsamplesFolder, type);
-    const merged = mergeSampleDatabases({ [type]: existing }, { [type]: newDb[type] });
+    assertSafeSampleType(type);
 
     // Do not keep in Local samples that exist in Global (avoid re-adding after Move to Global).
     // When workspace root is the experiment folder, local and global paths are the same — skip
     // or we would load the same JSON as "global" and delete every merged id.
+    //
+    // This global read is hoisted OUT of the atomic callback below: `fs.modify`'s
+    // updater must be synchronous, so the cross-file lookup is awaited first and
+    // its ids captured into a Set the pure callback can consult.
+    let globalIds: Set<string> | null = null;
     if (globalLabsamplesFolder && !skipGlobalDedupe) {
       const globalSamples = await loadSamplesByType(fs, globalLabsamplesFolder, type);
-      for (const id of Object.keys(globalSamples)) {
-        if (merged[type][id]) {
-          delete merged[type][id];
-        }
-      }
+      globalIds = new Set(Object.keys(globalSamples));
     }
 
-    await saveSamplesByType(fs, labsamplesFolder, type, merged[type]);
+    const filePath = path.join(labsamplesFolder, `${type}.json`);
+    await fs.modify(filePath, (raw) => {
+      const existing = parseSampleRecords(raw);
+      const merged = mergeSampleDatabases({ [type]: existing }, { [type]: newDb[type] });
+      if (globalIds) {
+        for (const id of globalIds) {
+          if (merged[type][id]) {
+            delete merged[type][id];
+          }
+        }
+      }
+      return JSON.stringify(merged[type], null, 2);
+    });
   }
 }
 
@@ -488,31 +619,41 @@ export async function removeSourcesForDocument(
     if (!(await fs.exists(folder))) continue;
 
     for (const type of allTypes) {
-      const samples = await loadSamplesByType(fs, folder, type);
-      let mutated = false;
+      assertSafeSampleType(type);
+      const filePath = path.join(folder, `${type}.json`);
+      // Skip types with no on-disk file so we never create an empty `{Type}.json`
+      // just to scan it.
+      if (!(await fs.exists(filePath))) continue;
 
-      for (const id of Object.keys(samples)) {
-        const record = samples[id];
-        // Guard: tree-created records (sources === []) are off-limits to
-        // automatic cleanup. They only exist in the tree until a markdown
-        // file defines them, and silently deleting them on save would
-        // erase data the user explicitly entered through the UI.
-        if (record.sources.length === 0) continue;
-        if (!record.sources.includes(documentBasename)) continue;
-        if (liveDefs.has(`${type}|${id}`)) continue;
+      // Atomic read-modify-write per file: the whole scan-and-prune runs inside
+      // the `fs.modify` callback so a concurrent sample-sync can't clobber it.
+      await fs.modify(filePath, (raw) => {
+        const samples = parseSampleRecords(raw);
+        let mutated = false;
 
-        record.sources = record.sources.filter((s) => s !== documentBasename);
-        mutated = true;
+        for (const id of Object.keys(samples)) {
+          const record = samples[id];
+          // Guard: tree-created records (sources === []) are off-limits to
+          // automatic cleanup. They only exist in the tree until a markdown
+          // file defines them, and silently deleting them on save would
+          // erase data the user explicitly entered through the UI.
+          if (record.sources.length === 0) continue;
+          if (!record.sources.includes(documentBasename)) continue;
+          if (liveDefs.has(`${type}|${id}`)) continue;
 
-        if (record.sources.length === 0) {
-          delete samples[id];
-          removed.push({ scope, type, id });
+          record.sources = record.sources.filter((s) => s !== documentBasename);
+          mutated = true;
+
+          if (record.sources.length === 0) {
+            delete samples[id];
+            removed.push({ scope, type, id });
+          }
         }
-      }
 
-      if (mutated) {
-        await saveSamplesByType(fs, folder, type, samples);
-      }
+        // Nothing changed → return the original bytes so we don't needlessly
+        // rewrite/reformat a file we didn't touch.
+        return mutated ? JSON.stringify(samples, null, 2) : raw;
+      });
     }
   }
 
@@ -520,124 +661,8 @@ export async function removeSourcesForDocument(
 }
 
 /**
- * Parse YAML front matter and check if Sample Tracking is enabled
- * Supports key formats: "Sample Tracking", "sampleTracking", "sample-tracking"
- * Supports values: Yes/No, true/false, on/off, 1/0 (case-insensitive)
- */
-export function parseSampleTracking(text: string): boolean {
-  // Extract YAML front matter (between --- markers)
-  const yamlMatch = text.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!yamlMatch) {
-    return false;
-  }
-
-  const yamlContent = yamlMatch[1];
-
-  // Match different key formats: "Sample Tracking", "sampleTracking", "sample-tracking"
-  // Pattern is case-insensitive for the value
-  const patterns = [
-    /^Sample\s+Tracking\s*:\s*(.+)$/im,
-    /^sampleTracking\s*:\s*(.+)$/im,
-    /^sample-tracking\s*:\s*(.+)$/im,
-  ];
-
-  for (const pattern of patterns) {
-    const match = yamlContent.match(pattern);
-    if (match) {
-      const value = match[1].trim().toLowerCase();
-      // Check for truthy values
-      return ['yes', 'true', 'on', '1'].includes(value);
-    }
-  }
-
-  return false;
-}
-
-/**
  * Get the Global labsamples folder path (workspace root)
  */
 export function getGlobalLabsamplesFolder(workspaceRoot: string): string {
   return path.join(workspaceRoot, 'resources', 'labsamples');
-}
-
-/**
- * Sample location type
- */
-export type SampleLocationResult = 'local' | 'global' | 'both' | 'none';
-
-/**
- * Check where a sample is located (local, global, both, or none)
- */
-export function getSampleLocation(
-  sampleId: string,
-  type: string,
-  localDb: SampleDatabase,
-  globalDb: SampleDatabase
-): SampleLocationResult {
-  const inLocal = localDb[type]?.[sampleId] !== undefined;
-  const inGlobal = globalDb[type]?.[sampleId] !== undefined;
-
-  if (inLocal && inGlobal) {
-    return 'both';
-  } else if (inLocal) {
-    return 'local';
-  } else if (inGlobal) {
-    return 'global';
-  } else {
-    return 'none';
-  }
-}
-
-/**
- * Move a sample from local to global database
- * Returns new copies of both databases
- */
-export function moveSampleToGlobal(
-  sampleId: string,
-  type: string,
-  localDb: SampleDatabase,
-  globalDb: SampleDatabase
-): { newLocalDb: SampleDatabase; newGlobalDb: SampleDatabase } {
-  const newLocalDb: SampleDatabase = JSON.parse(JSON.stringify(localDb));
-  const newGlobalDb: SampleDatabase = JSON.parse(JSON.stringify(globalDb));
-
-  // Ensure type exists in both databases
-  if (!newGlobalDb[type]) {
-    newGlobalDb[type] = {};
-  }
-
-  // Move sample data
-  if (newLocalDb[type]?.[sampleId]) {
-    newGlobalDb[type][sampleId] = newLocalDb[type][sampleId];
-    delete newLocalDb[type][sampleId];
-  }
-
-  return { newLocalDb, newGlobalDb };
-}
-
-/**
- * Move a sample from global to local database
- * Returns new copies of both databases
- */
-export function moveSampleToLocal(
-  sampleId: string,
-  type: string,
-  localDb: SampleDatabase,
-  globalDb: SampleDatabase
-): { newLocalDb: SampleDatabase; newGlobalDb: SampleDatabase } {
-  const newLocalDb: SampleDatabase = JSON.parse(JSON.stringify(localDb));
-  const newGlobalDb: SampleDatabase = JSON.parse(JSON.stringify(globalDb));
-
-  // Ensure type exists in both databases
-  if (!newLocalDb[type]) {
-    newLocalDb[type] = {};
-  }
-
-  // Move sample data
-  if (newGlobalDb[type]?.[sampleId]) {
-    newLocalDb[type][sampleId] = newGlobalDb[type][sampleId];
-    delete newGlobalDb[type][sampleId];
-  }
-
-  return { newLocalDb, newGlobalDb };
 }

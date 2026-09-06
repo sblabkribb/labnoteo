@@ -55,6 +55,15 @@ export class MemFileSystem implements LabnoteFs {
     this.markParents(path);
   }
 
+  async modify(path: string, updater: (data: string) => string): Promise<void> {
+    // Read and write happen in one synchronous span (no `await` between them),
+    // so concurrent `modify` calls on the same path can never interleave —
+    // exactly the per-file atomicity the LabnoteFs contract requires.
+    const current = this.files.get(path) ?? '';
+    this.files.set(path, updater(current));
+    this.markParents(path);
+  }
+
   async exists(path: string): Promise<boolean> {
     return this.files.has(path) || this.dirs.has(path);
   }

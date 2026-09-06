@@ -1,45 +1,11 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
 import {
-  computeReorder,
   buildWorkflowTree,
   buildSampleTree,
   type WorkflowTreeData,
 } from '../tree/treeModel';
 import { MemFileSystem } from '../fs/memFileSystem';
 import type { WorkflowItem, UnitOperationItem } from '../lib/workflowDataLoader';
-
-describe('computeReorder', () => {
-  it('moves a single source before the target', () => {
-    expect(computeReorder(['a', 'b', 'c', 'd'], ['d'], 'b')).toEqual([
-      'a',
-      'd',
-      'b',
-      'c',
-    ]);
-  });
-
-  it('appends when the target is undefined', () => {
-    expect(computeReorder(['a', 'b', 'c'], ['a'])).toEqual(['b', 'c', 'a']);
-  });
-
-  it('appends when the target is not found', () => {
-    expect(computeReorder(['a', 'b', 'c'], ['a'], 'zzz')).toEqual([
-      'b',
-      'c',
-      'a',
-    ]);
-  });
-
-  it('preserves relative order of multiple sources', () => {
-    expect(computeReorder(['a', 'b', 'c', 'd', 'e'], ['a', 'd'], 'c')).toEqual([
-      'b',
-      'a',
-      'd',
-      'c',
-      'e',
-    ]);
-  });
-});
 
 describe('buildWorkflowTree', () => {
   const data: WorkflowTreeData = {
@@ -78,6 +44,23 @@ describe('buildWorkflowTree', () => {
     const [, hw, sw] = buildWorkflowTree(data);
     expect(hw.children![0].tooltip).toContain('Equipment: Centrifuge');
     expect(sw.children![0].tooltip).toContain('Software: BWA');
+  });
+
+  it('sorts unknown categories AFTER the known DBTL order (not before Design)', () => {
+    const withUnknown: WorkflowTreeData = {
+      workflows: [
+        { id: 'WX010', name: 'Misc', description: '', category: 'Zzz' },
+        { id: 'WB010', name: 'Build', description: '', category: 'Build' },
+        { id: 'WD010', name: 'Design', description: '', category: 'Design' },
+        { id: 'WU010', name: 'Uncat', description: '', category: 'Uncategorized' },
+      ] as WorkflowItem[],
+      hwUnitOps: [],
+      swUnitOps: [],
+    };
+    const [wf] = buildWorkflowTree(withUnknown);
+    const cats = wf.children!.map(c => c.label);
+    // Design/Build first (DBTL order), then unknowns alphabetically.
+    expect(cats).toEqual(['Design [1]', 'Build [1]', 'Uncategorized [1]', 'Zzz [1]']);
   });
 });
 

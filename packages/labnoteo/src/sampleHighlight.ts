@@ -27,8 +27,15 @@ export interface HighlightState {
 
 const SAMPLE_ID_CLASS = 'labnote-sample-id';
 
-function styleFor(color: string): string {
-  return `background-color:${color};border-radius:3px;padding:0 2px;`;
+/**
+ * Per-type colour is dynamic (built-ins + custom fallback), so it is handed to
+ * the stylesheet through the `--labnote-sample-color` custom property rather than
+ * a hardcoded `style` declaration. Returns `undefined` when no colour applies so
+ * the caller can skip emitting the variable entirely (avoids the old invalid
+ * `background-color:;`).
+ */
+function sampleColorVar(color: string): string | undefined {
+  return color ? `--labnote-sample-color: ${color}` : undefined;
 }
 
 /** CM6 ViewPlugin factory. `getState` is read on every rebuild so settings
@@ -54,9 +61,10 @@ export function createSampleHighlightPlugin(getState: () => HighlightState) {
         for (const { from, to } of view.visibleRanges) {
           const text = view.state.doc.sliceString(from, to);
           for (const r of findSampleIdRanges(text, types)) {
+            const styleVar = sampleColorVar(colors[r.type] ?? '');
             const deco = Decoration.mark({
               class: SAMPLE_ID_CLASS,
-              attributes: { style: styleFor(colors[r.type] ?? '') },
+              attributes: styleVar ? { style: styleVar } : {},
             });
             builder.add(from + r.start, from + r.end, deco);
           }
@@ -106,7 +114,8 @@ function highlightTextNodes(
       const span = document.createElement('span');
       span.className = SAMPLE_ID_CLASS;
       span.textContent = text.slice(r.start, r.end);
-      span.setAttribute('style', styleFor(colors[r.type] ?? ''));
+      const color = colors[r.type] ?? '';
+      if (color) span.style.setProperty('--labnote-sample-color', color);
       frag.appendChild(span);
       last = r.end;
     }

@@ -30,10 +30,12 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 | Toggle MCP server | Start/stop the local MCP server |
 | Open Workflow / Sample view | Reveal the sidebar views |
 
+> Renaming a workflow file in the file explorer automatically reorders the README checklist to match the new number prefix; deleting one removes its checklist entry and prunes the samples it defined.
+
 ## Installation (manual)
 
-1. Download `main.js`, `manifest.json`, and `versions.json` from a release.
-2. Create `.obsidian/plugins/labnoteo/` inside your vault and copy the three files into it.
+1. Download `main.js`, `manifest.json`, `versions.json`, and `styles.css` from a release.
+2. Create `.obsidian/plugins/labnoteo/` inside your vault and copy the four files into it.
 3. In Obsidian, go to Settings → Community plugins and enable **Labnote Assistant**.
 
 ## Settings

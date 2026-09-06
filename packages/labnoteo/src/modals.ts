@@ -7,6 +7,12 @@
  */
 import { App, Modal, SuggestModal, Setting } from 'obsidian';
 import type { PickItem, PromptOpts } from '@labnoteo/core';
+import { createObsidianTranslator } from './i18n';
+
+// Module-level translator for the generic button labels ('OK'/'Cancel') these
+// host-agnostic modal wrappers render. They only receive an `App`, not the
+// plugin's `t()`, so the shared catalog is resolved once at load.
+const t = createObsidianTranslator();
 
 /** Single-select fuzzy picker backed by Obsidian's `SuggestModal`. */
 class PickModal<T> extends SuggestModal<PickItem<T>> {
@@ -83,7 +89,7 @@ class PickManyModal<T> extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    if (this.opts?.title) contentEl.createEl('h3', { text: this.opts.title });
+    if (this.opts?.title) this.setTitle(this.opts.title);
 
     this.items.forEach((item, idx) => {
       new Setting(contentEl)
@@ -99,7 +105,7 @@ class PickManyModal<T> extends Modal {
 
     new Setting(contentEl).addButton(b =>
       b
-        .setButtonText('OK')
+        .setButtonText(t('OK'))
         .setCta()
         .onClick(() => {
           this.resolved = true;
@@ -139,12 +145,10 @@ class PromptModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    if (this.opts.title) contentEl.createEl('h3', { text: this.opts.title });
+    if (this.opts.title) this.setTitle(this.opts.title);
     if (this.opts.prompt) contentEl.createEl('p', { text: this.opts.prompt });
 
     const errorEl = contentEl.createEl('div', { cls: 'labnote-prompt-error' });
-    errorEl.style.color = 'var(--text-error)';
-    errorEl.style.minHeight = '1em';
 
     const submit = async () => {
       if (this.opts.validate) {
@@ -176,7 +180,7 @@ class PromptModal extends Modal {
     });
 
     new Setting(contentEl).addButton(b =>
-      b.setButtonText('OK').setCta().onClick(() => void submit())
+      b.setButtonText(t('OK')).setCta().onClick(() => void submit())
     );
   }
 
@@ -218,7 +222,7 @@ class ConfirmModal extends Modal {
           })
       )
       .addButton(b =>
-        b.setButtonText('Cancel').onClick(() => {
+        b.setButtonText(t('Cancel')).onClick(() => {
           this.resolved = true;
           this.resolve(false);
           this.close();
@@ -272,7 +276,7 @@ class WorkflowAliasModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    contentEl.createEl('h3', { text: this.opts.title });
+    this.setTitle(this.opts.title);
 
     const submit = () => {
       this.resolved = true;
@@ -282,19 +286,15 @@ class WorkflowAliasModal extends Modal {
 
     // Layout: the fixed `[id catalogName]` prefix on the left with a wide
     // alias input flowing immediately to its right (fills the remaining width).
-    const row = contentEl.createDiv();
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '8px';
-    row.style.margin = '1em 0';
+    // Styling lives in styles.css under the `labnote-alias-*` classes.
+    const row = contentEl.createDiv({ cls: 'labnote-alias-row' });
 
-    const prefix = row.createSpan({ text: `[${this.opts.id} ${this.opts.catalogName}]` });
-    prefix.style.flex = '0 0 auto';
-    prefix.style.whiteSpace = 'nowrap';
+    row.createSpan({
+      cls: 'labnote-alias-prefix',
+      text: `[${this.opts.id} ${this.opts.catalogName}]`,
+    });
 
-    const input = row.createEl('input', { type: 'text' });
-    input.style.flex = '1 1 auto';
-    input.style.minWidth = '0';
+    const input = row.createEl('input', { type: 'text', cls: 'labnote-alias-input' });
     if (this.opts.placeholder) input.placeholder = this.opts.placeholder;
     input.addEventListener('input', () => {
       this.value = input.value;
@@ -307,7 +307,7 @@ class WorkflowAliasModal extends Modal {
     });
     window.setTimeout(() => input.focus(), 0);
 
-    new Setting(contentEl).addButton(b => b.setButtonText('OK').setCta().onClick(() => submit()));
+    new Setting(contentEl).addButton(b => b.setButtonText(t('OK')).setCta().onClick(() => submit()));
   }
 
   onClose(): void {

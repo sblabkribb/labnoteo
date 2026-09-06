@@ -28,6 +28,7 @@ import {
 import {
   loadSamplesByType,
   getLabsamplesFolder,
+  type SampleRecord,
 } from '@labnoteo/core/lib/sampleStorage';
 import type LabnotePlugin from './main';
 import { createSampleInteractive, pickCatalogReference } from './sampleActions';
@@ -52,12 +53,43 @@ export interface SampleSuggestDeps {
 }
 
 export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
+  /** Short-lived per-(folder,type) record cache. Autocomplete fires on every
+   *  keystroke; without this each one re-read every `{Type}.json` from disk. */
+  private readonly recordCache = new Map<
+    string,
+    { records: Record<string, SampleRecord>; expiry: number }
+  >();
+  private static readonly CACHE_TTL_MS = 1500;
+
   constructor(app: App, private readonly deps: SampleSuggestDeps) {
     super(app);
   }
 
   private get types(): string[] {
     return getSampleDisplayMeta(this.deps.customTypes()).types;
+  }
+
+  /** Load `{type}.json` from `folder`, memoised for a short TTL. */
+  private async loadCached(
+    folder: string,
+    type: string
+  ): Promise<Record<string, SampleRecord>> {
+    const key = `${folder}\u0000${type}`;
+    const now = Date.now();
+    const hit = this.recordCache.get(key);
+    if (hit && hit.expiry > now) return hit.records;
+    const records = await loadSamplesByType(this.deps.fs, folder, type);
+    this.recordCache.set(key, {
+      records,
+      expiry: now + SampleEditorSuggest.CACHE_TTL_MS,
+    });
+    return records;
+  }
+
+  /** Drop cached records so the next trigger re-reads from disk. Called after a
+   *  sample-sync write so freshly-defined samples appear immediately. */
+  clearCache(): void {
+    this.recordCache.clear();
   }
 
   onTrigger(
@@ -85,10 +117,8 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
 
     const recordsByType: Record<string, SampleCandidate[]> = {};
     for (const type of trigger.typesToSearch) {
-      const local = await loadSamplesByType(this.deps.fs, localFolder, type);
-      const global = globalFolder
-        ? await loadSamplesByType(this.deps.fs, globalFolder, type)
-        : {};
+      const local = await this.loadCached(localFolder, type);
+      const global = globalFolder ? await this.loadCached(globalFolder, type) : {};
       // Local definitions win over global on id collision.
       const merged = { ...global, ...local };
       recordsByType[type] = Object.entries(merged).map(([id, rec]) => ({
@@ -159,6 +189,9 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
     const start = ctx.start;
     const end = ctx.end;
     const filePath = ctx.file.path;
+    // Snapshot the trigger text so the async flow below can detect if the
+    // document changed under it before inserting.
+    const originalRange = editor.getRange(start, end);
 
     if (item.kind === 'existing') {
       editor.replaceRange(item.entry.insertText, start, end);
@@ -193,6 +226,13 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
         referenceText = created?.referenceText;
       }
       if (!referenceText) return;
+      // The modal was async: the user may have switched notes or edited the
+      // trigger text. Only insert if the same file is active AND the captured
+      // range still holds the original trigger, otherwise we'd corrupt an
+      // unrelated position.
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || activeFile.path !== filePath) return;
+      if (editor.getRange(start, end) !== originalRange) return;
       editor.replaceRange(referenceText, start, end);
       editor.setCursor({
         line: start.line,

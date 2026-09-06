@@ -1,278 +1,22 @@
-import type {
-  WorkflowDocument,
-  WorkflowFrontMatter,
-  UnitOperationBlock,
-  UnitOpSection,
-} from './sectionTypes';
-import { parseFrontMatterYaml, serializeFrontMatterEntry } from './frontMatter';
-import { normalizeWorkflowUnitSectionHeading } from './unitOpHeading';
+/**
+ * Surgical, whitespace-preserving edits to a workflow's `## Related Unit
+ * Operations` table of contents.
+ *
+ * The lossy full-document parser/serializer (`parseWorkflowMd` /
+ * `serializeWorkflowMd`) was removed — it normalised unrecognised headings and
+ * whitespace, which corrupted user edits. The Obsidian port instead inserts
+ * unit-op blocks at the cursor and keeps the TOC in sync with these targeted
+ * helpers.
+ */
 
-function parseFrontMatter(md: string): { frontMatter: Record<string, unknown>; body: string } {
-  return parseFrontMatterYaml(md);
-}
-
-function serializeFrontMatter(fm: WorkflowFrontMatter): string {
-  const lines: string[] = ['---'];
-  const knownKeys = ['title', 'experimenter', 'created_date', 'last_updated_date', 'end_date'];
-  for (const key of knownKeys) {
-    const val = fm[key];
-    if (key === 'end_date' && !val) {
-      lines.push(`${key}: ''`);
-    } else {
-      lines.push(`${key}: ${val ?? ''}`);
-    }
-  }
-  for (const [key, val] of Object.entries(fm)) {
-    if (!knownKeys.includes(key)) {
-      lines.push(serializeFrontMatterEntry(key, val));
-    }
-  }
-  lines.push('---');
-  return lines.join('\n');
-}
-
-const H2_PATTERN = /^##\s+/;
-const H4_PATTERN = /^####\s+/;
-const HR_PATTERN = /^---\s*$/;
 const UNIT_OP_HEADING_PATTERN = /^###\s+\[([A-Z]+\d+)\s+(.+?)\]\s*(.*)/;
-const BLOCKQUOTE_PATTERN = /^>\s*(.*)/;
-
-/** Catalog ids use UHW/USW (see workflowDataLoader); legacy markdown may use HW/SW prefixes. */
-function detectOpType(opId: string): 'hw' | 'sw' {
-  const u = opId.toUpperCase();
-  if (u.startsWith('USW')) return 'sw';
-  if (u.startsWith('UHW')) return 'hw';
-  if (u.startsWith('SW')) return 'sw';
-  if (u.startsWith('HW')) return 'hw';
-  return 'hw';
-}
-
-export function parseWorkflowMd(md: string): WorkflowDocument {
-  // Normalize CRLF up front so front matter and body line splitting behave
-  // identically for Windows-saved files (serialization always emits LF).
-  const { frontMatter: rawFm, body } = parseFrontMatter(md.replace(/\r\n/g, '\n'));
-
-  const fm: WorkflowFrontMatter = {
-    title: String(rawFm.title ?? ''),
-    experimenter: String(rawFm.experimenter ?? ''),
-    created_date: String(rawFm.created_date ?? ''),
-    last_updated_date: String(rawFm.last_updated_date ?? ''),
-    end_date: String(rawFm.end_date ?? ''),
-  };
-  for (const [k, v] of Object.entries(rawFm)) {
-    if (!(k in fm)) {
-      fm[k] = v;
-    }
-  }
-
-  const lines = body.split('\n');
-  let workflowHeader = '';
-  let workflowDescription = '';
-  const unitOperations: UnitOperationBlock[] = [];
-
-  let i = 0;
-
-  // Parse workflow header (first ## heading with [...])
-  while (i < lines.length) {
-    const h2Match = lines[i].match(/^##\s+(\[.+?\].*)/);
-    if (h2Match) {
-      workflowHeader = h2Match[1].trim();
-      i++;
-      // Next non-empty line could be blockquote description
-      while (i < lines.length && lines[i].trim() === '') i++;
-      if (i < lines.length) {
-        const bqMatch = lines[i].match(BLOCKQUOTE_PATTERN);
-        if (bqMatch) {
-          workflowDescription = bqMatch[1].trim();
-          i++;
-        }
-      }
-      break;
-    }
-    i++;
-  }
-
-  // Skip to unit operations (past "Related Unit Operations" section)
-  while (i < lines.length) {
-    if (HR_PATTERN.test(lines[i].trim()) || UNIT_OP_HEADING_PATTERN.test(lines[i])) {
-      break;
-    }
-    if (H2_PATTERN.test(lines[i]) && !/Related Unit Operations/i.test(lines[i])) {
-      break;
-    }
-    i++;
-  }
-
-  // Parse unit operations
-  let opCounter = 0;
-  while (i < lines.length) {
-    // Skip HR separators
-    if (HR_PATTERN.test(lines[i].trim())) {
-      i++;
-      while (i < lines.length && lines[i].trim() === '') i++;
-      continue;
-    }
-
-    // Check for tail section (## heading that is NOT a unit op heading and NOT "Related Unit Operations")
-    if (H2_PATTERN.test(lines[i]) && !UNIT_OP_HEADING_PATTERN.test(lines[i])) {
-      const headingText = lines[i].replace(/^##\s+/, '').trim();
-      if (!/Related Unit Operations/i.test(headingText)) {
-        break;
-      }
-    }
-
-    const opMatch = lines[i].match(UNIT_OP_HEADING_PATTERN);
-    if (opMatch) {
-      opCounter++;
-      const opId = opMatch[1];
-      const opName = opMatch[2].trim();
-      const alias = opMatch[3]?.trim() || undefined;
-      i++;
-
-      // Get description from blockquote
-      let opDescription = '';
-      while (i < lines.length && lines[i].trim() === '') i++;
-      if (i < lines.length) {
-        const bqMatch = lines[i].match(BLOCKQUOTE_PATTERN);
-        if (bqMatch) {
-          opDescription = bqMatch[1].trim();
-          i++;
-        }
-      }
-
-      // Parse #### sections until next --- or ### or ## or EOF
-      const sections: UnitOpSection[] = [];
-      while (i < lines.length) {
-        if (HR_PATTERN.test(lines[i].trim()) || UNIT_OP_HEADING_PATTERN.test(lines[i])) {
-          break;
-        }
-        if (H2_PATTERN.test(lines[i]) && !/Related Unit Operations/i.test(lines[i])) {
-          break;
-        }
-
-        const h4Match = lines[i].match(/^####\s+(.*)/);
-        if (h4Match) {
-          const heading = normalizeWorkflowUnitSectionHeading(h4Match[1].trim());
-          i++;
-          const contentLines: string[] = [];
-          while (i < lines.length) {
-            if (H4_PATTERN.test(lines[i]) || HR_PATTERN.test(lines[i].trim()) || UNIT_OP_HEADING_PATTERN.test(lines[i])) {
-              break;
-            }
-            if (H2_PATTERN.test(lines[i]) && !/Related Unit Operations/i.test(lines[i])) {
-              break;
-            }
-            contentLines.push(lines[i]);
-            i++;
-          }
-          sections.push({
-            heading,
-            content: contentLines.join('\n').replace(/^\n+/, '').replace(/\n+$/, ''),
-          });
-          continue;
-        }
-
-        i++;
-      }
-
-      unitOperations.push({
-        id: `unitop-${opCounter}`,
-        opId,
-        opName,
-        opDescription,
-        opType: detectOpType(opId),
-        alias,
-        sections,
-      });
-      continue;
-    }
-
-    i++;
-  }
-
-  // Parse tail content (everything from the current position onwards)
-  // Strip the "## Conclusions and Discussion" heading since the UI renders it separately
-  let tailContent = '';
-  if (i < lines.length) {
-    const raw = lines.slice(i).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
-    tailContent = raw.replace(/^##\s+Conclusions and Discussion\s*\n?/, '').replace(/^\n+/, '');
-  }
-
-  return { frontMatter: fm, workflowHeader, workflowDescription, unitOperations, tailContent };
-}
-
-export function serializeWorkflowMd(doc: WorkflowDocument): string {
-  const parts: string[] = [serializeFrontMatter(doc.frontMatter), ''];
-
-  // Workflow header
-  parts.push(`## ${doc.workflowHeader}`);
-  parts.push('');
-  if (doc.workflowDescription) {
-    parts.push(`> ${doc.workflowDescription}`);
-    parts.push('');
-  }
-
-  // Related Unit Operations section marker with TOC
-  parts.push('## Related Unit Operations');
-  parts.push('');
-  if (doc.unitOperations.length > 0) {
-    for (const op of doc.unitOperations) {
-      parts.push(buildUnitOpTocLine(op.opId, op.opName, op.alias));
-    }
-    parts.push('');
-  }
-
-  // Unit operations
-  for (const op of doc.unitOperations) {
-    parts.push('---');
-    parts.push('');
-    parts.push(`### [${op.opId} ${op.opName}]${op.alias ? ' ' + op.alias : ''}`);
-    parts.push('');
-    if (op.opDescription) {
-      parts.push(`> ${op.opDescription}`);
-      parts.push('');
-    }
-    for (const section of op.sections) {
-      parts.push(`#### ${section.heading}`);
-      parts.push(section.content);
-      parts.push('');
-    }
-  }
-
-  // Tail section (always write the heading; content may be empty)
-  parts.push('## Conclusions and Discussion');
-  parts.push('');
-  if (doc.tailContent) {
-    parts.push(doc.tailContent);
-    parts.push('');
-  }
-  parts.push('');
-
-  return parts.join('\n');
-}
-
-export function validateWorkflowDocument(doc: WorkflowDocument): { ok: boolean; errors: string[] } {
-  const errors: string[] = [];
-
-  if (!doc.frontMatter.title) {
-    errors.push('title is required in front matter');
-  }
-  if (!doc.frontMatter.experimenter) {
-    errors.push('experimenter is required in front matter');
-  }
-  if (!doc.frontMatter.created_date) {
-    errors.push('created_date is required in front matter');
-  }
-
-  return { ok: errors.length === 0, errors };
-}
 
 /**
  * Build a single Related-Unit-Operations TOC line for a unit op.
  *
  * The slug is a GitHub-style anchor of the `### [opId opName]` heading. This is
- * the single source of truth shared by {@link serializeWorkflowMd} and the
- * non-lossy {@link appendUnitOpToWorkflowToc}.
+ * the single source of truth shared by {@link appendUnitOpToWorkflowToc} and
+ * {@link rebuildUnitOpToc}.
  */
 export function buildUnitOpTocLine(opId: string, opName: string, alias?: string): string {
   const label = `${opId} ${opName}${alias ? ' | ' + alias : ''}`;
@@ -290,9 +34,10 @@ export function buildUnitOpTocLine(opId: string, opName: string, alias?: string)
  * re-serializing the whole document**.
  *
  * The Obsidian port inserts unit-op blocks at the cursor rather than round-
- * tripping through {@link serializeWorkflowMd} (which normalises unrecognised
- * headings/whitespace — the very lossiness that motivated dropping the Section
- * Editor). This helper performs a surgical, whitespace-preserving edit:
+ * tripping through a full-document serializer (which would normalise
+ * unrecognised headings/whitespace — the very lossiness that motivated dropping
+ * the Section Editor). This helper performs a surgical, whitespace-preserving
+ * edit:
  *
  * - Appends after the last existing `- [...]` entry in the section, if any.
  * - Otherwise inserts right after the heading's blank line, keeping a blank
@@ -382,18 +127,23 @@ export function rebuildUnitOpToc(md: string): string {
     if (m) newEntries.push(buildUnitOpTocLine(m[1], m[2].trim(), m[3]?.trim() || undefined));
   }
 
-  // Replace the existing contiguous run of entry lines with the new ordered list.
-  let firstEntry = -1;
-  let lastEntry = -1;
+  // Collect the individual entry-line indices in the section. We must NOT splice
+  // the whole first→last span, because any non-entry lines interleaved between
+  // entries (comments, blockquotes, stray blanks) would be deleted too. Instead
+  // remove only the `- [..]` lines and reinsert the ordered list where the first
+  // one began, leaving interleaved content untouched.
+  const entryIdxs: number[] = [];
   for (let j = headingIdx + 1; j < tocEndIdx; j++) {
-    if (/^\s*- \[/.test(lines[j])) {
-      if (firstEntry === -1) firstEntry = j;
-      lastEntry = j;
-    }
+    if (/^\s*- \[/.test(lines[j])) entryIdxs.push(j);
   }
 
-  if (firstEntry !== -1) {
-    lines.splice(firstEntry, lastEntry - firstEntry + 1, ...newEntries);
+  if (entryIdxs.length > 0) {
+    const firstEntry = entryIdxs[0];
+    // Remove existing entry lines bottom-up so earlier indices stay valid.
+    for (let k = entryIdxs.length - 1; k >= 0; k--) {
+      lines.splice(entryIdxs[k], 1);
+    }
+    lines.splice(firstEntry, 0, ...newEntries);
   } else if (newEntries.length > 0) {
     let insertAt = headingIdx + 1;
     if (lines[insertAt] !== undefined && lines[insertAt].trim() === '') insertAt++;

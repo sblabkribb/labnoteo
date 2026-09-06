@@ -10,7 +10,6 @@ import { ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
 import { buildSampleTree, type TreeNode } from '@labnoteo/core';
 import {
   getSampleDisplayMeta,
-  buildSampleDefinitionText,
   buildSampleReferenceText,
 } from '@labnoteo/core/lib/sampleUtils';
 import { getLabsamplesFolder, type SampleRecord } from '@labnoteo/core/lib/sampleStorage';
@@ -41,6 +40,7 @@ interface SamplePayload {
 export class SampleTreeView extends ItemView {
   private readonly expanded = new Set<string>();
   private refreshQueued = false;
+  private refreshTimer?: number;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: LabnotePlugin) {
     super(leaf);
@@ -74,14 +74,25 @@ export class SampleTreeView extends ItemView {
     await this.refresh();
   }
 
-  /** Coalesce bursts of events into a single microtask refresh. */
+  /** Coalesce bursts of events into a single debounced refresh. */
   private scheduleRefresh(): void {
     if (this.refreshQueued) return;
     this.refreshQueued = true;
-    window.setTimeout(() => {
+    // Keep the handle so onClose() can cancel a pending refresh; otherwise the
+    // timer fires after the view is torn down and touches a dead contentEl.
+    this.refreshTimer = window.setTimeout(() => {
       this.refreshQueued = false;
+      this.refreshTimer = undefined;
       void this.refresh();
     }, 300);
+  }
+
+  async onClose(): Promise<void> {
+    if (this.refreshTimer !== undefined) {
+      window.clearTimeout(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
+    this.refreshQueued = false;
   }
 
   async refresh(): Promise<void> {
@@ -91,10 +102,15 @@ export class SampleTreeView extends ItemView {
     const types = getSampleDisplayMeta(this.plugin.settings.customSampleTypes).types;
 
     const nodes = await buildSampleTree(this.plugin.fs, { local, global }, types);
-    renderTree(this.contentEl, nodes, {
-      expanded: this.expanded,
-      onContext: (node, evt) => this.onContext(node, evt),
-    });
+    renderTree(
+      this.contentEl,
+      nodes,
+      {
+        expanded: this.expanded,
+        onContext: (node, evt) => this.onContext(node, evt),
+      },
+      this
+    );
   }
 
   private onContext(node: TreeNode, evt: MouseEvent): void {
@@ -125,7 +141,7 @@ export class SampleTreeView extends ItemView {
     menu.showAtMouseEvent(evt);
   }
 
-  /** Sample node: copy / insert reference / insert definition / edit / delete. */
+  /** Sample node: copy / insert reference / edit / delete. */
   private onSampleContext(sample: SamplePayload, evt: MouseEvent): void {
     const folder = resolveScopeFolder(this.plugin, sample.scope);
     const menu = new Menu();
@@ -141,7 +157,7 @@ export class SampleTreeView extends ItemView {
     );
     menu.addItem(item =>
       item
-        .setTitle(this.plugin.t('Insert reference at cursor'))
+        .setTitle(this.plugin.t('Insert reference'))
         .setIcon('plus')
         .onClick(() => {
           const target = this.plugin.host.editTarget();
@@ -151,26 +167,6 @@ export class SampleTreeView extends ItemView {
           }
           void target.insertAtCursor(
             buildSampleReferenceText(sample.id, sample.record.alias)
-          );
-        })
-    );
-    menu.addItem(item =>
-      item
-        .setTitle(this.plugin.t('Insert definition at cursor'))
-        .setIcon('file-plus')
-        .onClick(() => {
-          const target = this.plugin.host.editTarget();
-          if (!target) {
-            new Notice(this.plugin.t('Open a note to insert into.'));
-            return;
-          }
-          void target.insertAtCursor(
-            buildSampleDefinitionText(
-              sample.type,
-              sample.id,
-              sample.record.alias,
-              sample.record.descriptions?.[0]
-            )
           );
         })
     );

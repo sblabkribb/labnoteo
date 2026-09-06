@@ -38,7 +38,7 @@ class OllamaProvider implements LlmProvider {
 
   async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string> {
     const res = await requestUrl({
-      url: joinUrl(this.settings.llmEndpoint, '/api/chat'),
+      url: joinUrl(this.settings.llmEndpointOllama, '/api/chat'),
       method: 'POST',
       contentType: 'application/json',
       body: JSON.stringify({
@@ -66,7 +66,7 @@ class OpenAiProvider implements LlmProvider {
       headers.Authorization = `Bearer ${this.settings.llmApiKey}`;
     }
     const res = await requestUrl({
-      url: joinUrl(this.settings.llmEndpoint, '/v1/chat/completions'),
+      url: joinUrl(this.settings.llmEndpointOpenai, '/v1/chat/completions'),
       method: 'POST',
       headers,
       body: JSON.stringify({

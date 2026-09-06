@@ -72,4 +72,39 @@ describe('replaceSectionBody', () => {
     expect(out.md).toContain('new');
     expect(out.md).not.toContain('old');
   });
+
+  it('ignores ATX headings inside fenced code blocks', () => {
+    // A heading-looking line inside a code fence must neither be picked as the
+    // section start nor treated as the section boundary.
+    const md = [
+      '## Real',
+      '',
+      'before',
+      '',
+      '```md',
+      '## Fake heading in code',
+      '```',
+      '',
+      'after',
+      '',
+      '## End',
+      '',
+    ].join('\n');
+    const out = replaceSectionBody(md, 'Real', 'NEW');
+    expect(out.ok).toBe(true);
+    // Body spans past the fenced fake heading, up to the real `## End`.
+    expect(out.md).toContain('## Real\n\nNEW\n');
+    expect(out.md).toContain('## End');
+    // The fenced content is gone (it was inside the replaced body) but was never
+    // mistaken for a boundary; the real end heading survived.
+    expect(out.md).not.toContain('before');
+    expect(out.md).not.toContain('after');
+  });
+
+  it('does not select a heading that only appears inside a code fence', () => {
+    const md = ['# Doc', '', '```', '## Method', 'x', '```', ''].join('\n');
+    const out = replaceSectionBody(md, 'Method', 'NEW');
+    expect(out.ok).toBe(false);
+    expect(out.md).toBe(md);
+  });
 });

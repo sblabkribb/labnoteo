@@ -1,15 +1,9 @@
 /**
- * Obsidian-only Korean catalog.
+ * Korean catalog for the Obsidian plugin — the single source of Korean strings,
+ * consumed via `this.t()` / `host.t()` and wired up in `i18n.ts` (ko locale).
  *
- * These keys are used by the Obsidian plugin via `this.t()` / `host.t()` but are
- * NOT referenced by the VS Code extension's `l10n.t()`. They are kept out of the
- * shared `l10n/bundle.l10n.ko.json` on purpose: `src/__tests__/l10nCoverage.test.ts`
- * fails on "stale" bundle keys that never appear in the VS Code `src/`. This
- * catalog is merged over the shared bundle at runtime in `i18n.ts` (ko locale).
- *
- * Conventions mirror the shared bundle: 워크플로 / 샘플 / 유닛 오퍼레이션 / 실험,
- * formal (존댓말) tone, and positional `{0}` / literal `{Type}` placeholders left
- * intact for `formatMessage`.
+ * Conventions: 워크플로 / 샘플 / 유닛 오퍼레이션 / 실험, formal (존댓말) tone, and
+ * positional `{0}` / literal `{Type}` placeholders left intact for `formatMessage`.
  */
 const obsidianKo: Record<string, string> = {
   // Commands
@@ -49,12 +43,21 @@ const obsidianKo: Record<string, string> = {
   'Exported {0} CSV file(s).': 'CSV 파일 {0}개를 내보냈습니다.',
   'No tables found in this note.': '이 노트에서 표를 찾을 수 없습니다.',
   'Command failed: {0}': '명령 실행 실패: {0}',
+  'Yes': '예',
+  'Workflow created: {0}': '워크플로가 생성되었습니다: {0}',
+  'Unit operation inserted: {0} {1}': '유닛 오퍼레이션이 삽입되었습니다: {0} {1}',
+  'Please open a workflow file.': '워크플로 파일을 열어주세요.',
+  'Please run this command on a workflow file inside the labnote folder.':
+    'labnote 폴더 내의 워크플로 파일에서 실행해주세요.',
+  'Missing unit operation info.': '유닛 오퍼레이션 정보가 없습니다.',
+
+  // Workflow README auto-sync (delete pruning)
+  'Removed from sample tree: {0}': '샘플 트리에서 제거됨: {0}',
 
   // Sample view context menu
   'Copy sample ID': '샘플 ID 복사',
   'Copied: {0}': '복사했습니다: {0}',
-  'Insert reference at cursor': '커서 위치에 참조 삽입',
-  'Insert definition at cursor': '커서 위치에 정의 삽입',
+  'Insert reference': '참조 삽입',
   'Add sample': '샘플 추가',
   'Edit sample': '샘플 편집',
   'Delete sample': '샘플 삭제',
@@ -96,6 +99,8 @@ const obsidianKo: Record<string, string> = {
   'Enter a new description': '새 설명을 입력하세요',
   'Are you sure you want to delete {0}?': '{0}을(를) 삭제하시겠습니까?',
   'Delete': '삭제',
+  'OK': '확인',
+  'Cancel': '취소',
   'Sample added: {0}': '샘플이 추가되었습니다: {0}',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
@@ -114,6 +119,8 @@ const obsidianKo: Record<string, string> = {
   'Provider': '프로바이더',
   'Disabled': '비활성화됨',
   'Endpoint': '엔드포인트',
+  'Ollama endpoint': 'Ollama 엔드포인트',
+  'OpenAI endpoint': 'OpenAI 엔드포인트',
   'Model': '모델',
   'API key': 'API 키',
   'Only sent to OpenAI-compatible providers, never to Ollama.':
@@ -121,6 +128,12 @@ const obsidianKo: Record<string, string> = {
   'Enable MCP server': 'MCP 서버 활성화',
   'Desktop only. Exposes tools to external MCP clients.':
     '데스크톱 전용. 외부 MCP 클라이언트에 도구를 노출합니다.',
+  'MCP token': 'MCP 토큰',
+  'Copy the bearer token for external MCP clients (server must be running).':
+    '외부 MCP 클라이언트용 베어러 토큰을 복사합니다 (서버가 실행 중이어야 합니다).',
+  'Copy token': '토큰 복사',
+  'Start the MCP server first.': 'MCP 서버를 먼저 시작하세요.',
+  'MCP token copied to clipboard.': 'MCP 토큰을 클립보드에 복사했습니다.',
 
   // AI commands
   'Configure an AI provider in settings first.': '먼저 설정에서 AI 프로바이더를 구성하세요.',
@@ -135,7 +148,10 @@ const obsidianKo: Record<string, string> = {
   // MCP server
   'MCP server is desktop-only.': 'MCP 서버는 데스크톱 전용입니다.',
   'MCP server started on 127.0.0.1:{0}': 'MCP 서버가 127.0.0.1:{0}에서 시작되었습니다',
+  'MCP server port {0} is already in use.': 'MCP 서버 포트 {0}이(가) 이미 사용 중입니다.',
+  'MCP server error: {0}': 'MCP 서버 오류: {0}',
   'Allow MCP tool "{0}" to modify the vault?': 'MCP 도구 "{0}"가 볼트를 수정하도록 허용할까요?',
+  'Target: {0}': '대상: {0}',
   'Allow': '허용',
 };
 

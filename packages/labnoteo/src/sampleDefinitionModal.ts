@@ -46,7 +46,7 @@ class SampleDefinitionModal extends Modal {
     const { scope, folder, record } = this.resolved;
     const jsonPath = posix.join(folder, `${this.type}.json`);
 
-    contentEl.createEl('h3', { text: t('Sample definition') });
+    this.setTitle(t('Sample definition'));
 
     const rows: Array<[string, string]> = [
       [t('Type'), this.type],
