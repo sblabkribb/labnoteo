@@ -34,6 +34,7 @@ import {
   createSampleReadingHighlighter,
   type HighlightState,
 } from './sampleHighlight';
+import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { WorkflowTreeView, WORKFLOW_VIEW_TYPE } from './views/workflowView';
 import { SampleTreeView, SAMPLE_VIEW_TYPE } from './views/sampleView';
 import { exportTablesToCsv, exportActiveNoteTablesToCsv } from './exportCsv';
@@ -71,6 +72,7 @@ export default class LabnotePlugin extends Plugin {
 
     this.registerCommands();
     this.registerSampleFeatures();
+    this.registerEditorExtension(createMetaDatePickerExtension(this.t('Pick date and time')));
     this.registerViews();
     this.registerFileMenu();
     this.registerEditorMenu();

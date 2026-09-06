@@ -134,7 +134,7 @@ export class SampleTreeView extends ItemView {
           void createSampleInteractive(this.app, this.plugin, {
             type: payload.type,
             folder: resolveScopeFolder(this.plugin, payload.scope),
-            mode: 'manual',
+            mode: 'generate',
           });
         })
     );
