@@ -1,0 +1,26 @@
+{
+  "name": "labnoteo-workspace",
+  "private": true,
+  "version": "0.76.0",
+  "description": "Monorepo root for the Labnote Assistant Obsidian plugin (labnoteo) and its platform-neutral core.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build:obsidian",
+    "build:obsidian": "npm run build -w labnoteo",
+    "dev": "npm run dev -w labnoteo",
+    "typecheck": "npm run typecheck:core && npm run typecheck:plugin",
+    "typecheck:core": "npm run typecheck -w @labnoteo/core",
+    "typecheck:plugin": "npm run typecheck -w labnoteo",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sync:versions": "node scripts/syncVersions.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.2",
+    "vitest": "4.0.18"
+  }
+}

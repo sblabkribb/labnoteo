@@ -1,0 +1,327 @@
+/**
+ * Transport-agnostic Labnote tool set.
+ *
+ * A single source of domain "tools" (read a sample, create a workflow, update a
+ * section, …) described by JSON Schema and implemented as pure async functions
+ * over a {@link LabnoteFs}. The Obsidian build wraps these for its in-process
+ * MCP server *and* its built-in AI commands; the same definitions could back a
+ * VS Code language-model tool provider. Nothing here knows about MCP, HTTP or
+ * any specific model.
+ *
+ * Where no single existing helper covered a tool, it is **composed** from core
+ * primitives (e.g. `create_workflow` = catalog lookup + `createWorkflowContent`
+ * + README checklist update) and section edits go through the non-lossy
+ * {@link replaceSectionBody} rather than a full re-serialization.
+ */
+import type { LabnoteFs } from '../fs/labnoteFs';
+import {
+  loadSamplesByType,
+  saveSamplesByType,
+  getLabsamplesFolder,
+  type SampleRecord,
+} from '../lib/sampleStorage';
+import { generateSampleId } from '../lib/sampleUtils';
+import {
+  ensureWorkflowResources,
+  loadWorkflows,
+  loadUnitOperations,
+  type UnitOperationItem,
+} from '../lib/workflowDataLoader';
+import {
+  getNextWorkflowNumber,
+  createWorkflowFileName,
+  createWorkflowContent,
+  parseWorkflowChecklistFromReadme,
+  generateWorkflowChecklist,
+  updateReadmeWorkflowSection,
+  parseExperimenterFromReadme,
+} from '../lib/workflowStructure';
+import { replaceSectionBody } from '../sections/sectionEdit';
+import * as posix from '../util/posixPath';
+
+export interface ToolContext {
+  fs: LabnoteFs;
+  /** Vault/workspace root (`''` for an Obsidian vault). */
+  workspaceRoot: string;
+  /** Vault-global labsamples folder (for cross-scope sample reads). */
+  globalSampleFolder?: string;
+  /** Extra sample types beyond the built-ins. */
+  customTypes?: string[];
+}
+
+export interface ToolResult {
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+export interface JsonSchema {
+  type: 'object';
+  properties: Record<string, unknown>;
+  required?: string[];
+}
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  inputSchema: JsonSchema;
+  handler(ctx: ToolContext, args: Record<string, unknown>): Promise<ToolResult>;
+}
+
+// --- small arg helpers -----------------------------------------------------
+
+function str(args: Record<string, unknown>, key: string): string | undefined {
+  const v = args[key];
+  return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+const README_NAME = 'README.labnote.md';
+
+/** Derive the `labnote/{###_Name}` experiment dir from any path inside it. */
+function labnoteDirFromPath(p: string): string | undefined {
+  const parts = posix.normalize(p).split('/');
+  const idx = parts.lastIndexOf('labnote');
+  if (idx === -1 || idx + 1 >= parts.length) return undefined;
+  if (!/^\d{3}_/.test(parts[idx + 1])) return undefined;
+  return parts.slice(0, idx + 2).join('/');
+}
+
+async function findUnitOp(
+  ctx: ToolContext,
+  opId: string
+): Promise<{ op: UnitOperationItem; opType: 'hw' | 'sw' } | undefined> {
+  await ensureWorkflowResources(ctx.fs, ctx.workspaceRoot);
+  const hw = await loadUnitOperations(ctx.fs, ctx.workspaceRoot, 'hw');
+  const found = hw.unitOperations.find(o => o.id === opId);
+  if (found) return { op: found, opType: 'hw' };
+  const sw = await loadUnitOperations(ctx.fs, ctx.workspaceRoot, 'sw');
+  const foundSw = sw.unitOperations.find(o => o.id === opId);
+  if (foundSw) return { op: foundSw, opType: 'sw' };
+  return undefined;
+}
+
+// --- tool definitions ------------------------------------------------------
+
+export function createLabnoteTools(): ToolDef[] {
+  return [
+    {
+      name: 'get_sample',
+      description:
+        'Look up a stored sample definition by type and id, searching the document-local labsamples folder then the vault-global one.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Sample type, e.g. DNA, RNA, Plasmid.' },
+          id: { type: 'string', description: 'Sample id, e.g. DNA-12.' },
+          documentPath: { type: 'string', description: 'Vault-relative path of the note for local scope.' },
+        },
+        required: ['type', 'id'],
+      },
+      async handler(ctx, args) {
+        const type = str(args, 'type');
+        const id = str(args, 'id');
+        if (!type || !id) return { ok: false, error: 'type and id are required' };
+
+        const documentPath = str(args, 'documentPath');
+        const folders: string[] = [];
+        if (documentPath) folders.push(getLabsamplesFolder(documentPath));
+        if (ctx.globalSampleFolder) folders.push(ctx.globalSampleFolder);
+
+        for (const folder of folders) {
+          const records = await loadSamplesByType(ctx.fs, folder, type);
+          if (records[id]) return { ok: true, data: { ...records[id], id } };
+        }
+        return { ok: false, error: `Sample not found: ${type}/${id}` };
+      },
+    },
+
+    {
+      name: 'list_samples',
+      description: 'List all stored samples of a given type (local scope merged over global).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          documentPath: { type: 'string' },
+        },
+        required: ['type'],
+      },
+      async handler(ctx, args) {
+        const type = str(args, 'type');
+        if (!type) return { ok: false, error: 'type is required' };
+        const documentPath = str(args, 'documentPath');
+
+        const merged: Record<string, SampleRecord> = {};
+        if (ctx.globalSampleFolder) {
+          Object.assign(merged, await loadSamplesByType(ctx.fs, ctx.globalSampleFolder, type));
+        }
+        if (documentPath) {
+          Object.assign(merged, await loadSamplesByType(ctx.fs, getLabsamplesFolder(documentPath), type));
+        }
+        const data = Object.entries(merged).map(([id, rec]) => ({
+          id,
+          alias: rec.alias,
+          description: rec.descriptions?.[0] ?? null,
+        }));
+        return { ok: true, data };
+      },
+    },
+
+    {
+      name: 'create_sample',
+      description:
+        'Create (or overwrite) a sample definition in the document-local labsamples folder. Generates an id when none is given.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          id: { type: 'string', description: 'Optional; auto-generated when omitted.' },
+          alias: { type: 'string' },
+          description: { type: 'string' },
+          documentPath: { type: 'string', description: 'Note the sample belongs to (defines the folder + source).' },
+        },
+        required: ['type', 'documentPath'],
+      },
+      async handler(ctx, args) {
+        const type = str(args, 'type');
+        const documentPath = str(args, 'documentPath');
+        if (!type || !documentPath) return { ok: false, error: 'type and documentPath are required' };
+
+        const folder = getLabsamplesFolder(documentPath);
+        const existing = await loadSamplesByType(ctx.fs, folder, type);
+        const id = str(args, 'id') ?? generateSampleId(type);
+        const alias = str(args, 'alias') ?? null;
+        const description = str(args, 'description');
+
+        const record: SampleRecord = {
+          type,
+          alias,
+          descriptions: description ? [description] : [],
+          sources: [posix.basename(documentPath)],
+        };
+        existing[id] = record;
+        await saveSamplesByType(ctx.fs, folder, type, existing);
+        return { ok: true, data: { id, type } };
+      },
+    },
+
+    {
+      name: 'get_unit_operation',
+      description: 'Return catalog metadata (name, description, equipment/software) for a unit-operation id.',
+      inputSchema: {
+        type: 'object',
+        properties: { opId: { type: 'string', description: 'e.g. UHW010 or USW020.' } },
+        required: ['opId'],
+      },
+      async handler(ctx, args) {
+        const opId = str(args, 'opId');
+        if (!opId) return { ok: false, error: 'opId is required' };
+        const found = await findUnitOp(ctx, opId);
+        if (!found) return { ok: false, error: `Unit operation not found: ${opId}` };
+        return { ok: true, data: { ...found.op, opType: found.opType } };
+      },
+    },
+
+    {
+      name: 'update_section',
+      description:
+        'Replace the body of a section (matched by heading text at any level) in a note, without re-serializing the rest of the document.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          documentPath: { type: 'string' },
+          heading: { type: 'string', description: 'Heading text without the leading #s, e.g. "Method".' },
+          content: { type: 'string', description: 'New Markdown body for the section.' },
+        },
+        required: ['documentPath', 'heading', 'content'],
+      },
+      async handler(ctx, args) {
+        const documentPath = str(args, 'documentPath');
+        const heading = str(args, 'heading');
+        const content = typeof args.content === 'string' ? args.content : undefined;
+        if (!documentPath || !heading || content === undefined) {
+          return { ok: false, error: 'documentPath, heading and content are required' };
+        }
+        if (!(await ctx.fs.exists(documentPath))) {
+          return { ok: false, error: `File not found: ${documentPath}` };
+        }
+        const md = await ctx.fs.read(documentPath);
+        const { ok, md: next } = replaceSectionBody(md, heading, content);
+        if (!ok) return { ok: false, error: `Section not found: ${heading}` };
+        await ctx.fs.write(documentPath, next);
+        return { ok: true, data: { documentPath, heading } };
+      },
+    },
+
+    {
+      name: 'create_workflow',
+      description:
+        'Create a new workflow file in an experiment folder from the catalog and register it in the README checklist.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          documentPath: { type: 'string', description: 'Any path inside the target labnote/### experiment folder.' },
+          workflowId: { type: 'string', description: 'Catalog workflow id, e.g. WD010.' },
+        },
+        required: ['documentPath', 'workflowId'],
+      },
+      async handler(ctx, args) {
+        const documentPath = str(args, 'documentPath');
+        const workflowId = str(args, 'workflowId');
+        if (!documentPath || !workflowId) {
+          return { ok: false, error: 'documentPath and workflowId are required' };
+        }
+        const labnoteDir = labnoteDirFromPath(documentPath);
+        if (!labnoteDir) {
+          return { ok: false, error: 'documentPath is not inside a labnote/### experiment folder' };
+        }
+
+        await ensureWorkflowResources(ctx.fs, ctx.workspaceRoot);
+        const catalog = await loadWorkflows(ctx.fs, ctx.workspaceRoot);
+        const wf = catalog.workflows.find(w => w.id === workflowId);
+        if (!wf) return { ok: false, error: `Workflow not found: ${workflowId}` };
+
+        const readmePath = posix.join(labnoteDir, README_NAME);
+        let experimenter = '';
+        if (await ctx.fs.exists(readmePath)) {
+          experimenter = parseExperimenterFromReadme(await ctx.fs.read(readmePath));
+        }
+
+        const existingFiles = await ctx.fs.list(labnoteDir);
+        const sequence = getNextWorkflowNumber(existingFiles);
+        const info = { id: wf.id, name: wf.name, description: wf.description };
+        const fileName = createWorkflowFileName(sequence, info);
+        const workflowPath = posix.join(labnoteDir, fileName);
+        await ctx.fs.write(workflowPath, createWorkflowContent(info, experimenter));
+
+        if (await ctx.fs.exists(readmePath)) {
+          const readme = await ctx.fs.read(readmePath);
+          const items = parseWorkflowChecklistFromReadme(readme);
+          items.push({ done: false, title: `${wf.id} ${wf.name}`, fileName });
+          await ctx.fs.write(
+            readmePath,
+            updateReadmeWorkflowSection(readme, generateWorkflowChecklist(items))
+          );
+        }
+
+        return { ok: true, data: { path: workflowPath, fileName } };
+      },
+    },
+  ];
+}
+
+/** Invoke a tool by name; returns a structured {@link ToolResult}. */
+export async function runTool(
+  tools: ToolDef[],
+  name: string,
+  ctx: ToolContext,
+  args: Record<string, unknown>
+): Promise<ToolResult> {
+  const tool = tools.find(t => t.name === name);
+  if (!tool) return { ok: false, error: `Unknown tool: ${name}` };
+  try {
+    return await tool.handler(ctx, args);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

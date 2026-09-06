@@ -1,0 +1,237 @@
+/**
+ * Sample utility functions for Lab Note Editor
+ * Pure functions and constants that can be shared between Extension and Webview
+ */
+
+import { escapeRegExp } from './regexUtils';
+
+/**
+ * Sample types available
+ */
+export const SAMPLE_TYPES = ['DNA', 'RNA', 'Plasmid', 'Reagent', 'Primer', 'Protein', 'Equip', 'Labware'] as const;
+export type SampleType = typeof SAMPLE_TYPES[number];
+
+/**
+ * Canonical sample-id regex segment used everywhere: storage extraction,
+ * document highlighting, SampleInfoPanel replace. Kept as (?:-\d+)* so that
+ * collision-resolved ids (e.g. DNA-1737000000000-3) still match, and future
+ * multi-segment counters do not drift the three consumers apart.
+ *
+ * The returned RegExp carries the `g` flag so callers can use `match()` /
+ * `replace()` directly; each call returns a *new* instance to avoid the
+ * stateful `lastIndex` footgun on shared regex objects.
+ */
+export function buildSampleIdPattern(type: string): RegExp {
+  return new RegExp(`\\b${escapeRegExp(type)}-\\d+(?:-\\d+)*\\b`, 'g');
+}
+
+/**
+ * Replace every whole-token occurrence of `oldId` with `newId` in `text`.
+ *
+ * A plain `\boldId\b` replace is unsafe for sample IDs: because `-` is a word
+ * boundary, renaming a base id like `DNA-170` would also rewrite the prefix of
+ * a distinct collision-resolved multipart id such as `DNA-170-3`, corrupting it
+ * into `DNA-999-3`. The trailing `(?!-\d)` lookahead rejects that case, while
+ * the closing `\b` already prevents matching a longer-digit id (`DNA-1700`).
+ */
+export function replaceWholeSampleId(text: string, oldId: string, newId: string): string {
+  const re = new RegExp(`\\b${escapeRegExp(oldId)}\\b(?!-\\d)`, 'g');
+  return text.replace(re, newId);
+}
+
+/**
+ * Build the `;alias;description` suffix of a sample definition string while
+ * keeping field positions stable.
+ *
+ * A sample definition is `@type;ID;alias;description`. Appending a plain
+ * `;${description}` whenever the alias is empty would slide the description into
+ * the alias slot (`@type;ID;description`). To prevent that, when a description
+ * is present the alias slot is always emitted — empty if there is no alias
+ * (`;;description`). Whitespace-only values are treated as absent.
+ */
+export function buildSampleDefSuffix(
+  alias?: string | null,
+  description?: string | null
+): string {
+  const a = alias && alias.trim() ? alias : '';
+  const d = description && description.trim() ? description : '';
+  if (!a && !d) return '';
+  if (!d) return `;${a}`;
+  return `;${a};${d}`;
+}
+
+/**
+ * Build a full sample *definition* string: `@type;ID[;alias[;description]]`.
+ *
+ * The type prefix is lower-cased (matching the `@dna;` completion/highlight
+ * convention) while the ID is kept verbatim. Alias/description positions are
+ * kept stable via {@link buildSampleDefSuffix}. Shared by the Obsidian
+ * autocomplete "create" flow and the sidebar "insert definition" action so both
+ * emit an identical, re-syncable definition.
+ */
+export function buildSampleDefinitionText(
+  type: string,
+  id: string,
+  alias?: string | null,
+  description?: string | null
+): string {
+  return `@${type.toLowerCase()};${id}${buildSampleDefSuffix(alias, description)}`;
+}
+
+/**
+ * Build a sample *reference* string: `id;alias` when an alias is present, else
+ * the bare `id`. Matches the format of the existing completion insert text
+ * (`buildSampleInsertText` in `sample/sampleSuggest`). Used when inserting a
+ * reference into a document (registry-first: definitions live in JSON, the
+ * document only references them).
+ */
+export function buildSampleReferenceText(id: string, alias?: string | null): string {
+  return alias && alias.trim() ? `${id};${alias.trim()}` : id;
+}
+
+/**
+ * Catalog (reference-DB) sample types whose entries come from read-only
+ * `{Type}_*.json` product catalogs rather than being authored. New ids are not
+ * generated for these; the user searches the catalog instead.
+ */
+export const CATALOG_SAMPLE_TYPES = ['Reagent', 'Labware', 'Equip'] as const;
+
+/** True when `type` is a catalog (reference-DB) type. */
+export function isCatalogSampleType(type: string): boolean {
+  return (CATALOG_SAMPLE_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Decide which synthetic autocomplete actions to offer for a parsed sample
+ * trigger. Mirrors the VS Code completion provider:
+ * - a concrete authored single type gets `generate` ("Generate new ID") and
+ *   `manual` ("Enter info") actions,
+ * - a concrete catalog type (Reagent/Labware/Equip) gets a single `catalog`
+ *   ("Search catalog") action instead — its definitions are curated, not authored,
+ * - `@sample` expands to many types, so it gets no actions.
+ *
+ * Typed structurally (not against `SampleTrigger`) to avoid a module cycle
+ * between `lib/sampleUtils` and `sample/sampleSuggest`.
+ */
+export function sampleSuggestActions(trigger: {
+  typesToSearch: readonly string[];
+}): { generate: boolean; manual: boolean; catalog: boolean } {
+  const specific = trigger.typesToSearch.length === 1 ? trigger.typesToSearch[0] : null;
+  if (!specific) return { generate: false, manual: false, catalog: false };
+  if (isCatalogSampleType(specific)) {
+    return { generate: false, manual: false, catalog: true };
+  }
+  return { generate: true, manual: true, catalog: false };
+}
+
+/**
+ * Colors for each sample type (used in highlighting and UI)
+ */
+export const sampleTypeColors: Record<SampleType, string> = {
+  DNA: '#FFB6C1',
+  RNA: '#ADD8E6',
+  Plasmid: '#98FB98',
+  Reagent: '#FFD700',
+  Primer: '#FF69B4',
+  Protein: '#DDA0DD',
+  Equip: '#FFA07A',
+  Labware: '#D8BFD8',
+};
+
+/**
+ * Fallback color for user-defined custom types that do not have an explicit
+ * entry in `sampleTypeColors`. Kept in sync with the webview's default.
+ */
+export const CUSTOM_SAMPLE_TYPE_FALLBACK_COLOR = '#607D8B';
+
+/**
+ * Single source of truth for "what sample types exist right now and what
+ * colors do they use" on the extension side. Previously the `SectionEditor`
+ * provider maintained two parallel helpers (`getAvailableTypes`,
+ * `getSampleTypeColorMap`) that each re-read the user's
+ * `customSampleTypes` setting and applied slightly different merge
+ * rules. Having a single entry point keeps the init payload consistent and
+ * guarantees the webview sees `types` and `colors` that agree — every built-in
+ * + custom type ends up in both collections, with a stable fallback color so
+ * no lookup ever returns undefined.
+ */
+export interface SampleDisplayMeta {
+  types: string[];
+  colors: Record<string, string>;
+}
+
+export function getSampleDisplayMeta(customTypes: readonly string[] = []): SampleDisplayMeta {
+  const builtins = SAMPLE_TYPES as readonly string[];
+  const merged = [...builtins];
+  for (const t of customTypes) {
+    if (t && !merged.includes(t)) merged.push(t);
+  }
+  const colors: Record<string, string> = { ...(sampleTypeColors as Record<string, string>) };
+  for (const t of merged) {
+    if (!(t in colors)) colors[t] = CUSTOM_SAMPLE_TYPE_FALLBACK_COLOR;
+  }
+  return { types: merged, colors };
+}
+
+// Counter for generating unique IDs within the same millisecond
+let idCounter = 0;
+let lastTimestamp = 0;
+
+/**
+ * Generate a unique sample ID using timestamp format
+ * Ensures uniqueness even when called multiple times in the same millisecond
+ * Format: {TYPE}-{timestamp} or {TYPE}-{timestamp}-{counter} if same millisecond
+ */
+export function generateSampleId(type: string): string {
+  const timestamp = Date.now();
+  if (timestamp === lastTimestamp) {
+    idCounter++;
+  } else {
+    idCounter = 0;
+    lastTimestamp = timestamp;
+  }
+  return `${type}-${timestamp}${idCounter > 0 ? `-${idCounter}` : ''}`;
+}
+
+/**
+ * Reset the ID counter (useful for testing)
+ */
+export function resetIdCounter(): void {
+  idCounter = 0;
+  lastTimestamp = 0;
+}
+
+/**
+ * Find @type: prefix range at cursor position
+ * Returns the range of the @type: prefix if found, null otherwise
+ */
+export function findSamplePrefixRange(
+  document: { lineAt: (line: number) => { text: string; range: { start: { line: number; character: number }; end: { line: number; character: number } } } },
+  position: { line: number; character: number },
+  sampleType: string
+): { start: { line: number; character: number }; end: { line: number; character: number } } | null {
+  const line = document.lineAt(position.line);
+  const lineText = line.text;
+  const cursorChar = position.character;
+
+  // Check if cursor is at or after a @type; or @type: prefix
+  const prefixPattern = new RegExp(`@${sampleType.toLowerCase()}[;:]`, 'i');
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(prefixPattern.source, 'gi');
+  
+  while ((match = regex.exec(lineText)) !== null) {
+    const prefixStart = match.index;
+    const prefixEnd = prefixStart + match[0].length;
+    
+    // Check if cursor is within or immediately after this prefix
+    // Cursor should be after the start of the prefix (not before it)
+    if (cursorChar > prefixStart && cursorChar <= prefixEnd) {
+      return {
+        start: { line: position.line, character: prefixStart },
+        end: { line: position.line, character: prefixEnd },
+      };
+    }
+  }
+
+  return null;
+}

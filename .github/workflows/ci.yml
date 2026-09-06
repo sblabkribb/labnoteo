@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (all workspaces)
+        run: npm ci
+
+      # Mandatory gates: a red result here fails the build.
+      - name: Typecheck (core + plugin)
+        run: npm run typecheck
+
+      - name: Run tests (core)
+        run: npm test
+
+      - name: Build Obsidian plugin
+        run: npm run build

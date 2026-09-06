@@ -1,0 +1,48 @@
+# Default: detect text files and normalize line endings to LF in both the
+# index and the working tree. This keeps all checkouts deterministic
+# regardless of each developer's `core.autocrlf` setting and is what the
+# Node / TypeScript / VS Code extension ecosystem expects.
+* text=auto eol=lf
+
+# Explicitly LF — common text formats (defensive; covered by the default).
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.json      text eol=lf
+*.jsonc     text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.scss      text eol=lf
+*.svg       text eol=lf
+*.sh        text eol=lf
+
+# Windows-only scripts must keep CRLF or they break under cmd.exe / PowerShell.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+*.psm1      text eol=crlf
+*.psd1      text eol=crlf
+
+# Treat as binary so Git never tries to normalize or diff them by line.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.pdf       binary
+*.vsix      binary
+*.zip       binary
+*.gz        binary
+*.tgz       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.eot       binary

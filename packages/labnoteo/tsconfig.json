@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@labnoteo/core": ["../labnoteo-core/src/index.ts"],
+      "@labnoteo/core/node": ["../labnoteo-core/src/node/index.ts"],
+      "@labnoteo/core/headings": ["../labnoteo-core/src/sections/unitOpHeading.ts"],
+      "@labnoteo/core/posix": ["../labnoteo-core/src/util/posixPath.ts"],
+      "@labnoteo/core/lib/*": ["../labnoteo-core/src/lib/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
