@@ -1,6 +1,6 @@
 {
   "name": "labnoteo",
-  "version": "0.76.0",
+  "version": "0.77.0",
   "private": true,
   "type": "module",
   "description": "Obsidian plugin for markdown lab notebooks — sample tracking, workflow checklists and LLM assistance for biology and bioinformatics experiments.",

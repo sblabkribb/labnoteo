@@ -1,7 +1,7 @@
 {
   "name": "labnoteo-workspace",
   "private": true,
-  "version": "0.76.0",
+  "version": "0.77.0",
   "description": "Monorepo root for the Labnote Assistant Obsidian plugin (labnoteo) and its platform-neutral core.",
   "license": "MIT",
   "workspaces": [
