@@ -6,9 +6,10 @@
  * place that must agree for a release to be valid:
  *
  *   - packages/labnoteo-core/package.json
- *   - packages/labnoteo/package.json
- *   - packages/labnoteo/manifest.json          (Obsidian plugin version)
- *   - packages/labnoteo/versions.json          ({version: minAppVersion})
+ *   - manifest.json                            (Obsidian plugin version)
+ *   - versions.json                            ({version: minAppVersion})
+ *
+ * The root `package.json` is itself the plugin package, so it needs no copy.
  *
  * Run via `npm run sync:versions` (the auto-versioning workflow calls this after
  * bumping the root version). Idempotent: safe to run repeatedly.
@@ -34,24 +35,19 @@ if (!version) {
   process.exit(1);
 }
 
-const targets = [
-  join(root, 'packages/labnoteo-core/package.json'),
-  join(root, 'packages/labnoteo/package.json'),
-];
-for (const path of targets) {
-  const pkg = readJson(path);
-  pkg.version = version;
-  writeJson(path, pkg);
-}
+const corePkgPath = join(root, 'packages/labnoteo-core/package.json');
+const corePkg = readJson(corePkgPath);
+corePkg.version = version;
+writeJson(corePkgPath, corePkg);
 
 // Obsidian manifest.
-const manifestPath = join(root, 'packages/labnoteo/manifest.json');
+const manifestPath = join(root, 'manifest.json');
 const manifest = readJson(manifestPath);
 manifest.version = version;
 writeJson(manifestPath, manifest);
 
 // Obsidian versions.json ({ pluginVersion: minAppVersion }).
-const versionsPath = join(root, 'packages/labnoteo/versions.json');
+const versionsPath = join(root, 'versions.json');
 let versions = {};
 try {
   versions = readJson(versionsPath);

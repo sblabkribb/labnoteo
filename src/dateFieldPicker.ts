@@ -36,12 +36,15 @@ const PICKER_CLASS = 'labnote-datetime-picker';
 
 /** Calendar affordance rendered when a date field has no value yet. */
 class DatePickIconWidget extends WidgetType {
-  constructor(private readonly label: string) {
+  constructor(
+    private readonly label: string,
+    private readonly lineNumber: number
+  ) {
     super();
   }
 
   eq(other: DatePickIconWidget): boolean {
-    return other.label === this.label;
+    return other.label === this.label && other.lineNumber === this.lineNumber;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -49,20 +52,16 @@ class DatePickIconWidget extends WidgetType {
     el.className = ICON_CLASS;
     el.textContent = '📅';
     el.setAttribute('aria-label', this.label);
-    // Handled here rather than through `domEventHandlers` because a widget's
-    // DOM is not part of the document text, so `posAtCoords` cannot locate it.
-    // `mousedown` only suppresses the caret jump; the picker opens on `click`,
-    // after the editor has finished taking focus, so it cannot be stolen back.
-    el.addEventListener('mousedown', event => event.preventDefault());
+    // mousedown only suppresses the caret jump; the field opens on click, once
+    // the editor has settled, so nothing steals focus from it afterwards.
+    el.addEventListener('mousedown', event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
     el.addEventListener('click', event => {
-      openPickerAt(view, view.posAtDOM(el), event);
+      openPickerOnLine(view, this.lineNumber, event.clientX, event.clientY);
     });
     return el;
-  }
-
-  /** Let CodeMirror process events inside the widget instead of dropping them. */
-  ignoreEvent(): boolean {
-    return false;
   }
 }
 
@@ -104,7 +103,10 @@ export function createMetaDatePickerExtension(label: string) {
                 builder.add(
                   line.to,
                   line.to,
-                  Decoration.widget({ widget: new DatePickIconWidget(label), side: 1 })
+                  Decoration.widget({
+                    widget: new DatePickIconWidget(label, line.number),
+                    side: 1,
+                  })
                 );
               }
             }
@@ -120,35 +122,34 @@ export function createMetaDatePickerExtension(label: string) {
   return [
     plugin,
     EditorView.domEventHandlers({
-      // `click` rather than `mousedown`: the editor grabs focus on mousedown,
-      // which would pull it straight back out of the picker input.
+      // `click`, so the editor has finished placing the caret and taking focus
+      // before the field opens and focuses itself. Not consumed: the caret
+      // still lands on the value, keeping it editable by hand as well.
       click: (event, view) => {
         const target = event.target as HTMLElement | null;
         if (!target?.closest(`.${VALUE_CLASS}`)) return false;
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos === null) return false;
-        // Not consumed: the click still places the caret, so the value stays
-        // editable by hand if the picker is dismissed.
-        openPickerAt(view, pos, event);
+        openPickerOnLine(view, view.state.doc.lineAt(pos).number, event.clientX, event.clientY);
         return false;
       },
     }),
   ];
 }
 
-/** Open the picker for the Meta date field on the line containing `pos`. */
-function openPickerAt(view: EditorView, pos: number, event: MouseEvent): void {
-  const line = view.state.doc.lineAt(pos);
+/** Open the picker for the Meta date field on the given line. */
+function openPickerOnLine(view: EditorView, lineNumber: number, x: number, y: number): void {
+  if (lineNumber > view.state.doc.lines) return;
+  const line = view.state.doc.line(lineNumber);
   const match = findMetaDateFieldInLine(line.text);
   if (!match) return;
 
-  const lineNumber = line.number;
   const initial =
     toDateTimeLocalValue(match.value) || toDateTimeLocalValue(getSeoulDateTimeString());
 
   openDateTimePicker({
-    x: event.clientX,
-    y: event.clientY,
+    x,
+    y,
     initial,
     onPick: picked => {
       const value = fromDateTimeLocalValue(picked);
@@ -180,13 +181,23 @@ interface DateTimePickerOptions {
 }
 
 /**
- * Show a transient `datetime-local` input at the given viewport coordinates and
- * immediately open its native calendar/clock popup.
+ * Show a `datetime-local` field at the given viewport coordinates.
  *
- * The input is rendered (not hidden) so that hosts without `showPicker()`
- * still present a usable field rather than nothing at all.
+ * The field itself is the picker: it is visible and focused, so the value can
+ * be typed straight away, and its built-in calendar button opens the native
+ * calendar. `showPicker()` is attempted as a shortcut but cannot be relied on —
+ * Obsidian rejects it with `NotAllowedError` ("requires a user gesture") even
+ * from inside a genuine click handler.
+ *
+ * Deliberately *not* closed on blur. The editor reclaims focus right after the
+ * field opens, and treating that as intent to dismiss made the field vanish
+ * before it could be used. It closes on a pick, on Enter/Escape, or on a click
+ * elsewhere.
  */
 function openDateTimePicker(opts: DateTimePickerOptions): void {
+  // Never leave a second field behind if one is somehow still open.
+  document.querySelectorAll(`.${PICKER_CLASS}`).forEach(el => el.remove());
+
   const input = document.createElement('input');
   input.type = 'datetime-local';
   input.className = PICKER_CLASS;
@@ -199,26 +210,33 @@ function openDateTimePicker(opts: DateTimePickerOptions): void {
   const close = (): void => {
     if (closed) return;
     closed = true;
+    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
     input.remove();
   };
-
-  input.addEventListener('change', () => {
+  const commit = (): void => {
     const value = input.value;
     close();
     if (value) opts.onPick(value);
-  });
+  };
+  function onOutsidePointerDown(event: PointerEvent): void {
+    if (event.target !== input) close();
+  }
+
+  input.addEventListener('change', commit);
   input.addEventListener('keydown', event => {
-    if (event.key === 'Escape') close();
+    if (event.key === 'Enter') commit();
+    else if (event.key === 'Escape') close();
   });
-  // Delayed so a pick that moves focus away still delivers its `change` first.
-  input.addEventListener('blur', () => window.setTimeout(close, 150));
+  // Armed a tick later so the very click that opened the field cannot close it.
+  window.setTimeout(() => {
+    if (!closed) document.addEventListener('pointerdown', onOutsidePointerDown, true);
+  }, 0);
 
   input.focus();
   const withPicker = input as HTMLInputElement & { showPicker?: () => void };
   try {
     withPicker.showPicker?.();
   } catch {
-    // Picker unavailable (or blocked without a user gesture) — the focused
-    // input remains usable on its own.
+    // Blocked by the host — the visible field remains fully usable on its own.
   }
 }
