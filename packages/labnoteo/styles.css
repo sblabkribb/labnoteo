@@ -74,7 +74,13 @@
   opacity: 1;
 }
 
-.labnote-datetime-picker {
+/*
+ * Obsidian's own `input[type="datetime-local"]` rule outranks a bare class
+ * selector (0-1-1 vs 0-1-0) and pins the field to `position: relative`, which
+ * dropped the popup out of the viewport. Matching on `body > input.…` (0-1-2)
+ * keeps it above that rule without resorting to `!important`.
+ */
+body > input.labnote-datetime-picker {
   position: fixed;
   z-index: var(--layer-popover);
   font-size: var(--font-ui-small);
@@ -83,7 +89,7 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
   box-shadow: var(--shadow-s);
-  padding: 2px 4px;
+  padding: 4px 6px;
 }
 
 /* --- Pickers / suggestions ---------------------------------------------- */
