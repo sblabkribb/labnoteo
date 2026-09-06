@@ -21,6 +21,6 @@
       "@labnoteo/core/lib/*": ["packages/labnoteo-core/src/lib/*"]
     }
   },
-  "include": [],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "**/node_modules"]
 }

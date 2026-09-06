@@ -48,12 +48,12 @@
 
 npm workspaces 모노레포 구조입니다:
 
-- `packages/labnoteo` — Obsidian 플러그인 (esbuild로 `main.js` 번들).
+- `src/` — Obsidian 플러그인. esbuild로 저장소 루트의 `main.js`로 번들됩니다. Obsidian 커뮤니티 디렉터리가 루트의 `manifest.json`을 읽기 때문에 플러그인이 루트에 있습니다.
 - `packages/labnoteo-core` — 플랫폼 중립 core 로직 (파서, 워크플로/샘플 도메인). 플러그인이 사용합니다.
 
 ```bash
 npm install           # 전체 워크스페이스 설치
-npm run build         # Obsidian 플러그인 번들 -> packages/labnoteo/main.js
+npm run build         # Obsidian 플러그인 번들 -> main.js
 npm run typecheck     # core + plugin 타입 검사
 npm test              # core 단위 테스트 실행 (vitest)
 npm run sync:versions # 루트 버전을 패키지 + manifest에 전파

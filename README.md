@@ -48,12 +48,12 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 
 This is an npm workspaces monorepo:
 
-- `packages/labnoteo` — the Obsidian plugin (bundled to `main.js` via esbuild).
+- `src/` — the Obsidian plugin, bundled to `main.js` at the repository root via esbuild. The plugin lives at the root because Obsidian's community directory reads `manifest.json` from there.
 - `packages/labnoteo-core` — platform-neutral core logic (parsers, workflow/sample domain), consumed by the plugin.
 
 ```bash
 npm install          # install all workspaces
-npm run build        # bundle the Obsidian plugin -> packages/labnoteo/main.js
+npm run build        # bundle the Obsidian plugin -> main.js
 npm run typecheck    # typecheck core + plugin
 npm test             # run core unit tests (vitest)
 npm run sync:versions # propagate root version to packages + manifest

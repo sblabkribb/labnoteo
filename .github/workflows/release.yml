@@ -3,7 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Bare semver, no `v` prefix: Obsidian installs a plugin from the release
+      # whose tag matches `manifest.json`'s `version` exactly, so `v1.2.3` would
+      # leave the release undiscoverable.
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   build:
@@ -36,16 +39,24 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Verify tag matches manifest version
+        run: |
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$MANIFEST_VERSION" != "${{ steps.get_version.outputs.VERSION }}" ]; then
+            echo "Tag ${{ steps.get_version.outputs.VERSION }} != manifest.json $MANIFEST_VERSION"
+            exit 1
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            packages/labnoteo/main.js
-            packages/labnoteo/manifest.json
-            packages/labnoteo/versions.json
-            packages/labnoteo/styles.css
+            main.js
+            manifest.json
+            versions.json
+            styles.css
           name: Labnote Assistant (Obsidian) v${{ steps.get_version.outputs.VERSION }}
           body: |
             ## 설치 방법 (수동)
