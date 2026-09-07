@@ -34,11 +34,27 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 
 > Renaming a workflow file in the file explorer automatically reorders the README checklist to match the new number prefix; deleting one removes its checklist entry and prunes the samples it defined.
 
-## Installation (manual)
+## Installation
 
-1. Download `main.js`, `manifest.json`, `versions.json`, and `styles.css` from a release.
-2. Create `.obsidian/plugins/labnoteo/` inside your vault and copy the four files into it.
-3. In Obsidian, go to Settings → Community plugins and enable **Labnote Assistant**.
+The plugin is not in Obsidian's community plugin directory yet, so install it from a release. Note that Obsidian keeps plugins **per vault** — `.obsidian/plugins/` lives inside the vault — so either route below is repeated once per vault.
+
+**Via BRAT (recommended; updates itself)**
+
+1. Install **Obsidian42 - BRAT** from Settings → Community plugins.
+2. Run *BRAT: Add a beta plugin for testing* and enter `sblabkribb/labnoteo`.
+3. Enable **Labnote Assistant** in Settings → Community plugins.
+
+BRAT reads this repository's releases, so later versions arrive without you touching files.
+
+**Manually**
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from a release.
+2. Create `.obsidian/plugins/labnoteo/` inside your vault and copy the three files into it.
+3. Enable **Labnote Assistant** in Settings → Community plugins.
+
+If you keep several vaults, symlinking each `.obsidian/plugins/labnoteo` to one shared copy avoids re-copying — and during development it makes `npm run dev` rebuilds visible in every vault at once.
+
+> Releases also carry `versions.json`. Obsidian reads that file from the repository to decide which plugin version a given app version may update to; inside a vault it is ignored, so there is no need to copy it.
 
 ## Settings
 

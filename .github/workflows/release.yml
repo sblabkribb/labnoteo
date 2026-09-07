@@ -59,8 +59,20 @@ jobs:
             styles.css
           name: Labnote Assistant (Obsidian) v${{ steps.get_version.outputs.VERSION }}
           body: |
-            ## 설치 방법 (수동)
+            ## 설치 방법
 
-            1. 아래 네 파일을 내려받습니다: `main.js`, `manifest.json`, `versions.json`, `styles.css`
-            2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 4개 파일을 복사합니다.
-            3. Obsidian 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+            **BRAT 사용 (권장, 자동 업데이트)**
+
+            1. 커뮤니티 플러그인에서 **Obsidian42 - BRAT**를 설치합니다.
+            2. *BRAT: Add a beta plugin for testing* 명령에 `sblabkribb/labnoteo`를 입력합니다.
+            3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+
+            **수동 설치**
+
+            1. 아래 세 파일을 내려받습니다: `main.js`, `manifest.json`, `styles.css`
+            2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 세 파일을 복사합니다.
+            3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+
+            플러그인은 보관함 단위로 설치되므로 보관함마다 한 번씩 수행해야 합니다.
+            `versions.json`은 Obsidian이 저장소에서 읽어 버전 호환성을 판단하는
+            파일이며 보관함 안에서는 무시되므로 복사할 필요가 없습니다.

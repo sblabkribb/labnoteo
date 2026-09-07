@@ -36,11 +36,27 @@
 
 > 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
 
-## 설치 (수동)
+## 설치
 
-1. 릴리스에서 `main.js`, `manifest.json`, `versions.json`, `styles.css`를 내려받습니다.
-2. 보관함(vault)의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 네 파일을 복사합니다.
-3. Obsidian 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+아직 Obsidian 커뮤니티 플러그인 목록에 등재되지 않았으므로 릴리스에서 설치합니다. Obsidian은 플러그인을 **보관함(vault) 단위**로 관리합니다(`.obsidian/plugins/`가 보관함 안에 있음). 따라서 아래 두 방법 모두 보관함마다 한 번씩 수행해야 합니다.
+
+**BRAT 사용 (권장, 자동 업데이트)**
+
+1. 설정 → 커뮤니티 플러그인에서 **Obsidian42 - BRAT**를 설치합니다.
+2. *BRAT: Add a beta plugin for testing* 명령을 실행하고 `sblabkribb/labnoteo`를 입력합니다.
+3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+
+BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일을 직접 다루지 않아도 반영됩니다.
+
+**수동 설치**
+
+1. 릴리스에서 `main.js`, `manifest.json`, `styles.css`를 내려받습니다.
+2. 보관함의 `.obsidian/plugins/labnoteo/` 폴더를 만들고 세 파일을 복사합니다.
+3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+
+보관함이 여러 개라면 각 `.obsidian/plugins/labnoteo`를 하나의 사본으로 심볼릭 링크하면 복사를 반복하지 않아도 됩니다. 개발 중에는 `npm run dev`의 재빌드 결과가 모든 보관함에 동시에 반영되는 이점도 있습니다.
+
+> 릴리스에는 `versions.json`도 포함됩니다. 이 파일은 Obsidian이 **저장소에서** 읽어 앱 버전별로 업데이트 가능한 플러그인 버전을 판단하는 용도이며, 보관함 안에서는 무시되므로 복사할 필요가 없습니다.
 
 ## 설정
 
