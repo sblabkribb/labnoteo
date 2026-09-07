@@ -16,7 +16,8 @@
     "typecheck:plugin": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sync:versions": "node scripts/syncVersions.mjs"
+    "sync:versions": "node scripts/syncVersions.mjs",
+    "record:fixtures": "node scripts/recordLlmFixtures.mjs"
   },
   "dependencies": {
     "@labnoteo/core": "*"

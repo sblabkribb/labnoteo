@@ -1,0 +1,18 @@
+{
+  "provider": "ollama",
+  "case": "plain",
+  "recordedFrom": "documentation-example",
+  "body": {
+    "model": "qwen3",
+    "created_at": "2025-05-27T22:54:57.641643Z",
+    "message": {
+      "role": "assistant",
+      "content": "hello"
+    },
+    "done_reason": "stop",
+    "done": true,
+    "total_duration": 1613300875,
+    "prompt_eval_count": 26,
+    "eval_count": 3
+  }
+}

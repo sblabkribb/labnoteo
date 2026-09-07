@@ -1,0 +1,28 @@
+{
+  "provider": "openai",
+  "case": "plain",
+  "recordedFrom": "documentation-example",
+  "body": {
+    "id": "chatcmpl-AbC123xyz",
+    "object": "chat.completion",
+    "created": 1730000000,
+    "model": "gpt-4o-mini-2024-07-18",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "hello",
+          "refusal": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 20,
+      "completion_tokens": 2,
+      "total_tokens": 22
+    }
+  }
+}
