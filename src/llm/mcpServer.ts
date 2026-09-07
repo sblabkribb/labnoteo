@@ -1,12 +1,22 @@
 /**
- * In-process MCP-style tool server (desktop only).
+ * In-process MCP tool server (desktop only).
  *
- * Exposes the core {@link createLabnoteTools} set over a minimal JSON-RPC 2.0
- * HTTP endpoint so external MCP clients (or the built-in commands) can call
- * Labnote tools against the current vault. Security posture:
+ * Exposes the core {@link createLabnoteTools} set over the MCP Streamable HTTP
+ * transport so external MCP clients (or the built-in commands) can call Labnote
+ * tools against the current vault.
+ *
+ * Scope: a **stateless** server. It implements the initialization handshake,
+ * `tools/list` and `tools/call`, and answers `GET` with 405 — none of our tools
+ * push server-initiated messages, so there is nothing for an SSE stream to
+ * carry and no reason to hand out an `Mcp-Session-Id`.
+ *
+ * Security posture:
  *
  * - **Loopback only** — binds `127.0.0.1`, never a routable interface.
- * - **Bearer token** — a random per-session token guards every request.
+ * - **Bearer token** — a random per-session token guards every request. This is
+ *   not the spec's OAuth 2.1 flow, so a client must be able to set a custom
+ *   `Authorization` header.
+ * - **Origin check** — the spec requires it to defend against DNS rebinding.
  * - **Write confirmation** — mutating tools prompt the user before executing.
  *
  * Guarded behind `Platform.isDesktopApp`; Node's `http` is required lazily so
@@ -15,6 +25,7 @@
 import { Notice, Platform } from 'obsidian';
 import { createLabnoteTools, runTool, type ToolContext, type ToolDef } from '@labnoteo/core';
 import type LabnotePlugin from '../main';
+import { writeNoteThroughVault } from '../commands';
 
 // Available in the CommonJS bundle at runtime (desktop/Electron).
 declare const require: (id: string) => unknown;
@@ -40,10 +51,15 @@ interface NodeHttp {
   createServer(handler: (req: NodeReq, res: NodeRes) => void): NodeServer;
 }
 
-const WRITE_TOOLS = new Set(['create_sample', 'create_workflow', 'update_section']);
 const DEFAULT_PORT = 3987;
-/** Hard cap on a single JSON-RPC request body to avoid unbounded buffering. */
-const MAX_BODY_BYTES = 1_000_000;
+/**
+ * Hard cap on a single JSON-RPC request body to avoid unbounded buffering.
+ * Counted in UTF-16 characters, not bytes — the body is decoded before it is
+ * measured, so a multibyte payload may occupy up to ~3x this in memory.
+ */
+const MAX_BODY_CHARS = 1_000_000;
+/** MCP revision this server speaks. */
+export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 export class LabnoteMcpServer {
   private server: NodeServer | null = null;
@@ -108,19 +124,32 @@ export class LabnoteMcpServer {
       workspaceRoot: '.',
       globalSampleFolder: this.plugin.settings.globalSampleFolder,
       customTypes: this.plugin.settings.customSampleTypes,
+      // `update_section` targets a note the user is plausibly looking at right
+      // now. Going through the vault means the open editor picks the change up
+      // instead of overwriting it on its next flush.
+      writeNote: (path, content) =>
+        writeNoteThroughVault(this.plugin.app, this.plugin.host, path, content),
     };
   }
 
   private async handle(req: NodeReq, res: NodeRes): Promise<void> {
-    // Bearer auth (loopback still requires the token). Compared in constant time
-    // so a network-local attacker can't recover the token byte-by-byte via
-    // response-timing on early mismatch.
+    // Order matters: auth first. Origin validation exists to stop a token-less
+    // malicious page, and such a request is rejected here anyway — checking auth
+    // up front just tells an unauthenticated caller less about the server.
+    //
+    // Compared in constant time so a network-local attacker can't recover the
+    // token byte-by-byte via response-timing on early mismatch.
     const auth = headerValue(req.headers['authorization']);
     if (!this.token || !timingSafeEqual(auth, `Bearer ${this.token}`)) {
       return sendJson(res, 401, { error: 'unauthorized' });
     }
     if (req.method !== 'POST') {
+      // Streamable HTTP uses GET to open the server-to-client SSE stream. We
+      // have nothing to push, and the spec's prescribed answer for that is 405.
       return sendJson(res, 405, { error: 'method not allowed' });
+    }
+    if (!isAllowedOrigin(headerValue(req.headers['origin']))) {
+      return sendJson(res, 403, { error: 'forbidden origin' });
     }
 
     let body: string;
@@ -137,7 +166,24 @@ export class LabnoteMcpServer {
       return sendJson(res, 400, jsonRpcError(null, -32700, 'Parse error'));
     }
 
+    // A JSON-RPC message with no `id` member is a notification and gets no
+    // response body. `notifications/initialized` closes the handshake this way.
+    if (!('id' in rpc)) {
+      return sendEmpty(res, 202);
+    }
     const id = rpc.id ?? null;
+
+    if (rpc.method === 'initialize') {
+      return sendJson(res, 200, {
+        jsonrpc: '2.0',
+        id,
+        result: buildInitializeResult(this.plugin.manifest.version),
+      });
+    }
+
+    if (rpc.method === 'ping') {
+      return sendJson(res, 200, { jsonrpc: '2.0', id, result: {} });
+    }
 
     if (rpc.method === 'tools/list') {
       return sendJson(res, 200, {
@@ -157,7 +203,9 @@ export class LabnoteMcpServer {
       const name = String(rpc.params?.name ?? '');
       const args = (rpc.params?.arguments as Record<string, unknown>) ?? {};
 
-      if (WRITE_TOOLS.has(name)) {
+      // The tool itself declares whether it mutates, so a new mutating tool in
+      // core cannot slip past this gate by being missing from a host allowlist.
+      if (this.tools.find(t => t.name === name)?.mutates) {
         // Surface the write target so the user is not blind-approving by tool
         // name alone (an LLM could target any note/sample path).
         const target =
@@ -193,6 +241,46 @@ export class LabnoteMcpServer {
 
 // --- helpers ---------------------------------------------------------------
 
+/**
+ * The `InitializeResult` handed back to a client's `initialize` request.
+ *
+ * `capabilities` advertises only what we actually serve: a static tool list
+ * (`listChanged: false` — the catalog is fixed for the session), no resources,
+ * no prompts, no sampling.
+ */
+export function buildInitializeResult(serverVersion: string) {
+  return {
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    capabilities: { tools: { listChanged: false } },
+    serverInfo: { name: 'labnoteo', version: serverVersion },
+  };
+}
+
+/**
+ * Whether a request's `Origin` may proceed. Required by the MCP spec to defend
+ * against DNS rebinding: a page on `evil.com` can resolve a hostname to
+ * 127.0.0.1, but it cannot forge the `Origin` the browser attaches.
+ *
+ * An absent header means the caller is not a browser (curl, an MCP client, the
+ * built-in commands), which is the normal case and is allowed.
+ */
+export function isAllowedOrigin(origin: string): boolean {
+  if (!origin) return true;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  return (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '[::1]' ||
+    url.hostname === '::1'
+  );
+}
+
 function randomToken(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -214,7 +302,7 @@ function readBody(req: NodeReq): Promise<string> {
     req.on('data', (chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
       size += s.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > MAX_BODY_CHARS) {
         reject(new Error('request body too large'));
         return;
       }
@@ -230,7 +318,7 @@ function readBody(req: NodeReq): Promise<string> {
  * token length is not secret), but for equal lengths compares every character
  * so timing does not reveal the first mismatching position.
  */
-function timingSafeEqual(a: string, b: string): boolean {
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) {
@@ -242,6 +330,12 @@ function timingSafeEqual(a: string, b: string): boolean {
 function sendJson(res: NodeRes, status: number, payload: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(payload));
+}
+
+/** Status-only reply, for a notification that must not carry a response body. */
+function sendEmpty(res: NodeRes, status: number): void {
+  res.writeHead(status);
+  res.end();
 }
 
 function jsonRpcError(id: unknown, code: number, message: string) {
