@@ -116,6 +116,7 @@ const obsidianKo: Record<string, string> = {
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
   'Sample moved: {0}': '샘플을 이동했습니다: {0}',
   'Sample not found: {0}': '샘플을 찾을 수 없습니다: {0}',
+  'Open an experiment note first to move samples.': '샘플을 이동하려면 먼저 실험 노트를 여세요.',
   'Local and Global folders are the same.': '로컬과 전역 폴더가 동일합니다.',
   '{0} already exists in the destination. Overwrite it?':
     '{0}이(가) 대상에 이미 존재합니다. 덮어쓰시겠습니까?',

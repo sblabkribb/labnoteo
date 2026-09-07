@@ -232,8 +232,14 @@ export class SampleTreeView extends ItemView {
         )
         .setIcon('arrow-right-left')
         .onClick(() => {
+          // Hand the move the exact folders this tree rendered with, so it can
+          // never re-derive Local from a since-changed active file and land in
+          // a different experiment than the one shown.
+          const toScope: SampleScope = sample.scope === 'local' ? 'global' : 'local';
           void moveSampleInteractive(this.app, this.plugin, {
             fromScope: sample.scope,
+            fromFolder: this.scopeFolder(sample.scope),
+            toFolder: this.scopeFolder(toScope),
             type: sample.type,
             id: sample.id,
           });
