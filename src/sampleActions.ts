@@ -277,16 +277,27 @@ export async function deleteSampleInteractive(
  * deletes the source, so a mid-way failure leaves a recoverable duplicate
  * rather than losing data. Returns false when nothing was moved (cancelled,
  * missing record, or same folder). Returns undefined never — always resolves.
+ *
+ * The source/target folders are passed in by the caller (the Samples sidebar
+ * hands over exactly the folders its tree is currently showing) rather than
+ * re-derived here from the active file. Deriving them again would let a change
+ * of the active note between render and click send the sample into a different
+ * experiment than the one the user is looking at.
  */
 export async function moveSampleInteractive(
   app: App,
   plugin: LabnotePlugin,
-  opts: { fromScope: SampleScope; type: string; id: string }
+  opts: { fromScope: SampleScope; fromFolder: string; toFolder: string; type: string; id: string }
 ): Promise<boolean> {
-  const { fromScope, type, id } = opts;
-  const toScope: SampleScope = fromScope === 'local' ? 'global' : 'local';
-  const src = resolveScopeFolder(plugin, fromScope);
-  const tgt = resolveScopeFolder(plugin, toScope);
+  const { fromFolder: src, toFolder: tgt, type, id } = opts;
+
+  // Empty-folder guard: an unresolved scope (no experiment rendered yet) yields
+  // '' which would normalize to the vault root. Refuse rather than read/write
+  // sample JSON at the root.
+  if (!src || !tgt) {
+    new Notice(plugin.t('Open an experiment note first to move samples.'));
+    return false;
+  }
 
   // Same-folder guard (e.g. no experiment open so Local === Global): moving
   // would delete then re-create in place, or worse, silently no-op.
