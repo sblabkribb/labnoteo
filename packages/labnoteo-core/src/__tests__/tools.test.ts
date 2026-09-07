@@ -184,3 +184,120 @@ describe('create_workflow', () => {
     expect(res.ok).toBe(false);
   });
 });
+
+// `mutates` drives the host's "allow this write?" prompt, so a tool marked
+// read-only that quietly writes would bypass user consent entirely. Rather than
+// restate the flags (a change-detector test that proves nothing), run each
+// read-only tool and assert the vault is byte-identical afterwards.
+describe('ToolDef.mutates', () => {
+  it('every tool declares whether it mutates', () => {
+    for (const t of createLabnoteTools()) {
+      expect(typeof t.mutates, `${t.name}.mutates`).toBe('boolean');
+    }
+  });
+
+  /** Plausible args per tool, so handlers get far enough to write if they would. */
+  const argsFor: Record<string, Record<string, unknown>> = {
+    get_sample: { type: 'DNA', id: 'DNA-1', documentPath: NOTE_PATH },
+    list_samples: { type: 'DNA', documentPath: NOTE_PATH },
+    get_unit_operation: { opId: 'UHW010' },
+  };
+
+  it('read-only tools leave the vault untouched', async () => {
+    const { ensureWorkflowResources } = await import('../lib/workflowDataLoader');
+    // Seed the catalog first: lazily creating it is allowed (invisible to the
+    // user), and we want to catch writes beyond that.
+    await ensureWorkflowResources(fs, '.');
+    await runTool(createLabnoteTools(), 'create_sample', ctx, {
+      type: 'DNA',
+      id: 'DNA-1',
+      documentPath: NOTE_PATH,
+    });
+
+    for (const t of createLabnoteTools().filter(x => !x.mutates)) {
+      const before = fs.snapshot();
+      await t.handler(ctx, argsFor[t.name] ?? {});
+      expect(fs.snapshot(), `${t.name} wrote to the vault but is marked read-only`).toEqual(before);
+    }
+  });
+
+  it('mutating tools actually change the vault', async () => {
+    const before = fs.snapshot();
+    const res = await runTool(createLabnoteTools(), 'create_sample', ctx, {
+      type: 'DNA',
+      id: 'DNA-1',
+      documentPath: NOTE_PATH,
+    });
+    expect(res.ok).toBe(true);
+    expect(fs.snapshot()).not.toEqual(before);
+  });
+});
+
+// A note the AI edits may be open in the host's editor, whose buffer would
+// overwrite a raw filesystem write on its next flush. Hosts that have an
+// editor-aware write path supply it as `ctx.writeNote`.
+describe('ctx.writeNote hook', () => {
+  /** Records calls and applies them, so later reads see the change. */
+  const spyHook = (target: MemFileSystem) => {
+    const calls: Array<{ path: string; content: string }> = [];
+    return {
+      calls,
+      writeNote: async (path: string, content: string) => {
+        calls.push({ path, content });
+        await target.write(path, content);
+      },
+    };
+  };
+
+  it('update_section writes through the hook instead of fs', async () => {
+    const hook = spyHook(fs);
+    await fs.write(NOTE_PATH, '## [WD010 Design]\n\n#### Method\n\nold\n');
+
+    const res = await tool('update_section').handler(
+      { ...ctx, writeNote: hook.writeNote },
+      { documentPath: NOTE_PATH, heading: 'Method', content: 'NEW' }
+    );
+
+    expect(res.ok).toBe(true);
+    expect(hook.calls.map(c => c.path)).toEqual([NOTE_PATH]);
+    expect(await fs.read(NOTE_PATH)).toContain('NEW');
+  });
+
+  it('create_workflow routes both the new file and the README through the hook', async () => {
+    const { loadWorkflows, ensureWorkflowResources } = await import('../lib/workflowDataLoader');
+    await ensureWorkflowResources(fs, '.');
+    const wf = (await loadWorkflows(fs, '.')).workflows[0];
+    const readmePath = `${NOTE_DIR}/README.labnote.md`;
+    const hook = spyHook(fs);
+
+    const res = await tool('create_workflow').handler(
+      { ...ctx, writeNote: hook.writeNote },
+      { documentPath: readmePath, workflowId: wf.id }
+    );
+
+    expect(res.ok).toBe(true);
+    const { path } = res.data as { path: string };
+    expect(hook.calls.map(c => c.path)).toEqual([path, readmePath]);
+  });
+
+  it('falls back to fs.write when no hook is supplied', async () => {
+    await fs.write(NOTE_PATH, '## [WD010 Design]\n\n#### Method\n\nold\n');
+    const res = await tool('update_section').handler(ctx, {
+      documentPath: NOTE_PATH,
+      heading: 'Method',
+      content: 'NEW',
+    });
+    expect(res.ok).toBe(true);
+    expect(await fs.read(NOTE_PATH)).toContain('NEW');
+  });
+
+  it('is not used for sample data files, which are not notes', async () => {
+    const hook = spyHook(fs);
+    const res = await tool('create_sample').handler(
+      { ...ctx, writeNote: hook.writeNote },
+      { type: 'DNA', id: 'DNA-1', documentPath: NOTE_PATH }
+    );
+    expect(res.ok).toBe(true);
+    expect(hook.calls).toEqual([]);
+  });
+});

@@ -47,6 +47,29 @@ export interface ToolContext {
   globalSampleFolder?: string;
   /** Extra sample types beyond the built-ins. */
   customTypes?: string[];
+  /**
+   * Optional override for writing *markdown notes* (not data files).
+   *
+   * On a host where a note may be open in an editor, writing through the raw
+   * filesystem is a lost update waiting to happen: the editor holds its own
+   * buffer and flushes it over whatever the tool just wrote. Obsidian's plugin
+   * layer supplies a hook that routes through the vault instead, which the
+   * editor observes. Hosts without that problem can leave it unset — handlers
+   * fall back to {@link ToolContext.fs}.
+   */
+  writeNote?(path: string, content: string): Promise<void>;
+}
+
+/**
+ * Write a markdown note through {@link ToolContext.writeNote} when the host
+ * provides it, otherwise straight to the filesystem.
+ */
+async function writeNote(ctx: ToolContext, path: string, content: string): Promise<void> {
+  if (ctx.writeNote) {
+    await ctx.writeNote(path, content);
+    return;
+  }
+  await ctx.fs.write(path, content);
 }
 
 export interface ToolResult {
@@ -64,6 +87,19 @@ export interface JsonSchema {
 export interface ToolDef {
   name: string;
   description: string;
+  /**
+   * Whether the tool changes user-visible content (notes, sample records).
+   *
+   * Hosts MUST confirm with the user before running a mutating tool — an AI
+   * agent decides to call these on its own. Declared here, next to the handler,
+   * so the policy cannot drift from the tool list the way a separate allowlist
+   * in the host would. Required, not optional, so adding a tool forces the
+   * author to make the call rather than defaulting to "safe".
+   *
+   * Lazily seeding built-in resource files (e.g. the workflow catalog) does not
+   * count: it is invisible to the user and carries no data loss.
+   */
+  mutates: boolean;
   inputSchema: JsonSchema;
   handler(ctx: ToolContext, args: Record<string, unknown>): Promise<ToolResult>;
 }
@@ -122,6 +158,7 @@ export function createLabnoteTools(): ToolDef[] {
   return [
     {
       name: 'get_sample',
+      mutates: false,
       description:
         'Look up a stored sample definition by type and id, searching the document-local labsamples folder then the vault-global one.',
       inputSchema: {
@@ -153,6 +190,7 @@ export function createLabnoteTools(): ToolDef[] {
 
     {
       name: 'list_samples',
+      mutates: false,
       description: 'List all stored samples of a given type (local scope merged over global).',
       inputSchema: {
         type: 'object',
@@ -185,6 +223,7 @@ export function createLabnoteTools(): ToolDef[] {
 
     {
       name: 'create_sample',
+      mutates: true,
       description:
         'Create (or overwrite) a sample definition in the document-local labsamples folder. Generates an id when none is given.',
       inputSchema: {
@@ -222,6 +261,8 @@ export function createLabnoteTools(): ToolDef[] {
 
     {
       name: 'get_unit_operation',
+      // Seeds the workflow catalog on first use, which is invisible to the user.
+      mutates: false,
       description: 'Return catalog metadata (name, description, equipment/software) for a unit-operation id.',
       inputSchema: {
         type: 'object',
@@ -239,6 +280,7 @@ export function createLabnoteTools(): ToolDef[] {
 
     {
       name: 'update_section',
+      mutates: true,
       description:
         'Replace the body of a section (matched by heading text at any level) in a note, without re-serializing the rest of the document.',
       inputSchema: {
@@ -263,13 +305,14 @@ export function createLabnoteTools(): ToolDef[] {
         const md = await ctx.fs.read(documentPath);
         const { ok, md: next } = replaceSectionBody(md, heading, content);
         if (!ok) return { ok: false, error: `Section not found: ${heading}` };
-        await ctx.fs.write(documentPath, next);
+        await writeNote(ctx, documentPath, next);
         return { ok: true, data: { documentPath, heading } };
       },
     },
 
     {
       name: 'create_workflow',
+      mutates: true,
       description:
         'Create a new workflow file in an experiment folder from the catalog and register it in the README checklist.',
       inputSchema: {
@@ -307,13 +350,16 @@ export function createLabnoteTools(): ToolDef[] {
         const info = { id: wf.id, name: wf.name, description: wf.description };
         const fileName = createWorkflowFileName(sequence, info);
         const workflowPath = posix.join(labnoteDir, fileName);
-        await ctx.fs.write(workflowPath, createWorkflowContent(info, experimenter));
+        // The new workflow file cannot be open yet, but the README very well
+        // may be — both go through the hook so the host owns note writes.
+        await writeNote(ctx, workflowPath, createWorkflowContent(info, experimenter));
 
         if (await ctx.fs.exists(readmePath)) {
           const readme = await ctx.fs.read(readmePath);
           const items = parseWorkflowChecklistFromReadme(readme);
           items.push({ done: false, title: `${wf.id} ${wf.name}`, fileName });
-          await ctx.fs.write(
+          await writeNote(
+            ctx,
             readmePath,
             updateReadmeWorkflowSection(readme, generateWorkflowChecklist(items))
           );
