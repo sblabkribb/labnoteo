@@ -25,7 +25,7 @@ import {
 } from '@labnoteo/core';
 import * as posix from '@labnoteo/core/posix';
 import { workflowAliasModal } from './modals';
-import { createLabnoteStructure } from '@labnoteo/core/lib/labnoteStructure';
+import { createLabnoteStructure, getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import {
   ensureWorkflowResources,
   loadWorkflows,
@@ -54,16 +54,6 @@ import {
 const VAULT_ROOT = '.';
 const README = 'README.labnote.md';
 
-/** Derive the `labnote/{###_Name}` experiment dir from a vault-relative path. */
-export function labnoteDirFromPath(p: string): string | undefined {
-  const parts = posix.normalize(p).split('/');
-  const idx = parts.lastIndexOf('labnote');
-  if (idx === -1 || idx + 1 >= parts.length) return undefined;
-  const exp = parts[idx + 1];
-  if (!/^\d{3}_/.test(exp)) return undefined;
-  return parts.slice(0, idx + 2).join('/');
-}
-
 /**
  * Resolve the target experiment folder from the active note's path. Warns and
  * returns undefined when no lab note (a file under `labnote/###_*`) is open.
@@ -72,7 +62,7 @@ async function resolveLabnoteDir(app: App, host: LabnoteHost): Promise<string | 
   // Use the active *file* (not the active MarkdownView) so resolution still
   // works when focus is on a sidebar/tree, e.g. the workflow view context menu.
   const active = app.workspace.getActiveFile()?.path;
-  const dir = active ? labnoteDirFromPath(active) : undefined;
+  const dir = active ? getExperimentDir(active) : undefined;
   if (!dir) {
     host.notify('warn', host.t('Open a lab note first.'));
     return undefined;

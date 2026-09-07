@@ -6,7 +6,7 @@
  */
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type LabnotePlugin from './main';
-import type { LlmProviderKind } from './settings';
+import { DEFAULT_SETTINGS, type LlmProviderKind } from './settings';
 
 export class LabnoteSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: LabnotePlugin) {
@@ -51,12 +51,21 @@ export class LabnoteSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName(this.plugin.t('Global sample folder'))
       .setDesc(this.plugin.t('Vault-relative folder for vault-global samples.'))
-      .addText(t =>
+      .addText(t => {
         t.setValue(s.globalSampleFolder).onChange(v => {
           s.globalSampleFolder = v.trim();
           save();
-        })
-      );
+        });
+        // An empty Global folder silently breaks Global-scope reads/writes; if
+        // the user clears the field, restore the default when focus leaves.
+        t.inputEl.addEventListener('blur', () => {
+          if (!s.globalSampleFolder) {
+            s.globalSampleFolder = DEFAULT_SETTINGS.globalSampleFolder;
+            t.setValue(s.globalSampleFolder);
+            save();
+          }
+        });
+      });
 
     new Setting(containerEl).setName(this.plugin.t('AI provider')).setHeading();
 

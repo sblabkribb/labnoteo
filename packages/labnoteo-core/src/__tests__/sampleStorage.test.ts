@@ -14,7 +14,9 @@ import {
   saveSamplesByType,
   upsertSampleRecord,
   deleteSampleRecord,
+  putSampleRecord,
   type SampleDatabase,
+  type SampleRecord,
 } from '../lib/sampleStorage';
 import { MemFileSystem } from '../fs/memFileSystem';
 
@@ -253,5 +255,59 @@ describe('deleteSampleRecord', () => {
   it('rejects a traversal payload in the sample type', async () => {
     const fs = new MemFileSystem();
     await expect(deleteSampleRecord(fs, FOLDER, '../../evil', 'x')).rejects.toThrow();
+  });
+});
+
+describe('putSampleRecord (verbatim atomic write)', () => {
+  const FOLDER = 'labnote/001_Exp/resources/labsamples';
+
+  const rec = (over: Partial<SampleRecord> = {}): SampleRecord => ({
+    type: 'DNA',
+    alias: 'pUC19',
+    descriptions: ['first', 'second'],
+    sources: ['a.labnote.md', 'b.labnote.md'],
+    ...over,
+  });
+
+  it('creates the file and stores the record verbatim', async () => {
+    const fs = new MemFileSystem();
+    await putSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', rec());
+
+    const records = await loadSamplesByType(fs, FOLDER, 'DNA');
+    expect(records['DNA-1']).toEqual(rec());
+  });
+
+  it('preserves multiple descriptions and sources (unlike upsertSampleRecord)', async () => {
+    const fs = new MemFileSystem();
+    await putSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', rec());
+
+    const records = await loadSamplesByType(fs, FOLDER, 'DNA');
+    expect(records['DNA-1'].descriptions).toEqual(['first', 'second']);
+    expect(records['DNA-1'].sources).toEqual(['a.labnote.md', 'b.labnote.md']);
+  });
+
+  it('overwrites an existing record with the given one', async () => {
+    const fs = new MemFileSystem();
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: 'old', description: 'old' });
+    await putSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', rec({ alias: 'new' }));
+
+    const records = await loadSamplesByType(fs, FOLDER, 'DNA');
+    expect(records['DNA-1'].alias).toBe('new');
+    expect(records['DNA-1'].descriptions).toEqual(['first', 'second']);
+  });
+
+  it('does not disturb sibling records in the same file', async () => {
+    const fs = new MemFileSystem();
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-2', { alias: 'keep', description: null });
+    await putSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', rec());
+
+    const records = await loadSamplesByType(fs, FOLDER, 'DNA');
+    expect(Object.keys(records).sort()).toEqual(['DNA-1', 'DNA-2']);
+    expect(records['DNA-2'].alias).toBe('keep');
+  });
+
+  it('rejects a traversal payload in the sample type', async () => {
+    const fs = new MemFileSystem();
+    await expect(putSampleRecord(fs, FOLDER, '../../evil', 'x', rec())).rejects.toThrow();
   });
 });

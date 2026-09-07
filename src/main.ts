@@ -13,7 +13,7 @@ import { findSampleReferenceAt } from '@labnoteo/core';
 import { getSeoulDateString, getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
 import { getSampleDisplayMeta } from '@labnoteo/core/lib/sampleUtils';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
-import { saveSamplesFromDocument } from '@labnoteo/core/lib/sampleStorage';
+import { saveSamplesFromDocument, getLabsamplesFolder } from '@labnoteo/core/lib/sampleStorage';
 import { VaultFileSystem } from './vaultFileSystem';
 import { createObsidianTranslator } from './i18n';
 import { createObsidianHost } from './obsidianHost';
@@ -24,9 +24,9 @@ import {
   insertWorkflowLinkCommand,
   syncReadmeOrderOnRename,
   syncReadmeAndSamplesOnDelete,
-  labnoteDirFromPath,
 } from './commands';
 import * as posix from '@labnoteo/core/posix';
+import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { SampleEditorSuggest } from './sampleSuggest';
 import { openSampleDefinition } from './sampleDefinitionModal';
 import {
@@ -56,6 +56,10 @@ export default class LabnotePlugin extends Plugin {
   host!: LabnoteHost;
   mcpServer!: LabnoteMcpServer;
   private sampleSuggest?: SampleEditorSuggest;
+  // Last experiment folder (`labnote/###_*`) resolved from an active note, kept
+  // in memory so the Samples sidebar's Local scope stays pinned to that
+  // experiment even when focus moves to a file outside it. Reset on reload.
+  private lastExperimentDir?: string;
   private readonly sampleSyncTimers = new Map<string, number>();
   // Pending README auto-sync events, coalesced per experiment folder.
   private readonly readmeSyncQueue = new Map<
@@ -309,8 +313,8 @@ export default class LabnotePlugin extends Plugin {
         const newPath = file.path;
         // Only same-folder workflow-file renames auto-reorder the README.
         if (!isValidWorkflowPath(newPath) || !isValidWorkflowPath(oldPath)) return;
-        const dir = labnoteDirFromPath(newPath);
-        if (!dir || dir !== labnoteDirFromPath(oldPath)) return;
+        const dir = getExperimentDir(newPath);
+        if (!dir || dir !== getExperimentDir(oldPath)) return;
         this.queueReadmeSync(dir).renames.push({
           from: posix.basename(oldPath),
           to: posix.basename(newPath),
@@ -322,7 +326,7 @@ export default class LabnotePlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('delete', file => {
         if (!(file instanceof TFile) || !isValidWorkflowPath(file.path)) return;
-        const dir = labnoteDirFromPath(file.path);
+        const dir = getExperimentDir(file.path);
         if (!dir) return;
         this.queueReadmeSync(dir).deletes.push(file.path);
         this.scheduleReadmeSync(dir);
@@ -495,6 +499,33 @@ export default class LabnotePlugin extends Plugin {
    */
   activeNotePath(): string | undefined {
     return this.app.workspace.getActiveFile()?.path;
+  }
+
+  /**
+   * The Local-scope `resources/labsamples` folder for the sample sidebar and
+   * autocomplete.
+   *
+   * Resolved from the active note's experiment root (`labnote/###_*`), NOT its
+   * immediate folder, so any file inside an experiment (a subfolder image, a
+   * workflow note, …) maps to the same experiment samples. The last resolved
+   * experiment is remembered so opening a file OUTSIDE any experiment keeps the
+   * tree pinned to that experiment instead of collapsing to Global. Falls back
+   * to the active file's own folder (legacy behaviour), then Global, only when
+   * no experiment has ever been opened this session.
+   */
+  localSampleFolder(): string {
+    const active = this.activeNotePath();
+    const dir = active ? getExperimentDir(active) : undefined;
+    if (dir) this.lastExperimentDir = dir;
+    if (this.lastExperimentDir) {
+      return posix.join(this.lastExperimentDir, 'resources', 'labsamples');
+    }
+    return active ? getLabsamplesFolder(active) : this.settings.globalSampleFolder;
+  }
+
+  /** Whether a Local sample scope can be resolved (an experiment is known). */
+  hasLocalScope(): boolean {
+    return this.activeNotePath() !== undefined || this.lastExperimentDir !== undefined;
   }
 
   notify(message: string): void {

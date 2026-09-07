@@ -510,6 +510,34 @@ export async function deleteSampleRecord(
 }
 
 /**
+ * Atomically store one sample record **verbatim** into `{Type}.json`.
+ *
+ * Unlike {@link upsertSampleRecord} (which rebuilds the record from scalar
+ * alias/description fields and so collapses `descriptions` to a single entry),
+ * this writes the given {@link SampleRecord} as-is, preserving multiple
+ * `descriptions` and all `sources`. It is the "write" half of a scope move
+ * (Local <-> Global): the caller loads the source record, `putSampleRecord`s it
+ * into the target, then `deleteSampleRecord`s it from the source. The
+ * read-modify-write runs inside `fs.modify` so a concurrent sample-sync cannot
+ * clobber sibling ids in the same file.
+ */
+export async function putSampleRecord(
+  fs: LabnoteFs,
+  labsamplesFolder: string,
+  type: string,
+  id: string,
+  record: SampleRecord
+): Promise<void> {
+  assertSafeSampleType(type);
+  const filePath = path.join(labsamplesFolder, `${type}.json`);
+  await fs.modify(filePath, (raw) => {
+    const records = parseSampleRecords(raw);
+    records[id] = record;
+    return JSON.stringify(records, null, 2);
+  });
+}
+
+/**
  * Save samples extracted from a document to JSON files
  * Merges with existing data. Samples that exist in Global are not re-added to Local
  * (so after Move to Global, saving the document does not re-add the sample to Local).

@@ -21,6 +21,7 @@ import {
   type SampleRecord,
 } from '../lib/sampleStorage';
 import { generateSampleId } from '../lib/sampleUtils';
+import { getExperimentDir } from '../lib/labnoteStructure';
 import {
   ensureWorkflowResources,
   loadWorkflows,
@@ -128,15 +129,6 @@ function safePath(ctx: ToolContext, args: Record<string, unknown>, key: string):
 }
 
 const README_NAME = 'README.labnote.md';
-
-/** Derive the `labnote/{###_Name}` experiment dir from any path inside it. */
-function labnoteDirFromPath(p: string): string | undefined {
-  const parts = posix.normalize(p).split('/');
-  const idx = parts.lastIndexOf('labnote');
-  if (idx === -1 || idx + 1 >= parts.length) return undefined;
-  if (!/^\d{3}_/.test(parts[idx + 1])) return undefined;
-  return parts.slice(0, idx + 2).join('/');
-}
 
 async function findUnitOp(
   ctx: ToolContext,
@@ -329,7 +321,7 @@ export function createLabnoteTools(): ToolDef[] {
         if (!documentPath || !workflowId) {
           return { ok: false, error: 'documentPath and workflowId are required' };
         }
-        const labnoteDir = labnoteDirFromPath(documentPath);
+        const labnoteDir = getExperimentDir(documentPath);
         if (!labnoteDir) {
           return { ok: false, error: 'documentPath is not inside a labnote/### experiment folder' };
         }

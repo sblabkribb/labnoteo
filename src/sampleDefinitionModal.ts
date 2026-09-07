@@ -57,9 +57,15 @@ class SampleDefinitionModal extends Modal {
       [t('File'), jsonPath],
     ];
     for (const [name, value] of rows) {
-      new Setting(contentEl).setName(name).addText(text => {
-        text.setValue(value).setDisabled(true);
-      });
+      // `labnote-sample-def-row` widens the value column; the labels are short
+      // but the values (the JSON path above all) are not. Scoped to these rows
+      // so the button row below keeps Obsidian's default right alignment.
+      new Setting(contentEl)
+        .setClass('labnote-sample-def-row')
+        .setName(name)
+        .addText(text => {
+          text.setValue(value).setDisabled(true);
+        });
     }
 
     const isEditable = scope !== 'catalog';

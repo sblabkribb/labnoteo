@@ -68,7 +68,10 @@ const obsidianKo: Record<string, string> = {
   'Add sample': '샘플 추가',
   'Edit sample': '샘플 편집',
   'Delete sample': '샘플 삭제',
+  'Move to Global': '전역으로 이동',
+  'Move to Local': '로컬로 이동',
   'Open a note to insert into.': '삽입할 노트를 여세요.',
+  'Open a note first to add a local sample.': '로컬 샘플을 추가하려면 먼저 노트를 여세요.',
   'No samples found.': '샘플을 찾을 수 없습니다.',
 
   // Sample create / autocomplete actions
@@ -111,6 +114,12 @@ const obsidianKo: Record<string, string> = {
   'Sample added: {0}': '샘플이 추가되었습니다: {0}',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
+  'Sample moved: {0}': '샘플을 이동했습니다: {0}',
+  'Sample not found: {0}': '샘플을 찾을 수 없습니다: {0}',
+  'Local and Global folders are the same.': '로컬과 전역 폴더가 동일합니다.',
+  '{0} already exists in the destination. Overwrite it?':
+    '{0}이(가) 대상에 이미 존재합니다. 덮어쓰시겠습니까?',
+  'Overwrite': '덮어쓰기',
 
   // Settings tab
   'Sample tracking': '샘플 추적',
