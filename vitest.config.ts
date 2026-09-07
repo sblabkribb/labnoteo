@@ -11,8 +11,12 @@ const coreAlias = [
     replacement: path.resolve(__dirname, 'packages/labnoteo-core/src/lib/$1.ts'),
   },
   {
-    find: '@labnoteo/core/node',
-    replacement: path.resolve(__dirname, 'packages/labnoteo-core/src/node/index.ts'),
+    find: '@labnoteo/core/headings',
+    replacement: path.resolve(__dirname, 'packages/labnoteo-core/src/sections/unitOpHeading.ts'),
+  },
+  {
+    find: '@labnoteo/core/posix',
+    replacement: path.resolve(__dirname, 'packages/labnoteo-core/src/util/posixPath.ts'),
   },
   {
     find: '@labnoteo/core',
@@ -20,16 +24,42 @@ const coreAlias = [
   },
 ];
 
+// The published `obsidian` package ships types only, so plugin code that uses it
+// as a value needs a runtime stand-in. Scoped to the `plugin` project: the core
+// project must stay unable to resolve it at all.
+const obsidianAlias = {
+  find: /^obsidian$/,
+  replacement: path.resolve(__dirname, 'tests/stubs/obsidian.ts'),
+};
+
+// NOTE: vitest 4 does NOT inherit root-level options into inline projects
+// (`extends` only defaults to true from vitest 5). Each project therefore
+// declares the aliases it needs rather than relying on a root `resolve` block.
 export default defineConfig({
-  resolve: {
-    alias: coreAlias,
-  },
   test: {
-    // Core tests run WITHOUT any host mock so pure logic stays decoupled from
-    // the Obsidian plugin layer.
-    name: 'core',
-    environment: 'node',
-    globals: true,
-    include: ['packages/labnoteo-core/src/**/*.{test,spec}.{js,ts}'],
+    projects: [
+      {
+        resolve: { alias: coreAlias },
+        test: {
+          // Core tests run WITHOUT any host mock so pure logic stays decoupled
+          // from the Obsidian plugin layer.
+          name: 'core',
+          environment: 'node',
+          globals: true,
+          include: ['packages/labnoteo-core/src/**/*.{test,spec}.{js,ts}'],
+        },
+      },
+      {
+        resolve: { alias: [...coreAlias, obsidianAlias] },
+        test: {
+          // Plugin (Obsidian adapter) tests: same core aliases plus the
+          // `obsidian` stub.
+          name: 'plugin',
+          environment: 'node',
+          globals: true,
+          include: ['tests/plugin/**/*.{test,spec}.{js,ts}'],
+        },
+      },
+    ],
   },
 });
