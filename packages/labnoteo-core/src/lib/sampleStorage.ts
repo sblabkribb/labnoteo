@@ -480,6 +480,36 @@ export async function upsertSampleRecord(
 }
 
 /**
+ * Atomically delete one sample record from `{Type}.json`.
+ *
+ * Counterpart to {@link upsertSampleRecord} for the sidebar's delete action,
+ * which previously hand-rolled a `load → delete → save` round-trip that a
+ * concurrent sample-sync could resurrect. Returns whether a record was actually
+ * removed; a missing file or id is not an error, since the caller's intent
+ * (the record is gone) already holds.
+ */
+export async function deleteSampleRecord(
+  fs: LabnoteFs,
+  labsamplesFolder: string,
+  type: string,
+  id: string
+): Promise<boolean> {
+  assertSafeSampleType(type);
+  const filePath = path.join(labsamplesFolder, `${type}.json`);
+  if (!(await fs.exists(filePath))) return false;
+
+  let removed = false;
+  await fs.modify(filePath, (raw) => {
+    const records = parseSampleRecords(raw);
+    if (!(id in records)) return raw;
+    delete records[id];
+    removed = true;
+    return JSON.stringify(records, null, 2);
+  });
+  return removed;
+}
+
+/**
  * Save samples extracted from a document to JSON files
  * Merges with existing data. Samples that exist in Global are not re-added to Local
  * (so after Move to Global, saving the document does not re-add the sample to Local).

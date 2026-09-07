@@ -8,16 +8,53 @@
  * may live outside the markdown file cache, and the adapter gives uniform
  * path-based access to them.
  *
- * Atomicity note (see LabnoteFs docs): Obsidian persists writes through its own
- * mechanism; the temp-then-rename trick used by the Node adapter actively breaks
- * inside a vault, so `write` here is a plain adapter write.
+ * Atomicity (see the `LabnoteFs.modify` contract): `modify` delegates to the
+ * adapter's own `process()`, whose synchronous callback is exactly the shape the
+ * contract requires. Two gaps `process()` cannot close are covered by a
+ * per-path queue: creating a file that does not exist yet (`process` reads
+ * first, so it cannot), and plain `write` calls landing in the middle of
+ * someone else's read-modify-write. What none of this covers is a second
+ * Obsidian process on the same vault — the queue is per plugin instance.
  */
 import type { DataAdapter } from 'obsidian';
 import type { LabnoteFs } from '@labnoteo/core';
 import * as posix from '@labnoteo/core/posix';
 
+/**
+ * `DataAdapter.process` is declared non-optional, but it is old enough that the
+ * mobile adapter's declaration carries a later `@since` than our
+ * `minAppVersion`. Probing for it at runtime keeps that floor where it is.
+ */
+interface MaybeAtomicAdapter {
+  process?: (path: string, fn: (data: string) => string) => Promise<string>;
+}
+
 export class VaultFileSystem implements LabnoteFs {
+  /** Tail of the pending operation chain for each path, keyed by normalized path. */
+  private readonly queues = new Map<string, Promise<unknown>>();
+
   constructor(private readonly adapter: DataAdapter) {}
+
+  /**
+   * Run `task` after every operation already queued for `key`. A failed task
+   * does not poison the chain: successors run regardless, and only the caller
+   * that queued it sees the rejection.
+   */
+  private enqueue<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const prev = this.queues.get(key) ?? Promise.resolve();
+    const run = prev.then(task, task);
+    const tail = run.then(
+      () => undefined,
+      () => undefined
+    );
+    this.queues.set(key, tail);
+    void tail.then(() => {
+      // Only the current tail may clear the entry; a later queuer already
+      // replaced it and is still waiting.
+      if (this.queues.get(key) === tail) this.queues.delete(key);
+    });
+    return run;
+  }
 
   async read(path: string): Promise<string> {
     return this.adapter.read(normalize(path));
@@ -25,25 +62,29 @@ export class VaultFileSystem implements LabnoteFs {
 
   async write(path: string, content: string): Promise<void> {
     const p = normalize(path);
-    await this.ensureParent(p);
-    await this.adapter.write(p, content);
+    return this.enqueue(p, async () => {
+      await this.ensureParent(p);
+      await this.adapter.write(p, content);
+    });
   }
 
-  /**
-   * Interim `modify`: a plain read-or-empty → update → write over the adapter.
-   *
-   * NOTE: this is NOT yet atomic. True per-file atomicity requires the Vault
-   * API (`vault.process`), which is the deferred Phase 3 rewrite. Behaviour here
-   * is intentionally identical to the previous read+write callers, so nothing
-   * regresses; the atomicity guarantee only becomes real once this class is
-   * migrated off the adapter. The core logic is already structured around
-   * `modify` so that migration is a drop-in.
-   */
   async modify(path: string, updater: (data: string) => string): Promise<void> {
     const p = normalize(path);
-    await this.ensureParent(p);
-    const current = (await this.adapter.exists(p)) ? await this.adapter.read(p) : '';
-    await this.adapter.write(p, updater(current));
+    return this.enqueue(p, async () => {
+      await this.ensureParent(p);
+      if (!(await this.adapter.exists(p))) {
+        // `process` starts by reading, so a brand-new file has to be created
+        // here. The queue is what makes this branch safe.
+        await this.adapter.write(p, updater(''));
+        return;
+      }
+      const atomic = (this.adapter as unknown as MaybeAtomicAdapter).process;
+      if (typeof atomic === 'function') {
+        await atomic.call(this.adapter, p, updater);
+        return;
+      }
+      await this.adapter.write(p, updater(await this.adapter.read(p)));
+    });
   }
 
   async exists(path: string): Promise<boolean> {
@@ -73,7 +114,11 @@ export class VaultFileSystem implements LabnoteFs {
     }
   }
 
-  /** Recursively create the parent directory chain for a file path. */
+  /**
+   * Create the parent directory of a file path. One `mkdir` suffices: the
+   * adapter creates intermediate folders, which is why writing
+   * `.../resources/labsamples/DNA.json` works with neither folder present.
+   */
   private async ensureParent(filePath: string): Promise<void> {
     const dir = posix.dirname(filePath);
     if (dir && dir !== '.' && dir !== '/' && !(await this.adapter.exists(dir))) {

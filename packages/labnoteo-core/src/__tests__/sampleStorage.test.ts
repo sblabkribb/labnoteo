@@ -13,6 +13,7 @@ import {
   loadSamplesByType,
   saveSamplesByType,
   upsertSampleRecord,
+  deleteSampleRecord,
   type SampleDatabase,
 } from '../lib/sampleStorage';
 import { MemFileSystem } from '../fs/memFileSystem';
@@ -200,5 +201,57 @@ describe('upsertSampleRecord (Phase 3 atomic merge)', () => {
     ]);
     const records = await loadSamplesByType(fs, FOLDER, 'DNA');
     expect(Object.keys(records).sort()).toEqual(['DNA-1', 'DNA-2', 'DNA-3']);
+  });
+});
+
+describe('deleteSampleRecord', () => {
+  const FOLDER = 'labnote/001_Exp/resources/labsamples';
+
+  const seed = async (fs: MemFileSystem, ids: string[]): Promise<void> => {
+    for (const id of ids) {
+      await upsertSampleRecord(fs, FOLDER, 'DNA', id, { alias: id, description: null });
+    }
+  };
+
+  it('removes only the requested id', async () => {
+    const fs = new MemFileSystem();
+    await seed(fs, ['DNA-1', 'DNA-2']);
+
+    expect(await deleteSampleRecord(fs, FOLDER, 'DNA', 'DNA-1')).toBe(true);
+    expect(Object.keys(await loadSamplesByType(fs, FOLDER, 'DNA'))).toEqual(['DNA-2']);
+  });
+
+  it('reports false for an unknown id and leaves the file untouched', async () => {
+    const fs = new MemFileSystem();
+    await seed(fs, ['DNA-1']);
+    const before = fs.snapshot();
+
+    expect(await deleteSampleRecord(fs, FOLDER, 'DNA', 'DNA-9')).toBe(false);
+    expect(fs.snapshot()).toEqual(before);
+  });
+
+  it('reports false when the file does not exist', async () => {
+    const fs = new MemFileSystem();
+    expect(await deleteSampleRecord(fs, FOLDER, 'DNA', 'DNA-1')).toBe(false);
+    // Must not create an empty `{Type}.json` just to find nothing in it.
+    expect(fs.snapshot()).toEqual({});
+  });
+
+  it('does not clobber a concurrent upsert of a different id', async () => {
+    const fs = new MemFileSystem();
+    await seed(fs, ['DNA-1', 'DNA-2']);
+
+    await Promise.all([
+      deleteSampleRecord(fs, FOLDER, 'DNA', 'DNA-1'),
+      upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-3', { alias: 'c', description: null }),
+    ]);
+
+    const records = await loadSamplesByType(fs, FOLDER, 'DNA');
+    expect(Object.keys(records).sort()).toEqual(['DNA-2', 'DNA-3']);
+  });
+
+  it('rejects a traversal payload in the sample type', async () => {
+    const fs = new MemFileSystem();
+    await expect(deleteSampleRecord(fs, FOLDER, '../../evil', 'x')).rejects.toThrow();
   });
 });

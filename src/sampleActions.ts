@@ -19,7 +19,8 @@ import {
 import {
   loadSamplesByType,
   loadReferenceSamplesByType,
-  saveSamplesByType,
+  upsertSampleRecord,
+  deleteSampleRecord,
   getLabsamplesFolder,
   findSampleDefinitionMatch,
   type SampleRecord,
@@ -38,25 +39,6 @@ export function resolveScopeFolder(plugin: LabnotePlugin, scope: SampleScope): s
   if (scope === 'global') return plugin.settings.globalSampleFolder;
   const active = plugin.activeNotePath();
   return active ? getLabsamplesFolder(active) : plugin.settings.globalSampleFolder;
-}
-
-/** Merge one sample record into `{Type}.json` (create/overwrite by id). */
-async function upsertSampleRecord(
-  plugin: LabnotePlugin,
-  folder: string,
-  type: string,
-  id: string,
-  alias: string | null,
-  description: string | null
-): Promise<void> {
-  const db = await loadSamplesByType(plugin.fs, folder, type);
-  db[id] = {
-    type,
-    alias,
-    descriptions: description ? [description] : [],
-    sources: db[id]?.sources ?? [],
-  };
-  await saveSamplesByType(plugin.fs, folder, type, db);
 }
 
 /** Trim to a non-empty string or null. */
@@ -115,7 +97,9 @@ export async function createSampleInteractive(
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
 
-  await upsertSampleRecord(plugin, folder, type, id, alias, description);
+  // `sources` is omitted so the record keeps whatever documents already
+  // reference it; a tree-created sample legitimately starts with none.
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description });
   plugin.refreshSampleViews();
   new Notice(plugin.t('Sample added: {0}', id));
 
@@ -204,7 +188,7 @@ export async function editSampleInteractive(
 
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
-  await upsertSampleRecord(plugin, folder, type, id, alias, description);
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description });
   plugin.refreshSampleViews();
 
   // Best-effort: keep the active note's definition in sync (single file only).
@@ -279,11 +263,7 @@ export async function deleteSampleInteractive(
   );
   if (!ok) return false;
 
-  const db = await loadSamplesByType(plugin.fs, folder, type);
-  if (db[id]) {
-    delete db[id];
-    await saveSamplesByType(plugin.fs, folder, type, db);
-  }
+  await deleteSampleRecord(plugin.fs, folder, type, id);
   plugin.refreshSampleViews();
   new Notice(plugin.t('Sample deleted: {0}', id));
   return true;
