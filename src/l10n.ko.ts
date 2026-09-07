@@ -21,6 +21,14 @@ const obsidianKo: Record<string, string> = {
   'AI: Draft Method section': 'AI: Method 섹션 초안 작성',
   'AI: Summarize results': 'AI: 결과 요약',
   'AI: Extract sample definitions': 'AI: 샘플 정의 추출',
+  'AI: Ask assistant (uses tools)': 'AI: 어시스턴트에게 요청 (툴 사용)',
+  'Ask the AI assistant': 'AI 어시스턴트에게 요청',
+  'What should the assistant do?': '어시스턴트가 무엇을 하면 될까요?',
+  'e.g. Add a Method section describing the PCR setup':
+    '예: PCR 조건을 설명하는 Method 섹션 추가',
+  'Allow AI tool "{0}" to modify the vault?': 'AI 툴 "{0}"이(가) 보관함을 수정하도록 허용할까요?',
+  'AI stopped after too many steps.': 'AI가 너무 많은 단계를 거쳐 중단되었습니다.',
+  'AI ran {0} tool call(s).': 'AI가 툴을 {0}회 호출했습니다.',
 
   // View titles / ribbon
   'Workflows': '워크플로',
@@ -30,11 +38,9 @@ const obsidianKo: Record<string, string> = {
   'New experiment': '새 실험',
   'Experiment title': '실험 제목',
   'Title is required.': '제목을 입력해야 합니다.',
-  'Select experiment folder': '실험 폴더 선택',
   'Select workflow': '워크플로 선택',
   'Search workflows': '워크플로 검색',
   'Search unit operations': '유닛 오퍼레이션 검색',
-  'No experiment folder found. Create one first.': '실험 폴더를 찾을 수 없습니다. 먼저 생성하세요.',
   'Open a lab note first.': '먼저 랩노트 파일을 여세요.',
   'Workflow name': '워크플로 이름',
   'Enter a name for this workflow': '이 워크플로의 상세 별칭을 입력하세요',

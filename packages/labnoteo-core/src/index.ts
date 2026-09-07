@@ -1,9 +1,10 @@
 /**
  * @labnoteo/core — platform-neutral core entry (browser + node safe).
  *
- * This entry MUST NOT import Node-only APIs (fs, path, child_process) so that
- * the vite-bundled webview can consume it. Node-specific helpers live under
- * `@labnoteo/core/node`.
+ * This entry MUST NOT import Node-only APIs (fs, path, child_process): the
+ * Obsidian plugin bundles it for a renderer process that also has to run on
+ * mobile, where none of those exist. Anything platform-specific belongs behind
+ * a port (`LabnoteFs`, `LabnoteHost`) that the host implements.
  */
 
 // === Surgical unit-op TOC edits (whitespace-preserving; used by the Obsidian
