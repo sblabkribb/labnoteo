@@ -27,8 +27,13 @@ jobs:
       - name: Typecheck (core + plugin)
         run: npm run typecheck
 
-      - name: Run tests (core)
+      - name: Run tests (core + plugin)
         run: npm test
+
+      # The root package.json version is the source of truth; catch a bump that
+      # never reached the manifest or the READMEs before it reaches a release.
+      - name: Check version sync
+        run: npm run sync:versions -- --check
 
       - name: Build Obsidian plugin
         run: npm run build
