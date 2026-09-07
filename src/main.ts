@@ -43,6 +43,7 @@ import {
   draftMethodCommand,
   summarizeResultsCommand,
   extractSamplesCommand,
+  askAgentCommand,
 } from './llm/commands';
 import { LabnoteMcpServer } from './llm/mcpServer';
 import { CURRENT_SCHEMA_VERSION, migrateSettings, type LabnoteSettings } from './settings';
@@ -172,6 +173,11 @@ export default class LabnotePlugin extends Plugin {
       id: 'ai-extract-samples',
       name: this.t('AI: Extract sample definitions'),
       callback: () => this.run(() => extractSamplesCommand(this)),
+    });
+    this.addCommand({
+      id: 'ai-ask-agent',
+      name: this.t('AI: Ask assistant (uses tools)'),
+      callback: () => this.run(() => askAgentCommand(this)),
     });
 
     this.addCommand({
