@@ -15,12 +15,11 @@
     "baseUrl": ".",
     "paths": {
       "@labnoteo/core": ["packages/labnoteo-core/src/index.ts"],
-      "@labnoteo/core/node": ["packages/labnoteo-core/src/node/index.ts"],
       "@labnoteo/core/headings": ["packages/labnoteo-core/src/sections/unitOpHeading.ts"],
       "@labnoteo/core/posix": ["packages/labnoteo-core/src/util/posixPath.ts"],
       "@labnoteo/core/lib/*": ["packages/labnoteo-core/src/lib/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "**/node_modules"]
 }
