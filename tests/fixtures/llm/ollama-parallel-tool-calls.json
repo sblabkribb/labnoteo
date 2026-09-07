@@ -1,0 +1,36 @@
+{
+  "provider": "ollama",
+  "case": "parallel-tool-calls",
+  "recordedFrom": "documentation-example",
+  "note": "Two calls in one turn, neither carrying an id — the normalizer must synthesize distinct ones.",
+  "body": {
+    "model": "qwen3",
+    "created_at": "2025-05-27T22:55:01.220117Z",
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "get_weather",
+            "arguments": {
+              "location": "Toronto",
+              "format": "celsius"
+            }
+          }
+        },
+        {
+          "function": {
+            "name": "get_weather",
+            "arguments": {
+              "location": "Paris",
+              "format": "celsius"
+            }
+          }
+        }
+      ]
+    },
+    "done_reason": "stop",
+    "done": true
+  }
+}

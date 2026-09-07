@@ -1,0 +1,47 @@
+{
+  "provider": "openai",
+  "case": "parallel-tool-calls",
+  "recordedFrom": "documentation-example",
+  "note": "Distinct ids per call; results must be paired back by tool_call_id.",
+  "body": {
+    "id": "chatcmpl-AbC125xyz",
+    "object": "chat.completion",
+    "created": 1730000002,
+    "model": "gpt-4o-mini-2024-07-18",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1AaBbCcDdEeFfGgH",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"location\":\"Toronto\",\"format\":\"celsius\"}"
+              }
+            },
+            {
+              "id": "call_2IiJjKkLlMmNnOoP",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"location\":\"Paris\",\"format\":\"celsius\"}"
+              }
+            }
+          ],
+          "refusal": null
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 88,
+      "completion_tokens": 43,
+      "total_tokens": 131
+    }
+  }
+}

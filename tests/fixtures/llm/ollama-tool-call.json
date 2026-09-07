@@ -1,0 +1,27 @@
+{
+  "provider": "ollama",
+  "case": "tool-call",
+  "recordedFrom": "documentation-example",
+  "note": "Ollama omits a call id and sends arguments as an object.",
+  "body": {
+    "model": "qwen3",
+    "created_at": "2025-05-27T22:54:58.100509Z",
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "get_weather",
+            "arguments": {
+              "location": "Toronto",
+              "format": "celsius"
+            }
+          }
+        }
+      ]
+    },
+    "done_reason": "stop",
+    "done": true
+  }
+}

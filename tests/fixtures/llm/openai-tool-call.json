@@ -1,0 +1,39 @@
+{
+  "provider": "openai",
+  "case": "tool-call",
+  "recordedFrom": "documentation-example",
+  "note": "OpenAI sends a real call id, arguments as a JSON *string*, and content: null on a tool turn.",
+  "body": {
+    "id": "chatcmpl-AbC124xyz",
+    "object": "chat.completion",
+    "created": 1730000001,
+    "model": "gpt-4o-mini-2024-07-18",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_9k2Lx8QvT1aBcDeF",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"location\":\"Toronto\",\"format\":\"celsius\"}"
+              }
+            }
+          ],
+          "refusal": null
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 84,
+      "completion_tokens": 21,
+      "total_tokens": 105
+    }
+  }
+}
