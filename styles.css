@@ -106,6 +106,22 @@ body > input.labnote-datetime-picker {
   min-height: 1em;
 }
 
+/* The prompt row carries no label, so Obsidian's empty info column only serves
+   to squeeze the input against the right edge. Drop it and take the width. */
+.labnote-prompt-row .setting-item-info {
+  display: none;
+}
+
+.labnote-prompt-row .setting-item-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.labnote-prompt-row .setting-item-control input {
+  width: 100%;
+  min-width: 0;
+}
+
 /* --- Workflow alias modal ----------------------------------------------- */
 .labnote-alias-row {
   display: flex;

@@ -163,7 +163,9 @@ class PromptModal extends Modal {
       this.close();
     };
 
-    new Setting(contentEl).addText(t => {
+    // `labnote-prompt-row` collapses the (unused) label column so the input
+    // spans the modal instead of being squeezed against the right edge.
+    new Setting(contentEl).setClass('labnote-prompt-row').addText(t => {
       t.setValue(this.value).onChange(v => {
         this.value = v;
         errorEl.setText('');
