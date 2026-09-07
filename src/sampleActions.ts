@@ -21,10 +21,13 @@ import {
   loadReferenceSamplesByType,
   upsertSampleRecord,
   deleteSampleRecord,
+  putSampleRecord,
   getLabsamplesFolder,
   findSampleDefinitionMatch,
   type SampleRecord,
 } from '@labnoteo/core/lib/sampleStorage';
+import { getExperimentLabsamplesFolder } from '@labnoteo/core/lib/labnoteStructure';
+import * as posix from '@labnoteo/core/posix';
 import type LabnotePlugin from './main';
 import { promptModal, confirmModal, pickModal } from './modals';
 
@@ -32,13 +35,12 @@ export type SampleScope = 'local' | 'global';
 
 /**
  * Resolve the vault-relative labsamples folder for a scope. Local is the active
- * note's `resources/labsamples`; when no note is active it falls back to the
- * vault-global folder (same rule the sidebar `refresh()` uses).
+ * note's experiment `resources/labsamples` (via {@link LabnotePlugin.localSampleFolder},
+ * which pins to the last opened experiment); Global is the settings folder.
  */
 export function resolveScopeFolder(plugin: LabnotePlugin, scope: SampleScope): string {
   if (scope === 'global') return plugin.settings.globalSampleFolder;
-  const active = plugin.activeNotePath();
-  return active ? getLabsamplesFolder(active) : plugin.settings.globalSampleFolder;
+  return plugin.localSampleFolder();
 }
 
 /** Trim to a non-empty string or null. */
@@ -125,7 +127,7 @@ export async function pickCatalogReference(
   opts: { type: string; docPath: string }
 ): Promise<string | undefined> {
   const { type, docPath } = opts;
-  const localFolder = getLabsamplesFolder(docPath);
+  const localFolder = getExperimentLabsamplesFolder(docPath) ?? getLabsamplesFolder(docPath);
   const globalFolder = plugin.settings.globalSampleFolder;
 
   const local = await loadReferenceSamplesByType(plugin.fs, localFolder, type);
@@ -226,7 +228,7 @@ export async function resolveSampleDefinition(
   opts: { type: string; id: string; docPath: string }
 ): Promise<ResolvedSampleDefinition | undefined> {
   const { type, id, docPath } = opts;
-  const localFolder = getLabsamplesFolder(docPath);
+  const localFolder = getExperimentLabsamplesFolder(docPath) ?? getLabsamplesFolder(docPath);
   const globalFolder = plugin.settings.globalSampleFolder;
 
   const localDb = await loadSamplesByType(plugin.fs, localFolder, type);
@@ -266,5 +268,56 @@ export async function deleteSampleInteractive(
   await deleteSampleRecord(plugin.fs, folder, type, id);
   plugin.refreshSampleViews();
   new Notice(plugin.t('Sample deleted: {0}', id));
+  return true;
+}
+
+/**
+ * Move a sample record between the Local and Global scopes, preserving it
+ * verbatim (all descriptions/sources). Writes the destination first, then
+ * deletes the source, so a mid-way failure leaves a recoverable duplicate
+ * rather than losing data. Returns false when nothing was moved (cancelled,
+ * missing record, or same folder). Returns undefined never — always resolves.
+ */
+export async function moveSampleInteractive(
+  app: App,
+  plugin: LabnotePlugin,
+  opts: { fromScope: SampleScope; type: string; id: string }
+): Promise<boolean> {
+  const { fromScope, type, id } = opts;
+  const toScope: SampleScope = fromScope === 'local' ? 'global' : 'local';
+  const src = resolveScopeFolder(plugin, fromScope);
+  const tgt = resolveScopeFolder(plugin, toScope);
+
+  // Same-folder guard (e.g. no experiment open so Local === Global): moving
+  // would delete then re-create in place, or worse, silently no-op.
+  if (
+    posix.normalizeForCompare(src).toLowerCase() === posix.normalizeForCompare(tgt).toLowerCase()
+  ) {
+    new Notice(plugin.t('Local and Global folders are the same.'));
+    return false;
+  }
+
+  const srcDb = await loadSamplesByType(plugin.fs, src, type);
+  const record = srcDb[id];
+  if (!record) {
+    new Notice(plugin.t('Sample not found: {0}', id));
+    return false;
+  }
+
+  // Confirm before clobbering a record that already exists in the destination.
+  const tgtDb = await loadSamplesByType(plugin.fs, tgt, type);
+  if (tgtDb[id]) {
+    const ok = await confirmModal(
+      app,
+      plugin.t('{0} already exists in the destination. Overwrite it?', id),
+      plugin.t('Overwrite')
+    );
+    if (!ok) return false;
+  }
+
+  await putSampleRecord(plugin.fs, tgt, type, id, record);
+  await deleteSampleRecord(plugin.fs, src, type, id);
+  plugin.refreshSampleViews();
+  new Notice(plugin.t('Sample moved: {0}', id));
   return true;
 }

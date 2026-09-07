@@ -27,7 +27,6 @@ import {
 } from '@labnoteo/core/lib/sampleUtils';
 import {
   loadSamplesByType,
-  getLabsamplesFolder,
   type SampleRecord,
 } from '@labnoteo/core/lib/sampleStorage';
 import type LabnotePlugin from './main';
@@ -112,7 +111,7 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
     const trigger = parseSampleTrigger(context.query, this.types);
     if (!trigger) return [];
 
-    const localFolder = getLabsamplesFolder(context.file.path);
+    const localFolder = this.deps.plugin.localSampleFolder();
     const globalFolder = this.deps.globalFolder();
 
     const recordsByType: Record<string, SampleCandidate[]> = {};
@@ -220,7 +219,7 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
       } else {
         const created = await createSampleInteractive(plugin.app, plugin, {
           type,
-          folder: getLabsamplesFolder(filePath),
+          folder: plugin.localSampleFolder(),
           mode: kind,
         });
         referenceText = created?.referenceText;

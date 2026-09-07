@@ -130,6 +130,9 @@ export class Setting {
   setHeading(): this {
     return this;
   }
+  setClass(): this {
+    return this;
+  }
   addText(): this {
     return this;
   }

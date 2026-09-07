@@ -19,6 +19,33 @@ export interface LabnoteStructure {
 }
 
 /**
+ * Derive the `labnote/{###_Name}` experiment folder that `p` belongs to.
+ *
+ * Pure path logic: normalises separators (incl. Windows `\`) and redundant
+ * segments, then returns everything up to and including the `###_Name` folder
+ * that follows the LAST `labnote` segment. Returns undefined when `p` is not
+ * inside a `labnote/###_*` experiment. This is the single source of truth for
+ * experiment scoping — the plugin (`commands.ts`) and the core tool set
+ * (`tools/index.ts`) both delegate here instead of re-implementing it.
+ */
+export function getExperimentDir(p: string): string | undefined {
+  const parts = path.normalize(p).split('/');
+  const idx = parts.lastIndexOf('labnote');
+  if (idx === -1 || idx + 1 >= parts.length) return undefined;
+  if (!/^\d{3}_/.test(parts[idx + 1])) return undefined;
+  return parts.slice(0, idx + 2).join('/');
+}
+
+/**
+ * The `resources/labsamples` folder for the experiment that `p` belongs to, or
+ * undefined when `p` is not inside a `labnote/###_*` experiment.
+ */
+export function getExperimentLabsamplesFolder(p: string): string | undefined {
+  const dir = getExperimentDir(p);
+  return dir ? path.join(dir, 'resources', 'labsamples') : undefined;
+}
+
+/**
  * Get the next labnote number based on existing folders
  * @param existingFolders Array of existing folder names (e.g., ['001_First', '002_Second'])
  * @returns Next number as 3-digit string (e.g., '003')

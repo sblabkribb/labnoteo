@@ -123,3 +123,26 @@ body > input.labnote-datetime-picker {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* --- Sample definition modal -------------------------------------------- */
+/* Obsidian splits a setting row evenly between label and control, which wastes
+   space here: the labels are one word while the values can be a full vault
+   path. Let the label take only what it needs and give the rest to the value. */
+.labnote-sample-def-row .setting-item-info {
+  flex: 0 1 auto;
+  /* A floor rather than a fixed width, so the inputs share one left edge while
+     a longer label in another locale still gets the room it needs. */
+  min-width: 7em;
+}
+
+.labnote-sample-def-row .setting-item-control {
+  flex: 1 1 auto;
+  /* Without this the input's intrinsic width sets a floor and the row overflows
+     the modal instead of the input shrinking to fit. */
+  min-width: 0;
+}
+
+.labnote-sample-def-row .setting-item-control input {
+  width: 100%;
+  min-width: 0;
+}
