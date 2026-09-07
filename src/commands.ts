@@ -362,8 +362,12 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
  * rename/delete), so it cannot re-enter the workflow README sync listeners.
  * Falls back to the adapter when the file is not (yet) in the vault index.
  * (Data files such as `{Type}.json` keep using the adapter directly.)
+ *
+ * Exported as the `writeNote` hook for `ToolContext`: AI tools edit notes the
+ * user may have open, and writing those through the adapter would be silently
+ * undone the next time the editor flushed its buffer.
  */
-async function writeNoteThroughVault(
+export async function writeNoteThroughVault(
   app: App,
   host: LabnoteHost,
   notePath: string,
