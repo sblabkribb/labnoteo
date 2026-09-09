@@ -15,26 +15,10 @@
 - **샘플 자동완성·하이라이트**: 편집 중 샘플 참조에 대한 인라인 제안과 하이라이트를 제공합니다.
 - **LLM 보조(선택)**: Ollama 또는 OpenAI로 실험 방법 초안 작성, 결과 요약, 샘플 추출을 수행합니다. *어시스턴트에게 요청* 명령은 한 걸음 더 나아가, 모델이 Labnote의 툴을 직접 호출해 목표를 달성하며 보관함을 수정하기 전에 매번 사용자에게 확인합니다. 같은 툴을 외부 MCP 클라이언트에도 노출할 수 있습니다.
 
-## 주요 명령어
+## 요구 사항
 
-명령 팔레트에는 영문 이름으로 등록됩니다(괄호 안).
-
-| 명령어 | 설명 |
-|---|---|
-| 날짜 삽입 (`Insert date`) | 현재 날짜 삽입 |
-| 날짜 및 시간 삽입 (`Insert date and time`) | 현재 타임스탬프 삽입 |
-| 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트 생성 |
-| 워크플로 생성 (`Create workflow`) | 번호가 매겨진 워크플로 노트 생성 |
-| 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 유닛 오퍼레이션 삽입 |
-| 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 CSV로 내보내기 |
-| AI: Method 섹션 초안 (`AI: Draft Method section`) | 설정된 LLM으로 실험 방법 초안 작성 |
-| AI: 결과 요약 (`AI: Summarize results`) | 설정된 LLM으로 결과 요약 |
-| AI: 샘플 정의 추출 (`AI: Extract sample definitions`) | 설정된 LLM으로 노트에서 샘플 추출 |
-| AI: 어시스턴트에게 요청 (`AI: Ask assistant (uses tools)`) | 목표를 말하면 모델이 Labnote 툴로 수행 |
-| MCP 서버 토글 (`Toggle MCP server`) | 로컬 MCP 서버 시작/중지 |
-| 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰 표시 |
-
-> 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
+- Obsidian `1.5.0` 이상.
+- 개발 시 Node.js `22+`.
 
 ## 설치
 
@@ -57,6 +41,34 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 보관함이 여러 개라면 각 `.obsidian/plugins/labnoteo`를 하나의 사본으로 심볼릭 링크하면 복사를 반복하지 않아도 됩니다. 개발 중에는 `npm run dev`의 재빌드 결과가 모든 보관함에 동시에 반영되는 이점도 있습니다.
 
 > 릴리스에는 `versions.json`도 포함됩니다. 이 파일은 Obsidian이 **저장소에서** 읽어 앱 버전별로 업데이트 가능한 플러그인 버전을 판단하는 용도이며, 보관함 안에서는 무시되므로 복사할 필요가 없습니다.
+
+### 함께 쓰면 편한 플러그인 (선택)
+
+아래 두 개는 커뮤니티 플러그인 목록에 등재되어 있어, 설정 → 커뮤니티 플러그인 → **탐색(Browse)**에서 검색해 바로 설치할 수 있습니다.
+
+- **Data Files Editor**: 샘플 정의가 저장되는 `resources/labsamples/*.json` 같은 JSON 파일을 Obsidian 안에서 직접 열어 편집할 수 있습니다. 보관함 밖 외부 편집기 없이 샘플 데이터를 확인·수정할 때 편리합니다.
+- **Git**(Obsidian Git): 실험 노트 보관함을 Git으로 버전 관리·백업합니다. 자동 커밋/동기화로 변경 이력을 남기고 여러 기기 간에 안전하게 옮길 수 있습니다.
+
+## 주요 명령어
+
+명령 팔레트에는 영문 이름으로 등록됩니다(괄호 안).
+
+| 명령어 | 설명 |
+|---|---|
+| 날짜 삽입 (`Insert date`) | 현재 날짜 삽입 |
+| 날짜 및 시간 삽입 (`Insert date and time`) | 현재 타임스탬프 삽입 |
+| 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트 생성 |
+| 워크플로 생성 (`Create workflow`) | 번호가 매겨진 워크플로 노트 생성 |
+| 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 유닛 오퍼레이션 삽입 |
+| 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 CSV로 내보내기 |
+| AI: Method 섹션 초안 (`AI: Draft Method section`) | 설정된 LLM으로 실험 방법 초안 작성 |
+| AI: 결과 요약 (`AI: Summarize results`) | 설정된 LLM으로 결과 요약 |
+| AI: 샘플 정의 추출 (`AI: Extract sample definitions`) | 설정된 LLM으로 노트에서 샘플 추출 |
+| AI: 어시스턴트에게 요청 (`AI: Ask assistant (uses tools)`) | 목표를 말하면 모델이 Labnote 툴로 수행 |
+| MCP 서버 토글 (`Toggle MCP server`) | 로컬 MCP 서버 시작/중지 |
+| 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰 표시 |
+
+> 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
 
 ## 설정
 
@@ -87,6 +99,48 @@ MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `create_sample
 
 서버는 MCP `2025-06-18` 개정을 **무상태(stateless)** 서버로 구현합니다: `initialize`, `tools/list`, `tools/call`. 서버에서 밀어낼 메시지가 없으므로 `GET`에는 `405`로 답하며, DNS 리바인딩 방어를 위해 `Origin` 헤더를 검증합니다. 인증이 사양의 OAuth 흐름이 아니라 베어러 토큰이므로, 클라이언트가 커스텀 `Authorization` 헤더를 설정할 수 있어야 합니다.
 
+## Copilot(에이전트 모드) + Claude Code 함께 쓰기 (선택)
+
+Copilot 플러그인의 **에이전트 모드**는 이 컴퓨터에 설치된 CLI 에이전트(OpenCode / **Claude Code** / Codex)를 그대로 실행합니다. "Claude"를 고르면 Copilot이 로컬 `claude`(Claude Code) CLI를 구동하며, 인증은 **API 키가 아니라 CLI에 로그인된 Claude 구독 계정**(Pro/Max/Team/Enterprise)을 사용합니다.
+
+### 1) Claude Code 설치 & 로그인
+
+1. Copilot 설정 → **Basic → Agents → Claude → Configure**의 *Install Claude Code*에 표시된 설치 명령을 실행합니다. 예를 들어 Windows PowerShell에서는 아래 한 줄입니다(Copilot 화면의 명령을 그대로 복사해 쓰는 것이 가장 안전합니다):
+   ```powershell
+   irm https://gist.githubusercontent.com/logancyang/7a87eb38d91015eac567521f8cc9c729/raw/install-claude-agent-mode-windows.ps1 | iex
+   ```
+2. 설치 중 브라우저 로그인 창이 뜨면 Claude 계정으로 로그인합니다. **구독(Pro/Max/Team/Enterprise) 계정이면 API 키가 필요 없습니다.**
+3. 터미널에서 `claude`를 실행해 `/status`로 현재 인증 상태를 확인할 수 있습니다.
+
+> 환경변수 `ANTHROPIC_API_KEY`가 설정돼 있으면 구독 로그인보다 **우선 적용**되어 그 키로 과금됩니다. 구독으로 쓰려면 이 변수를 비워 두세요.
+
+### 2) Copilot에서 Claude 에이전트 연결
+
+1. 설정 → 커뮤니티 플러그인 → **탐색(Browse)**에서 `Copilot`(제작자 logancyang)을 설치·활성화합니다.
+2. 설정 → Copilot → **Basic → Agents → Claude → Configure → Auto-detect**를 누릅니다. 자동으로 못 찾으면 위 설치 과정에서 복사된 `claude` 실행 파일 경로를 바이너리 경로 칸에 붙여넣고 저장합니다. ("not in your PATH" 경고는 Copilot이 PATH가 아니라 파일 경로로 찾으므로 무시해도 됩니다.)
+3. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행하고 **Claude**를 선택한 뒤 메시지를 보냅니다.
+4. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성 노트를 대화에 추가할 수 있습니다.
+
+### 3) (선택) Labnote 툴을 Claude에 연결 — MCP
+
+Claude Code에 labnoteo의 MCP 서버를 등록하면, **터미널에서 쓰든 Copilot 에이전트 모드에서 쓰든 같은 `claude` 바이너리**가 Labnote 툴(`get_sample`, `list_samples`, `create_sample`, `get_unit_operation`, `update_section`, `create_workflow`)을 직접 호출할 수 있습니다. **데스크톱 전용**입니다.
+
+1. Obsidian 명령 팔레트에서 **Toggle MCP server**를 실행하고, 설정 → **MCP 토큰**에서 현재 토큰을 복사합니다(서버를 껐다 켤 때마다 새로 발급됩니다).
+2. 복사한 토큰으로 등록합니다:
+   ```bash
+   claude mcp add --transport http labnoteo http://127.0.0.1:3987 \
+     --header "Authorization: Bearer <복사한-토큰>"
+   ```
+3. `claude mcp list`로 `labnoteo` 연결을 확인하고, Claude Code 안에서 `/mcp`로 상태를 봅니다.
+4. 이후 자연어로 지시하면 됩니다. 예: "list_samples로 이 보관함의 DNA 샘플을 보여줘", "update_section으로 현재 실험 노트의 Method 섹션 초안을 채워줘".
+
+**주의**
+
+- **토큰 갱신**: MCP 서버를 껐다 켜면 토큰이 바뀝니다. 다시 등록하려면 `claude mcp remove labnoteo` 후 새 토큰으로 다시 `add`하세요.
+- **쓰기 확인**: 보관함을 수정하는 툴(`create_sample`, `update_section`, `create_workflow`)은 실행 전에 Obsidian이 대상 경로와 함께 확인창을 띄웁니다. 경로를 고르는 주체가 모델이기 때문입니다.
+- **바인딩 범위**: 서버는 `127.0.0.1`(루프백)에만 바인딩되며 다른 인터페이스에는 노출되지 않습니다.
+- **헤더 이슈**: 일부 Claude Code 버전(특히 Windows)에서 툴 호출 시 `Authorization` 헤더가 누락돼 `401`이 나는 알려진 문제가 있습니다. 이 서버는 헤더 인증만 지원하므로, 401이 반복되면 Claude Code를 최신 버전으로 업데이트하세요.
+
 ## 개발자 참고
 
 npm workspaces 모노레포 구조입니다:
@@ -109,11 +163,6 @@ npm run sync:versions # 루트 버전을 패키지, manifest, README에 전파
 모든 `LabnoteFs` 구현은 `packages/labnoteo-core/src/__tests__/labnoteFsContract.ts`의 공용 계약 테스트를 통과해야 합니다. `{Type}.json`의 원자성 보장이 여기서 강제됩니다.
 
 `npm run record:fixtures`는 `tests/fixtures/llm/`의 LLM 응답 픽스처를 실제 제공자로부터 다시 녹화합니다. 픽스처의 목적과 provenance 표기는 해당 폴더의 README를 참고하세요.
-
-## 요구 사항
-
-- Obsidian `1.5.0` 이상.
-- 개발 시 Node.js `22+`.
 
 ## 라이선스
 
