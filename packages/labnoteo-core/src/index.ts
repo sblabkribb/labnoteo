@@ -23,6 +23,19 @@ export { normalizeWorkflowUnitSectionHeading } from './sections/unitOpHeading';
 // Non-lossy single-section edit (LLM tools + edit-adjacent commands).
 export { replaceSectionBody, type SectionEditResult } from './sections/sectionEdit';
 
+// Front-matter primitives (YAML parse + per-entry serialize). Shared by plugin
+// commands that read/rewrite README frontmatter (e.g. the status command).
+export { parseFrontMatterYaml, serializeFrontMatterEntry } from './sections/frontMatter';
+
+// === Experiment status vocabulary + validation ===============================
+// Single source of the controlled `status` terms; consumed by the plugin status
+// picker and (once published) the vault-repo validate/issue-sync automation.
+export {
+  EXPERIMENT_STATUSES,
+  isValidStatus,
+  type ExperimentStatus,
+} from './lib/experimentStatus';
+
 // === Transport-agnostic domain tool set (MCP server + built-in AI commands) ===
 export {
   createLabnoteTools,

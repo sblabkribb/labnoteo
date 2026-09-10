@@ -84,11 +84,17 @@ export function generateReadmeContent(title: string, author?: string): string {
 
   // Front matter goes through serializeFrontMatterEntry so a title/author
   // containing a colon is emitted as valid, round-trippable YAML.
+  // `status` seeds the experiment lifecycle at `planned`; `project` is emitted
+  // empty so researchers can fill it in. Both are additive/optional — existing
+  // notes without them keep working (see @labnoteo/core experimentStatus).
+  // `id`/`issue` are intentionally NOT seeded (optional, added on demand).
   const frontMatter = [
     serializeFrontMatterEntry('title', title),
     serializeFrontMatterEntry('author', authorValue),
     serializeFrontMatterEntry('experiment_type', 'labnote'),
     serializeFrontMatterEntry('sample_tracking', 'yes'),
+    serializeFrontMatterEntry('status', 'planned'),
+    serializeFrontMatterEntry('project', null),
     serializeFrontMatterEntry('created_date', today),
     serializeFrontMatterEntry('last_updated_date', today),
   ].join('\n');
