@@ -8,6 +8,7 @@
 const obsidianKo: Record<string, string> = {
   // Commands
   'Create experiment': '실험 생성',
+  'Change experiment status': '실험 상태 변경',
   'Create workflow': '워크플로 생성',
   'Insert workflow': '워크플로 삽입',
   'Insert unit operation': '유닛 오퍼레이션 삽입',
@@ -42,11 +43,14 @@ const obsidianKo: Record<string, string> = {
   'Search workflows': '워크플로 검색',
   'Search unit operations': '유닛 오퍼레이션 검색',
   'Open a lab note first.': '먼저 랩노트 파일을 여세요.',
+  'Select a status': '상태를 선택하세요',
+  'current': '현재',
   'Workflow name': '워크플로 이름',
   'Enter a name for this workflow': '이 워크플로의 상세 별칭을 입력하세요',
 
   // Notices / results
   'Experiment created: {0}': '실험이 생성되었습니다: {0}',
+  'Experiment status changed: {0}': '실험 상태가 변경되었습니다: {0}',
   'Exported {0} CSV file(s).': 'CSV 파일 {0}개를 내보냈습니다.',
   'No tables found in this note.': '이 노트에서 표를 찾을 수 없습니다.',
   'Command failed: {0}': '명령 실행 실패: {0}',

@@ -19,6 +19,7 @@ import { createObsidianTranslator } from './i18n';
 import { createObsidianHost } from './obsidianHost';
 import {
   createExperimentCommand,
+  changeExperimentStatusCommand,
   createWorkflowCommand,
   insertUnitOperationCommand,
   insertWorkflowLinkCommand,
@@ -142,6 +143,12 @@ export default class LabnotePlugin extends Plugin {
       id: 'create-experiment',
       name: this.t('Create experiment'),
       callback: () => this.run(() => createExperimentCommand(this.app, this.host)),
+    });
+
+    this.addCommand({
+      id: 'change-experiment-status',
+      name: this.t('Change experiment status'),
+      callback: () => this.run(() => changeExperimentStatusCommand(this.app, this.host)),
     });
 
     this.addCommand({

@@ -7,7 +7,10 @@
 import {
   getExperimentDir,
   getExperimentLabsamplesFolder,
+  generateReadmeContent,
 } from '../lib/labnoteStructure';
+import { parseFrontMatterYaml } from '../sections/frontMatter';
+import { isValidStatus } from '../lib/experimentStatus';
 
 describe('getExperimentDir', () => {
   it('extracts the experiment folder from a note inside it', () => {
@@ -77,5 +80,45 @@ describe('getExperimentLabsamplesFolder', () => {
 
   it('returns undefined for a path outside any experiment', () => {
     expect(getExperimentLabsamplesFolder('notes/a.md')).toBeUndefined();
+  });
+});
+
+describe('generateReadmeContent', () => {
+  it('seeds the additive status/project frontmatter (no id/issue)', () => {
+    const md = generateReadmeContent('My Experiment', 'Alice');
+    const { frontMatter } = parseFrontMatterYaml(md);
+
+    // Existing fields are still present…
+    expect(frontMatter.title).toBe('My Experiment');
+    expect(frontMatter.author).toBe('Alice');
+    expect(frontMatter.experiment_type).toBe('labnote');
+    expect(frontMatter.sample_tracking).toBe('yes');
+    expect(typeof frontMatter.created_date).toBe('string');
+    expect(typeof frontMatter.last_updated_date).toBe('string');
+
+    // …plus the new Phase 1 additive metadata.
+    expect(frontMatter.status).toBe('planned');
+    expect(isValidStatus(frontMatter.status as string)).toBe(true);
+    // `project` is emitted empty (parses to null) — present but unset.
+    expect('project' in frontMatter).toBe(true);
+    expect(frontMatter.project).toBeNull();
+
+    // `id`/`issue` are intentionally NOT part of the default template.
+    expect('id' in frontMatter).toBe(false);
+    expect('issue' in frontMatter).toBe(false);
+  });
+
+  it('emits the literal status/project lines via serializeFrontMatterEntry', () => {
+    const md = generateReadmeContent('Assay');
+    expect(md).toContain('\nstatus: planned\n');
+    expect(md).toContain('\nproject: \n');
+  });
+
+  it('preserves the experiment template body sections', () => {
+    const md = generateReadmeContent('Assay');
+    const { body } = parseFrontMatterYaml(md);
+    expect(body).toContain('## 🎯 Experiment Objective');
+    expect(body).toContain('## 🗂️ Related Workflows');
+    expect(body).toContain('## Summary and Discussion');
   });
 });

@@ -22,6 +22,9 @@ import {
   insertUnitOperationAtCursor,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
+  EXPERIMENT_STATUSES,
+  parseFrontMatterYaml,
+  serializeFrontMatterEntry,
 } from '@labnoteo/core';
 import * as posix from '@labnoteo/core/posix';
 import { workflowAliasModal } from './modals';
@@ -89,6 +92,55 @@ export async function createExperimentCommand(app: App, host: LabnoteHost): Prom
 
   await host.openFile(structure.readmePath);
   host.notify('info', host.t('Experiment created: {0}', posix.basename(structure.labnoteFolder)));
+}
+
+/**
+ * Change the `status` front-matter of the active experiment's README via a
+ * picker.
+ *
+ * Thin Obsidian wiring over core domain functions: the experiment folder is
+ * resolved with `getExperimentDir`, the README front matter parsed with
+ * `parseFrontMatterYaml`, the value chosen from the shared `EXPERIMENT_STATUSES`
+ * vocabulary, and the block re-emitted with `serializeFrontMatterEntry`. The
+ * `status` key is inserted when a pre-existing note lacks it, and the original
+ * body is preserved verbatim (only the front-matter block is rewritten).
+ */
+export async function changeExperimentStatusCommand(app: App, host: LabnoteHost): Promise<void> {
+  const labnoteDir = await resolveLabnoteDir(app, host);
+  if (!labnoteDir) return;
+
+  const readmePath = posix.join(labnoteDir, README);
+  if (!(await host.fs.exists(readmePath))) {
+    host.notify('warn', host.t('Open a lab note first.'));
+    return;
+  }
+
+  // `parseFrontMatterYaml` requires LF-normalised text (a bare `\n` after the
+  // opening `---`); normalise CRLF so Windows-authored notes parse correctly.
+  const original = (await host.fs.read(readmePath)).replace(/\r\n/g, '\n');
+  const { frontMatter, body } = parseFrontMatterYaml(original);
+
+  const current = typeof frontMatter.status === 'string' ? frontMatter.status : undefined;
+  const chosen = await host.pick(
+    EXPERIMENT_STATUSES.map(status => ({
+      label: status,
+      description: status === current ? host.t('current') : undefined,
+      value: status,
+    })),
+    { title: host.t('Change experiment status'), placeholder: host.t('Select a status') }
+  );
+  if (!chosen || chosen === current) return;
+
+  // Set (or insert, when absent) `status`. Spreading keeps the order of the
+  // existing keys and appends `status` for notes that predate the field.
+  const updatedFrontMatter: Record<string, unknown> = { ...frontMatter, status: chosen };
+  const fmBlock = Object.entries(updatedFrontMatter)
+    .map(([key, value]) => serializeFrontMatterEntry(key, value))
+    .join('\n');
+  const updated = `---\n${fmBlock}\n---\n\n${body}`;
+
+  await writeNoteThroughVault(app, host, readmePath, updated);
+  host.notify('info', host.t('Experiment status changed: {0}', chosen));
 }
 
 /**
