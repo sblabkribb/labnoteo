@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.79.0**
+**Version 0.80.0**
 
 A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
 
@@ -14,6 +14,8 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 - **CSV export**: Export tables from a note to CSV.
 - **Sample suggestions & highlighting**: Inline suggestions and highlighting for sample references while editing.
 - **LLM assistance (optional)**: Draft methods, summarize results, and extract samples via Ollama or OpenAI. The *Ask assistant* command goes further and lets the model call Labnote's own tools to reach a goal, confirming with you before any write. The same tools are available to external MCP clients.
+- **Experiment status**: Track each experiment's lifecycle (`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …) in the note's frontmatter with the *Change experiment status* command, and drive validation and Issue automation from it.
+- **Research automation (optional)**: One command scaffolds GitHub Actions and zero-dependency scripts into your vault to validate notes, open Experiment ↔ Issue links, and draft a Living-Manuscript Wiki — all opt-in and human-reviewed. See [Research automation](#research-automation).
 
 ## Requirements
 
@@ -56,9 +58,11 @@ Both are in the community directory, so install them from Settings → Community
 | Insert date | Insert the current date |
 | Insert date and time | Insert the current timestamp |
 | Create experiment | Create a new `.labnote.md` experiment note |
+| Change experiment status | Update the active experiment's `status` frontmatter via a picker |
 | Create workflow | Create a numbered workflow note |
 | Insert unit operation | Insert a unit operation from the catalog |
 | Export tables to CSV | Export note tables to CSV |
+| Setup research automation | Scaffold GitHub Actions + scripts into the current vault (see [Research automation](#research-automation)) |
 | AI: Draft Method section | Draft an experimental method with the configured LLM |
 | AI: Summarize results | Summarize results with the configured LLM |
 | AI: Extract sample definitions | Extract samples from note text with the configured LLM |
@@ -67,6 +71,31 @@ Both are in the community directory, so install them from Settings → Community
 | Open workflow view / Open sample view | Reveal the sidebar views |
 
 > Renaming a workflow file in the file explorer automatically reorders the README checklist to match the new number prefix; deleting one removes its checklist entry and prunes the samples it defined.
+
+## Research automation
+
+Beyond the notebook itself, labnoteo can turn your vault into a lightweight research-notes system on GitHub — note validation, Experiment ↔ Issue links, and a Living-Manuscript Wiki — without you writing any CI by hand. Because every vault is different, the plugin *provisions* these assets into whichever vault it is installed in.
+
+Run **Setup research automation** from the command palette. It writes the files below into the current vault — creating parent folders, confirming before it overwrites anything, and only *appending* missing lines to an existing `.gitignore` — then points you at the generated `SETUP.md` for the one-time setup steps.
+
+| Area | Files | What it does |
+| --- | --- | --- |
+| Large-file protection | `scripts/check-large-files.mjs`, `.githooks/pre-commit`, `.gitignore` | Blocks oversized data files before commit (with a Node-free shell fallback). |
+| Validation | `scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values and duplicate experiment ids. |
+| Experiment ↔ Issue | `scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens/updates one Issue per experiment marked `discuss: true` or `status: needs-review` (deterministic, via the GitHub REST API). |
+| AI context gate (optional) | `scripts/issue-gate.mjs`, `ai/prompts/*`, `ai/schemas/*` | A self-hosted local LLM judges whether free-text notes actually need discussion. |
+| Living-Manuscript Wiki (optional) | `scripts/wiki-propose.mjs`, `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | Extracts objective facts from completed experiments into a paper-style Wiki skeleton, staged for human review. |
+
+The bundled scripts are **zero-dependency** Node ESM: they reuse labnoteo's own `@labnoteo/core` functions (so they never drift from the plugin) and run with `node scripts/*.mjs` — no `npm install` inside your vault.
+
+**Prerequisites & scope**
+
+- The vault must be a GitHub repository (push it first) for any Actions to run. Keep it **private** if it holds research data.
+- The AI stages need a **self-hosted runner + local LLM** endpoint so notes never leave your network; set repo variables `LLM_ENDPOINT` / `LLM_MODEL`. `wiki-sync.yml` may also need a PAT (`GH_WIKI_TOKEN`) because the Wiki is a separate repository.
+- Automation **never rewrites your notes** — it only opens Issues and stages Wiki proposals for you to review. Scientific judgment and `status` changes stay with you.
+- After a plugin update, re-run the command to refresh the scripts, then review the diff before committing.
+
+See the generated `SETUP.md` in your vault for the full checklist and phase-by-phase details.
 
 ## Settings
 
@@ -145,6 +174,7 @@ This is an npm workspaces monorepo:
 
 - `src/` — the Obsidian plugin, bundled to `main.js` at the repository root via esbuild. The plugin lives at the root because Obsidian's community directory reads `manifest.json` from there.
 - `packages/labnoteo-core` — platform-neutral core logic (parsers, workflow/sample domain), consumed by the plugin. It must not import Node-only APIs; anything platform-specific goes behind a port (`LabnoteFs`, `LabnoteHost`).
+- `automation/` — sources for the vault-scaffolded [Research automation](#research-automation) scripts. esbuild builds them (Stage 1) to zero-dependency `dist-automation/*.mjs` — reusing the same `@labnoteo/core` source as the plugin, so there is no drift — and embeds them (plus the workflow/prompt/Wiki templates) as strings inside `main.js` (Stage 2). This keeps a 3-file install self-sufficient; the *Setup research automation* command writes those strings out into the vault.
 - `tests/` — plugin-layer tests, plus a runtime stub for the `obsidian` package (which ships types only). Core tests live beside the code in `packages/labnoteo-core/src/__tests__/`.
 
 ```bash

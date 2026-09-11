@@ -25,6 +25,7 @@ import {
   insertWorkflowLinkCommand,
   syncReadmeOrderOnRename,
   syncReadmeAndSamplesOnDelete,
+  setupResearchAutomationCommand,
 } from './commands';
 import * as posix from '@labnoteo/core/posix';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
@@ -149,6 +150,12 @@ export default class LabnotePlugin extends Plugin {
       id: 'change-experiment-status',
       name: this.t('Change experiment status'),
       callback: () => this.run(() => changeExperimentStatusCommand(this.app, this.host)),
+    });
+
+    this.addCommand({
+      id: 'setup-research-automation',
+      name: this.t('Setup research automation'),
+      callback: () => this.run(() => setupResearchAutomationCommand(this.host)),
     });
 
     this.addCommand({

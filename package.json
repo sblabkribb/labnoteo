@@ -1,7 +1,7 @@
 {
   "name": "labnoteo",
   "private": true,
-  "version": "0.79.0",
+  "version": "0.80.0",
   "type": "module",
   "description": "Markdown-based lab notebook with sample tracking, workflow checklists, and LLM assistance for biology and bioinformatics experiments.",
   "license": "MIT",
@@ -11,8 +11,9 @@
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
-    "typecheck": "npm run typecheck:core && npm run typecheck:plugin",
+    "typecheck": "npm run typecheck:core && npm run typecheck:automation && npm run typecheck:plugin",
     "typecheck:core": "npm run typecheck -w @labnoteo/core",
+    "typecheck:automation": "tsc --noEmit -p automation/tsconfig.json",
     "typecheck:plugin": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",

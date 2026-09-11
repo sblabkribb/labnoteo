@@ -46,6 +46,9 @@ import {
   type WorkflowRename,
 } from '@labnoteo/core/lib/workflowStructure';
 import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
+// Re-exported so command registration in main.ts imports every command from one
+// place; the implementation lives under src/scaffold with its asset registry.
+export { setupResearchAutomationCommand } from './scaffold/scaffold';
 import {
   removeSourcesForDocument,
   type RemovedSampleRef,
