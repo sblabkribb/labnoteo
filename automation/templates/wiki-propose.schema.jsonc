@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "wiki-propose section proposal",
+  "description": "Evidence-tagged factual sentences the AI links into one Wiki section (Phase 5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sentences"],
+  "properties": {
+    "sentences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "A single objective, verifiable sentence (action/measurement/observation)."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Experiment identifier (EXP-ID or ###_name) the sentence is grounded in."
+          },
+          "insufficient_evidence": {
+            "type": "boolean",
+            "description": "True when the statement lacks a usable evidence ID."
+          }
+        }
+      }
+    }
+  }
+}

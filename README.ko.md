@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.79.0**
+**버전 0.80.0**
 
 생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
@@ -14,6 +14,8 @@
 - **CSV 내보내기**: 노트의 표를 CSV로 내보냅니다.
 - **샘플 자동완성·하이라이트**: 편집 중 샘플 참조에 대한 인라인 제안과 하이라이트를 제공합니다.
 - **LLM 보조(선택)**: Ollama 또는 OpenAI로 실험 방법 초안 작성, 결과 요약, 샘플 추출을 수행합니다. *어시스턴트에게 요청* 명령은 한 걸음 더 나아가, 모델이 Labnote의 툴을 직접 호출해 목표를 달성하며 보관함을 수정하기 전에 매번 사용자에게 확인합니다. 같은 툴을 외부 MCP 클라이언트에도 노출할 수 있습니다.
+- **실험 상태**: 각 실험의 생애주기(`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …)를 *실험 상태 변경* 명령으로 노트 frontmatter에 기록하고, 검증·Issue 자동화의 기준으로 사용합니다.
+- **연구노트 자동화(선택)**: 명령 한 번으로 GitHub Actions와 무의존성(zero-dependency) 스크립트를 보관함에 설치해, 노트 검증·Experiment ↔ Issue 연결·Living-Manuscript Wiki 초안을 자동화합니다. 모두 선택적이며 사람이 검토합니다. [연구노트 자동화](#연구노트-자동화) 참고.
 
 ## 요구 사항
 
@@ -58,9 +60,11 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 | 날짜 삽입 (`Insert date`) | 현재 날짜 삽입 |
 | 날짜 및 시간 삽입 (`Insert date and time`) | 현재 타임스탬프 삽입 |
 | 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트 생성 |
+| 실험 상태 변경 (`Change experiment status`) | 활성 실험의 `status` frontmatter를 피커로 변경 |
 | 워크플로 생성 (`Create workflow`) | 번호가 매겨진 워크플로 노트 생성 |
 | 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 유닛 오퍼레이션 삽입 |
 | 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 CSV로 내보내기 |
+| 연구노트 자동화 설정 (`Setup research automation`) | GitHub Actions·스크립트를 현재 보관함에 설치([연구노트 자동화](#연구노트-자동화) 참고) |
 | AI: Method 섹션 초안 (`AI: Draft Method section`) | 설정된 LLM으로 실험 방법 초안 작성 |
 | AI: 결과 요약 (`AI: Summarize results`) | 설정된 LLM으로 결과 요약 |
 | AI: 샘플 정의 추출 (`AI: Extract sample definitions`) | 설정된 LLM으로 노트에서 샘플 추출 |
@@ -69,6 +73,31 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 | 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰 표시 |
 
 > 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
+
+## 연구노트 자동화
+
+노트 자체를 넘어, labnoteo는 보관함을 GitHub 위의 경량 연구노트 시스템으로 바꿔 줍니다 — 노트 검증, Experiment ↔ Issue 연결, Living-Manuscript Wiki를 CI를 직접 작성하지 않고도 구성합니다. 보관함은 사용자마다 다르므로, 플러그인이 설치된 보관함에 이 자산들을 직접 **프로비저닝**합니다.
+
+명령 팔레트에서 **연구노트 자동화 설정**(`Setup research automation`)을 실행하세요. 아래 파일들을 현재 보관함에 기록합니다 — 상위 폴더를 만들고, 덮어쓰기 전에는 확인을 받으며, 기존 `.gitignore`에는 누락된 줄만 *추가*합니다. 이후 일회성 설정 절차는 생성된 `SETUP.md`가 안내합니다.
+
+| 영역 | 파일 | 하는 일 |
+| --- | --- | --- |
+| 대용량 파일 보호 | `scripts/check-large-files.mjs`, `.githooks/pre-commit`, `.gitignore` | 커밋 전에 과도하게 큰 데이터 파일을 차단(Node 없으면 shell로 대체). |
+| 검증 | `scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값과 실험 id 중복을 검사. |
+| Experiment ↔ Issue | `scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 Issue를 생성/갱신(결정적, GitHub REST API). |
+| AI 맥락 게이트(선택) | `scripts/issue-gate.mjs`, `ai/prompts/*`, `ai/schemas/*` | self-hosted 로컬 LLM이 자유 서술 노트가 실제로 논의가 필요한지 판단. |
+| Living-Manuscript Wiki(선택) | `scripts/wiki-propose.mjs`, `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | 완료된 실험에서 객관적 사실만 추출해 논문형 Wiki 골격에 배치, 사람 검토용으로 스테이징. |
+
+번들된 스크립트는 **무의존성** Node ESM입니다: labnoteo의 `@labnoteo/core` 함수를 그대로 재사용하므로 플러그인과 드리프트가 없고, `node scripts/*.mjs`로 실행됩니다 — 보관함에서 `npm install`이 필요 없습니다.
+
+**전제 조건 및 범위**
+
+- 어떤 Actions든 동작하려면 보관함이 GitHub 저장소여야 합니다(먼저 push). 연구 데이터가 있으면 **private**로 유지하세요.
+- AI 단계는 노트가 네트워크 밖으로 나가지 않도록 **self-hosted 러너 + 로컬 LLM** 엔드포인트가 필요합니다. repo variables `LLM_ENDPOINT` / `LLM_MODEL`을 설정하세요. Wiki는 별도 저장소이므로 `wiki-sync.yml`은 PAT(`GH_WIKI_TOKEN`)가 추가로 필요할 수 있습니다.
+- 자동화는 **노트를 절대 되쓰지 않습니다** — Issue를 열고 Wiki 제안을 스테이징만 하며, 과학적 판단과 `status` 변경은 사람의 몫입니다.
+- 플러그인 업데이트 후에는 명령을 다시 실행해 스크립트를 갱신하고, 커밋 전에 diff를 검토하세요.
+
+전체 체크리스트와 단계별 상세는 보관함에 생성된 `SETUP.md`를 참고하세요.
 
 ## 설정
 
@@ -147,6 +176,7 @@ npm workspaces 모노레포 구조입니다:
 
 - `src/` — Obsidian 플러그인. esbuild로 저장소 루트의 `main.js`로 번들됩니다. Obsidian 커뮤니티 디렉터리가 루트의 `manifest.json`을 읽기 때문에 플러그인이 루트에 있습니다.
 - `packages/labnoteo-core` — 플랫폼 중립 core 로직 (파서, 워크플로/샘플 도메인). 플러그인이 사용합니다. Node 전용 API를 import하면 안 되며, 플랫폼 의존 기능은 포트(`LabnoteFs`, `LabnoteHost`) 뒤에 둡니다.
+- `automation/` — 보관함에 설치되는 [연구노트 자동화](#연구노트-자동화) 스크립트의 소스. esbuild가 (1단계) 무의존성 `dist-automation/*.mjs`로 번들하고 — 플러그인과 같은 `@labnoteo/core` 소스를 재사용하므로 드리프트가 없음 — (2단계) 워크플로/프롬프트/Wiki 템플릿과 함께 `main.js`에 문자열로 임베드합니다. 덕분에 3-파일 설치만으로 자립합니다. *연구노트 자동화 설정* 명령이 그 문자열을 보관함에 기록합니다.
 - `tests/` — 플러그인 계층 테스트와 `obsidian` 패키지의 런타임 스텁(해당 패키지는 타입만 제공). core 테스트는 코드 옆 `packages/labnoteo-core/src/__tests__/`에 있습니다.
 
 ```bash
