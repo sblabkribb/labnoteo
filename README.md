@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.83.0**
+**Version 0.84.0**
 
 A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
 
@@ -15,6 +15,7 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 - **Sample suggestions & highlighting**: Inline suggestions and highlighting for sample references while editing.
 - **LLM assistance (optional)**: Draft methods, summarize results, and extract samples via Ollama or OpenAI. The *Ask assistant* command goes further and lets the model call Labnote's own tools to reach a goal, confirming with you before any write. The same tools are available to external MCP clients.
 - **Experiment status**: Track each experiment's lifecycle (`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …) in the note's frontmatter with the *Change experiment status* command, and drive validation and Issue automation from it.
+- **Discussion flag**: Mark a note as needing team discussion with *Toggle discussion flag*, independent of its lifecycle status — an `in-progress` experiment can ask for a decision without pretending to be done. The next push opens a GitHub Issue for it.
 - **Research automation (optional)**: One command scaffolds GitHub Actions, zero-dependency scripts, and AI-agent rules (`AGENTS.md`) into your vault to validate notes, open Experiment ↔ Issue links, and draft a Living-Manuscript Wiki — all opt-in and human-reviewed. See [Research automation](#research-automation).
 
 ## Requirements
@@ -59,6 +60,7 @@ Both are in the community directory, so install them from Settings → Community
 | Insert date and time | Insert the current timestamp |
 | Create experiment | Create a new `.labnote.md` experiment note |
 | Change experiment status | Update the active experiment's `status` frontmatter via a picker |
+| Toggle discussion flag | Turn the active experiment's `discuss` flag on/off, so the next push opens a GitHub Issue |
 | Create workflow | Create a numbered workflow note |
 | Insert unit operation | Insert a unit operation from the catalog |
 | Export tables to CSV | Export note tables to CSV |

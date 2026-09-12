@@ -30,14 +30,16 @@
 
 ### 3. 팀 논의가 필요하면 표시하기
 
-노트 맨 위 frontmatter에 한 줄만 추가합니다:
+명령 팔레트 → **`Toggle discussion flag`**(논의 표시 전환).
+다시 실행하면 표시가 해제됩니다.
 
-```yaml
-discuss: true
-```
+진행 상태(`status`)와는 별개입니다. 실험이 `in-progress`인 채로 논의만
+올릴 수 있고, 그래서 논의하려고 상태를 억지로 바꿀 필요가 없습니다.
 
-또는 AI 에이전트에게: *"이 실험 노트 읽고 논의가 필요해 보이면 discuss 표시해줘"*
-— 에이전트가 맥락을 판단해 (확인 후) 표시합니다.
+> 본문에 "논의 필요"라고 **쓰기만 해서는 이슈가 생기지 않습니다.** 이 표시가
+> 있어야 열립니다. 본문을 읽고 판단하게 하려면 AI 에이전트에게:
+> *"이 실험 노트 읽고 논의가 필요해 보이면 discuss 표시해줘"*
+> — 에이전트가 맥락을 판단해 (확인 후) 같은 표시를 남깁니다.
 
 ### 4. 커밋·푸시하기
 
@@ -69,7 +71,7 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 | --- | --- |
 | 새 실험 시작 | 명령 팔레트 → `Create experiment` |
 | 실험 상태 변경 | 명령 팔레트 → `Change experiment status` |
-| 팀 논의 올리기 | frontmatter에 `discuss: true` → 커밋·푸시 → Issues 탭 확인 |
+| 팀 논의 올리기 | 명령 팔레트 → `Toggle discussion flag` → 커밋·푸시 → Issues 탭 확인 |
 | 커밋·푸시 | AI 에이전트에게 "커밋하고 푸시해줘" (또는 직접 git) |
 | 결과를 Wiki에 반영 | 에이전트에게 "사실을 wiki-staging에 정리해줘" → 검토 → 머지 |
 | 대용량 원시데이터 | Git에 넣지 말고 `raw-data/` 등 별도 보관(자동 제외됨), 노트에는 경로/ID만 기록 |
@@ -78,7 +80,7 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 ## 자주 겪는 문제
 
 **push했는데 이슈가 안 생겨요**
-- 노트 frontmatter에 `discuss: true` 또는 `status: needs-review`가 있는지 확인하세요(이 신호가 있어야 이슈가 열립니다).
+- 노트에 논의 표시(`discuss: true`) 또는 `status: needs-review`가 있는지 확인하세요 — 이 신호가 있어야 이슈가 열립니다. 본문에 "논의 필요"라고 적은 것만으로는 열리지 않습니다. 명령 팔레트 → `Toggle discussion flag`로 표시하세요.
 - GitHub 저장소의 **Actions 탭**에서 `experiment-issues` 워크플로우가 실행됐는지 확인하세요.
 
 **커밋이 거부돼요 (대용량 파일)**

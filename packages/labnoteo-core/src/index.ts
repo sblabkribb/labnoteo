@@ -36,6 +36,11 @@ export {
   type ExperimentStatus,
 } from './lib/experimentStatus';
 
+// === `discuss` flag ==========================================================
+// Single source of the "needs team discussion" signal, shared by the plugin's
+// toggle command and the automation that promotes flagged notes to Issues.
+export { DISCUSS_FLAG_KEY, isDiscussFlagged, setDiscussFlag } from './lib/discussFlag';
+
 // === Transport-agnostic domain tool set (MCP server + built-in AI commands) ===
 export {
   createLabnoteTools,

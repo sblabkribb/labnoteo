@@ -20,6 +20,7 @@ import { createObsidianHost } from './obsidianHost';
 import {
   createExperimentCommand,
   changeExperimentStatusCommand,
+  toggleDiscussionFlagCommand,
   createWorkflowCommand,
   insertUnitOperationCommand,
   insertWorkflowLinkCommand,
@@ -150,6 +151,12 @@ export default class LabnotePlugin extends Plugin {
       id: 'change-experiment-status',
       name: this.t('Change experiment status'),
       callback: () => this.run(() => changeExperimentStatusCommand(this.app, this.host)),
+    });
+
+    this.addCommand({
+      id: 'toggle-discussion-flag',
+      name: this.t('Toggle discussion flag'),
+      callback: () => this.run(() => toggleDiscussionFlagCommand(this.app, this.host)),
     });
 
     this.addCommand({
