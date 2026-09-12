@@ -1,7 +1,7 @@
 # 연구노트 검증 (Phase 3) — labnoteo 자동화 설정 명령이 볼트에 설치합니다.
 #
 # labnote/** 변경 push마다 결정적 검증(status/중복 id/대용량 파일)을 수행합니다.
-# 볼트에는 번들된 scripts/validate.mjs만 있으면 되고 npm 설치가 필요 없습니다.
+# 볼트에는 번들된 .labnoteo/scripts/validate.mjs만 있으면 되고 npm 설치가 필요 없습니다.
 name: validate
 
 on:
@@ -18,4 +18,4 @@ jobs:
         with:
           node-version: '20'
       - name: Validate research notes
-        run: node scripts/validate.mjs
+        run: node .labnoteo/scripts/validate.mjs

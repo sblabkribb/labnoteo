@@ -47,6 +47,27 @@ export function runLabnoteFsContract(name: string, makeFs: () => LabnoteFs): voi
       await expect(fs.remove('gone.txt')).resolves.toBeUndefined();
     });
 
+    it('rmdir removes an empty directory', async () => {
+      const fs = makeFs();
+      await fs.mkdir('empty');
+      expect(await fs.exists('empty')).toBe(true);
+      await fs.rmdir('empty');
+      expect(await fs.exists('empty')).toBe(false);
+    });
+
+    it('rmdir leaves a non-empty directory (and its contents) alone', async () => {
+      const fs = makeFs();
+      await fs.write('keep/file.txt', '.');
+      await fs.rmdir('keep');
+      expect(await fs.exists('keep')).toBe(true);
+      expect(await fs.read('keep/file.txt')).toBe('.');
+    });
+
+    it('rmdir is a no-op for a missing directory', async () => {
+      const fs = makeFs();
+      await expect(fs.rmdir('never-existed')).resolves.toBeUndefined();
+    });
+
     it('list returns bare entry names, empty for a missing dir', async () => {
       const fs = makeFs();
       expect(await fs.list('nope')).toEqual([]);

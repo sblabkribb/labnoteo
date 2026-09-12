@@ -68,11 +68,67 @@ export interface ScaffoldAsset {
   merge?: ScaffoldMergeStrategy;
 }
 
+/**
+ * Container for everything the researcher never needs to open. The dot prefix
+ * hides it from Obsidian's file explorer, search and graph, which is the point:
+ * the vault root stays notes (`labnote/`), manuscript (`wiki-staging/`) and the
+ * two docs people actually read (`QUICKSTART.md`, `AGENTS.md`).
+ */
+export const LABNOTEO_DIR = '.labnoteo';
+
+/** Hook directory, used verbatim as the `git config core.hooksPath` argument. */
+export const HOOKS_DIR_PATH = `${LABNOTEO_DIR}/hooks`;
+
 /** Vault path of the admin/developer setup guide, surfaced in the completion notice. */
-export const SETUP_DOC_PATH = 'SETUP.md';
+export const SETUP_DOC_PATH = `${LABNOTEO_DIR}/SETUP.md`;
 
 /** Vault path of the researcher-facing quick-start guide, surfaced in the notice. */
 export const QUICKSTART_DOC_PATH = 'QUICKSTART.md';
+
+/**
+ * Files earlier versions scaffolded at paths we no longer use. The setup command
+ * offers to delete them once, so a vault upgraded from <=0.82.0 does not keep a
+ * second, stale copy of every script.
+ *
+ * Two generations are covered: the pre-`.labnoteo/` layout (root `scripts/`,
+ * `.githooks/`, `SETUP.md`) and the server-side AI gate assets dropped in
+ * 0.81.0, which linger in vaults set up before then.
+ */
+export const LEGACY_ASSET_PATHS: string[] = [
+  'scripts/check-large-files.mjs',
+  'scripts/validate.mjs',
+  'scripts/issue-sync.mjs',
+  '.githooks/pre-commit',
+  'SETUP.md',
+  'scripts/issue-gate.mjs',
+  'scripts/wiki-propose.mjs',
+  'ai/prompts/issue-gate.md',
+  'ai/prompts/wiki-propose.md',
+  'ai/schemas/issue-gate.schema.json',
+  'ai/schemas/wiki-propose.schema.json',
+];
+
+/**
+ * Directories to drop after removing the files above, deepest first so a parent
+ * is only considered once its children are gone. Removal is skipped for any
+ * directory the user put something else into.
+ */
+export const LEGACY_DIRS: string[] = [
+  'scripts',
+  '.githooks',
+  'ai/prompts',
+  'ai/schemas',
+  'ai',
+];
+
+/**
+ * Blanket ignore lines that silently defeat the `!.../skills/` negations below:
+ * once a directory itself is excluded Git never descends into it, so the
+ * re-include cannot apply no matter the ordering. `append-missing` can only add
+ * lines, so an upgraded vault keeps these until the user deletes them — the
+ * setup command detects and warns about exactly these.
+ */
+export const STALE_IGNORE_LINES: string[] = ['.claude/', '.agents/'];
 
 /**
  * Assets installed by the current phase (Phase 2c: large-file protection).
@@ -80,18 +136,18 @@ export const QUICKSTART_DOC_PATH = 'QUICKSTART.md';
  */
 export const SCAFFOLD_ASSETS: ScaffoldAsset[] = [
   // Phase 2c — large-file protection.
-  { vaultPath: 'scripts/check-large-files.mjs', content: checkLargeFilesScript },
-  { vaultPath: '.githooks/pre-commit', content: preCommitHook },
+  { vaultPath: `${LABNOTEO_DIR}/scripts/check-large-files.mjs`, content: checkLargeFilesScript },
+  { vaultPath: `${HOOKS_DIR_PATH}/pre-commit`, content: preCommitHook },
   { vaultPath: SETUP_DOC_PATH, content: setupReadme },
   { vaultPath: QUICKSTART_DOC_PATH, content: quickstartDoc },
   { vaultPath: '.gitignore', content: gitignoreSnippet, merge: 'append-missing' },
 
   // Phase 3 — deterministic validation.
-  { vaultPath: 'scripts/validate.mjs', content: validateScript },
+  { vaultPath: `${LABNOTEO_DIR}/scripts/validate.mjs`, content: validateScript },
   { vaultPath: '.github/workflows/validate.yml', content: validateWorkflow },
 
   // Phase 4a — deterministic Experiment ↔ Issue.
-  { vaultPath: 'scripts/issue-sync.mjs', content: issueSyncScript },
+  { vaultPath: `${LABNOTEO_DIR}/scripts/issue-sync.mjs`, content: issueSyncScript },
   { vaultPath: '.github/workflows/experiment-issues.yml', content: experimentIssuesWorkflow },
   { vaultPath: '.github/ISSUE_TEMPLATE/experiment.md', content: experimentIssueTemplate },
 
