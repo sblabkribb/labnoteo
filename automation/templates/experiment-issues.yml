@@ -1,8 +1,11 @@
 # Experiment ↔ Issue 자동화 — labnoteo 자동화 설정 명령이 볼트에 설치합니다.
 #
-# 4a(결정적): discuss:true 또는 status:needs-review 실험만 GitHub-hosted 러너에서
-#   결정적으로 Issue 생성/갱신(AI 없음). fetch + GITHUB_TOKEN(REST) 사용.
-# 4b(AI 게이트): self-hosted 러너 + 로컬 LLM으로 자연 서술까지 감지(아래 두 번째 잡).
+# 결정적 경로만 사용: discuss:true 또는 status:needs-review 실험만 GitHub-hosted
+# 러너에서 결정적으로 Issue 생성/갱신(AI 없음). fetch + GITHUB_TOKEN(REST) 사용.
+#
+# 자유 서술에서 논의 필요를 판단하는 AI 역할은 로컬 AI 에이전트가 수행합니다
+# (AGENTS.md Playbook A — 에이전트가 discuss:true 신호를 설정하면 이 워크플로우가
+# 이슈를 멱등 생성). self-hosted 러너/로컬 LLM은 필요 없습니다.
 name: experiment-issues
 
 on:
@@ -15,7 +18,7 @@ permissions:
   issues: write
 
 jobs:
-  # --- Phase 4a: deterministic promotion (no AI, GitHub-hosted) --------------
+  # Deterministic promotion (no AI, GitHub-hosted).
   deterministic:
     runs-on: ubuntu-latest
     steps:
@@ -32,26 +35,3 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.event.after }}
         run: node scripts/issue-sync.mjs
-
-  # --- Phase 4b: AI context gate (self-hosted runner + local LLM) ------------
-  # SECURITY: self-hosted runners must run on a PRIVATE repo only — a public repo
-  # lets fork PRs execute runner code. This job is gated to push on `main`.
-  # The local LLM endpoint/model come from repo variables; no API key is needed
-  # for a local endpoint (notes never leave the lab network).
-  ai-gate:
-    if: github.ref == 'refs/heads/main'
-    needs: deterministic
-    runs-on: [self-hosted, labnoteo-llm]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: AI issue gate (local LLM)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          BEFORE_SHA: ${{ github.event.before }}
-          AFTER_SHA: ${{ github.event.after }}
-          LLM_ENDPOINT: ${{ vars.LLM_ENDPOINT }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
-        run: node scripts/issue-gate.mjs

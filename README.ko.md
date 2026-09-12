@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.80.0**
+**버전 0.81.0**
 
 생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
@@ -15,7 +15,7 @@
 - **샘플 자동완성·하이라이트**: 편집 중 샘플 참조에 대한 인라인 제안과 하이라이트를 제공합니다.
 - **LLM 보조(선택)**: Ollama 또는 OpenAI로 실험 방법 초안 작성, 결과 요약, 샘플 추출을 수행합니다. *어시스턴트에게 요청* 명령은 한 걸음 더 나아가, 모델이 Labnote의 툴을 직접 호출해 목표를 달성하며 보관함을 수정하기 전에 매번 사용자에게 확인합니다. 같은 툴을 외부 MCP 클라이언트에도 노출할 수 있습니다.
 - **실험 상태**: 각 실험의 생애주기(`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …)를 *실험 상태 변경* 명령으로 노트 frontmatter에 기록하고, 검증·Issue 자동화의 기준으로 사용합니다.
-- **연구노트 자동화(선택)**: 명령 한 번으로 GitHub Actions와 무의존성(zero-dependency) 스크립트를 보관함에 설치해, 노트 검증·Experiment ↔ Issue 연결·Living-Manuscript Wiki 초안을 자동화합니다. 모두 선택적이며 사람이 검토합니다. [연구노트 자동화](#연구노트-자동화) 참고.
+- **연구노트 자동화(선택)**: 명령 한 번으로 GitHub Actions·무의존성(zero-dependency) 스크립트·AI 에이전트 규칙(`AGENTS.md`)을 보관함에 설치해, 노트 검증·Experiment ↔ Issue 연결·Living-Manuscript Wiki 초안을 자동화합니다. 모두 선택적이며 사람이 검토합니다. [연구노트 자동화](#연구노트-자동화) 참고.
 
 ## 요구 사항
 
@@ -49,7 +49,7 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 아래 두 개는 커뮤니티 플러그인 목록에 등재되어 있어, 설정 → 커뮤니티 플러그인 → **탐색(Browse)**에서 검색해 바로 설치할 수 있습니다.
 
 - **Data Files Editor**: 샘플 정의가 저장되는 `resources/labsamples/*.json` 같은 JSON 파일을 Obsidian 안에서 직접 열어 편집할 수 있습니다. 보관함 밖 외부 편집기 없이 샘플 데이터를 확인·수정할 때 편리합니다.
-- **Git**(Obsidian Git): 실험 노트 보관함을 Git으로 버전 관리·백업합니다. 자동 커밋/동기화로 변경 이력을 남기고 여러 기기 간에 안전하게 옮길 수 있습니다.
+- **Git**(Obsidian Git, 선택): 실험 노트 보관함을 Obsidian 안에서 Git으로 버전 관리·백업합니다. AI 에이전트(예: [Copilot 에이전트 모드](#copilot에이전트-모드--claude-code-함께-쓰기-선택)의 Claude Code)를 쓴다면 설치할 필요가 없습니다 — 에이전트가 네이티브 `git`으로 커밋·푸시하며, 규칙은 스캐폴드된 `AGENTS.md`가 제공합니다([연구노트 자동화](#연구노트-자동화) 참고).
 
 ## 주요 명령어
 
@@ -85,16 +85,16 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 | 대용량 파일 보호 | `scripts/check-large-files.mjs`, `.githooks/pre-commit`, `.gitignore` | 커밋 전에 과도하게 큰 데이터 파일을 차단(Node 없으면 shell로 대체). |
 | 검증 | `scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값과 실험 id 중복을 검사. |
 | Experiment ↔ Issue | `scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 Issue를 생성/갱신(결정적, GitHub REST API). |
-| AI 맥락 게이트(선택) | `scripts/issue-gate.mjs`, `ai/prompts/*`, `ai/schemas/*` | self-hosted 로컬 LLM이 자유 서술 노트가 실제로 논의가 필요한지 판단. |
-| Living-Manuscript Wiki(선택) | `scripts/wiki-propose.mjs`, `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | 완료된 실험에서 객관적 사실만 추출해 논문형 Wiki 골격에 배치, 사람 검토용으로 스테이징. |
+| AI 에이전트 규칙 | `AGENTS.md`, `CLAUDE.md` | 로컬 AI 에이전트(Claude Code, Cursor 등)를 위한 규칙: git 워크플로우·커밋 메시지, 언제 노트에 `discuss: true`를 표시할지, `wiki-staging/`에 사실을 어떻게 초안할지. `CLAUDE.md`는 Claude Code용 `@AGENTS.md` 1줄 import. 재실행 시 labnoteo 관리 마커 블록만 갱신되고 그 밖의 사용자 규칙은 보존됩니다. |
+| Living-Manuscript Wiki(선택) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | 사람이 검토·머지한 `wiki-staging/` 초안을 GitHub Wiki로 발행. |
 
 번들된 스크립트는 **무의존성** Node ESM입니다: labnoteo의 `@labnoteo/core` 함수를 그대로 재사용하므로 플러그인과 드리프트가 없고, `node scripts/*.mjs`로 실행됩니다 — 보관함에서 `npm install`이 필요 없습니다.
 
 **전제 조건 및 범위**
 
 - 어떤 Actions든 동작하려면 보관함이 GitHub 저장소여야 합니다(먼저 push). 연구 데이터가 있으면 **private**로 유지하세요.
-- AI 단계는 노트가 네트워크 밖으로 나가지 않도록 **self-hosted 러너 + 로컬 LLM** 엔드포인트가 필요합니다. repo variables `LLM_ENDPOINT` / `LLM_MODEL`을 설정하세요. Wiki는 별도 저장소이므로 `wiki-sync.yml`은 PAT(`GH_WIKI_TOKEN`)가 추가로 필요할 수 있습니다.
-- 자동화는 **노트를 절대 되쓰지 않습니다** — Issue를 열고 Wiki 제안을 스테이징만 하며, 과학적 판단과 `status` 변경은 사람의 몫입니다.
+- 서버측 자동화는 전부 **결정적**이라 GitHub-hosted 러너만으로 동작합니다 — self-hosted 러너나 서버측 LLM이 필요 없습니다. AI 판단(이 노트에 논의가 필요한가? 어떤 사실이 Wiki에 들어가야 하는가?)은 **로컬 AI 에이전트**가 `AGENTS.md` 규칙에 따라 수행합니다. 에이전트는 `discuss: true` 신호를 설정하거나 `wiki-staging/`에 초안만 작성하고, 이슈 생성/Wiki 발행은 `issue-sync`/`wiki-sync`가 단독 담당하므로 중복이 없습니다. Wiki는 별도 저장소이므로 `wiki-sync.yml`은 PAT(`GH_WIKI_TOKEN`)가 추가로 필요할 수 있습니다.
+- 자동화는 **노트를 절대 되쓰지 않습니다** — Issue를 열고 검토된 Wiki 초안을 발행만 하며, 과학적 판단과 `status` 변경은 사람의 몫입니다.
 - 플러그인 업데이트 후에는 명령을 다시 실행해 스크립트를 갱신하고, 커밋 전에 diff를 검토하세요.
 
 전체 체크리스트와 단계별 상세는 보관함에 생성된 `SETUP.md`를 참고하세요.
@@ -131,6 +131,8 @@ MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `create_sample
 ## Copilot(에이전트 모드) + Claude Code 함께 쓰기 (선택)
 
 Copilot 플러그인의 **에이전트 모드**는 이 컴퓨터에 설치된 CLI 에이전트(OpenCode / **Claude Code** / Codex)를 그대로 실행합니다. "Claude"를 고르면 Copilot이 로컬 `claude`(Claude Code) CLI를 구동하며, 인증은 **API 키가 아니라 CLI에 로그인된 Claude 구독 계정**(Pro/Max/Team/Enterprise)을 사용합니다.
+
+> **연구노트 자동화 설정**을 실행했다면 보관함에 `AGENTS.md`(git 워크플로우·커밋 메시지 규칙, 언제 `discuss: true`를 표시할지, `wiki-staging/` 사실 초안 방법)와 이를 `@AGENTS.md`로 import하는 `CLAUDE.md`가 생성되어 있습니다 — 같은 `claude` CLI가 터미널에서든 Copilot 에이전트 모드에서든 이 규칙을 자동으로 읽습니다. 이는 labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안에서* 초안·요약을 담당하고, 외부 에이전트는 git·이슈 신호·Wiki 초안을 담당합니다.
 
 ### 1) Claude Code 설치 & 로그인
 
@@ -176,7 +178,7 @@ npm workspaces 모노레포 구조입니다:
 
 - `src/` — Obsidian 플러그인. esbuild로 저장소 루트의 `main.js`로 번들됩니다. Obsidian 커뮤니티 디렉터리가 루트의 `manifest.json`을 읽기 때문에 플러그인이 루트에 있습니다.
 - `packages/labnoteo-core` — 플랫폼 중립 core 로직 (파서, 워크플로/샘플 도메인). 플러그인이 사용합니다. Node 전용 API를 import하면 안 되며, 플랫폼 의존 기능은 포트(`LabnoteFs`, `LabnoteHost`) 뒤에 둡니다.
-- `automation/` — 보관함에 설치되는 [연구노트 자동화](#연구노트-자동화) 스크립트의 소스. esbuild가 (1단계) 무의존성 `dist-automation/*.mjs`로 번들하고 — 플러그인과 같은 `@labnoteo/core` 소스를 재사용하므로 드리프트가 없음 — (2단계) 워크플로/프롬프트/Wiki 템플릿과 함께 `main.js`에 문자열로 임베드합니다. 덕분에 3-파일 설치만으로 자립합니다. *연구노트 자동화 설정* 명령이 그 문자열을 보관함에 기록합니다.
+- `automation/` — 보관함에 설치되는 [연구노트 자동화](#연구노트-자동화) 스크립트의 소스. esbuild가 (1단계) 무의존성 `dist-automation/*.mjs`로 번들하고 — 플러그인과 같은 `@labnoteo/core` 소스를 재사용하므로 드리프트가 없음 — (2단계) 워크플로/AGENTS.md/Wiki 템플릿과 함께 `main.js`에 문자열로 임베드합니다. 덕분에 3-파일 설치만으로 자립합니다. *연구노트 자동화 설정* 명령이 그 문자열을 보관함에 기록합니다.
 - `tests/` — 플러그인 계층 테스트와 `obsidian` 패키지의 런타임 스텁(해당 패키지는 타입만 제공). core 테스트는 코드 옆 `packages/labnoteo-core/src/__tests__/`에 있습니다.
 
 ```bash

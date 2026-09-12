@@ -8,33 +8,27 @@
  * install (main.js / manifest.json / styles.css) self-sufficient: no separate
  * `.mjs` assets need to ship to the plugin folder.
  *
- * Extending in later phases is intentionally trivial: author the source under
- * `automation/` (add script entry points to `AUTOMATION_ENTRYPOINTS` in the
- * esbuild config), import the built string here, and append a `ScaffoldAsset`.
- * For example Phase 3/4/5 will add `scripts/validate.mjs`,
- * `.github/workflows/*.yml`, `ai/prompts/*` entries alongside these.
+ * Extending is intentionally trivial: author the source under `automation/`
+ * (add script entry points to `AUTOMATION_ENTRYPOINTS` in the esbuild config),
+ * import the built string here, and append a `ScaffoldAsset`.
  */
 // Stage-1 build output (dist-automation) — embedded as text.
 import checkLargeFilesScript from '../../dist-automation/check-large-files.mjs';
 import validateScript from '../../dist-automation/validate.mjs';
 import issueSyncScript from '../../dist-automation/issue-sync.mjs';
-import issueGateScript from '../../dist-automation/issue-gate.mjs';
-import wikiProposeScript from '../../dist-automation/wiki-propose.mjs';
 // Static templates — embedded as text.
 import gitignoreSnippet from '../../automation/templates/gitignore.snippet';
 import preCommitHook from '../../automation/templates/pre-commit.sh';
 import setupReadme from '../../automation/templates/SETUP.md';
+// AI agent rules (single source for the local-agent AI workflow) — installed as
+// a managed block inside the vault's AGENTS.md so user rules are preserved.
+import agentsRules from '../../automation/templates/AGENTS.md';
 // Workflow templates (Phase 3–5).
 import validateWorkflow from '../../automation/templates/validate.yml';
 import experimentIssuesWorkflow from '../../automation/templates/experiment-issues.yml';
 import wikiSyncWorkflow from '../../automation/templates/wiki-sync.yml';
 // Issue template (Phase 4a).
 import experimentIssueTemplate from '../../automation/templates/experiment.md';
-// AI prompts + schemas (Phase 4b, 5) — version-controlled single source in `ai/`.
-import issueGatePrompt from '../../automation/templates/issue-gate.prompt.md';
-import issueGateSchema from '../../automation/templates/issue-gate.schema.jsonc';
-import wikiProposePrompt from '../../automation/templates/wiki-propose.prompt.md';
-import wikiProposeSchema from '../../automation/templates/wiki-propose.schema.jsonc';
 // Living Manuscript Wiki skeleton (Phase 5) — staged proposals live here.
 import wikiHome from '../../automation/templates/wiki/Home.md';
 import wikiAbstract from '../../automation/templates/wiki/Abstract.md';
@@ -53,8 +47,15 @@ import wikiReferences from '../../automation/templates/wiki/References.md';
  *  - `overwrite` (default): replace, but only after the user confirms.
  *  - `append-missing`: keep the file, append only lines it does not already
  *    contain (used for `.gitignore` so user patterns are preserved).
+ *  - `managed-block`: keep the file, insert/refresh only the labnoteo-managed
+ *    marker block (used for `AGENTS.md` so user rules outside the markers are
+ *    preserved and re-runs stay idempotent).
  */
-export type ScaffoldMergeStrategy = 'overwrite' | 'append-missing';
+export type ScaffoldMergeStrategy = 'overwrite' | 'append-missing' | 'managed-block';
+
+/** Markers delimiting the labnoteo-managed block inside shared files (AGENTS.md). */
+export const MANAGED_BLOCK_BEGIN = '<!-- BEGIN labnoteo (managed) -->';
+export const MANAGED_BLOCK_END = '<!-- END labnoteo (managed) -->';
 
 /** A single file the scaffold command writes into the vault. */
 export interface ScaffoldAsset {
@@ -89,16 +90,17 @@ export const SCAFFOLD_ASSETS: ScaffoldAsset[] = [
   { vaultPath: '.github/workflows/experiment-issues.yml', content: experimentIssuesWorkflow },
   { vaultPath: '.github/ISSUE_TEMPLATE/experiment.md', content: experimentIssueTemplate },
 
-  // Phase 4b — AI context gate (self-hosted local LLM). Shares experiment-issues.yml.
-  { vaultPath: 'scripts/issue-gate.mjs', content: issueGateScript },
-  { vaultPath: 'ai/prompts/issue-gate.md', content: issueGatePrompt },
-  { vaultPath: 'ai/schemas/issue-gate.schema.json', content: issueGateSchema },
+  // AI agent rules — the local agent replaces the former self-hosted AI jobs:
+  // it judges free-text discussion context (sets `discuss: true`) and drafts
+  // facts into wiki-staging/, while issue-sync / wiki-sync stay the only
+  // creators/publishers. AGENTS.md is the single source of those AI criteria.
+  { vaultPath: 'AGENTS.md', content: agentsRules, merge: 'managed-block' },
+  // Claude Code reads CLAUDE.md (not AGENTS.md); a one-line import keeps
+  // AGENTS.md the single source without duplicating content.
+  { vaultPath: 'CLAUDE.md', content: '@AGENTS.md\n', merge: 'append-missing' },
 
   // Phase 5 — Living Manuscript Wiki.
-  { vaultPath: 'scripts/wiki-propose.mjs', content: wikiProposeScript },
   { vaultPath: '.github/workflows/wiki-sync.yml', content: wikiSyncWorkflow },
-  { vaultPath: 'ai/prompts/wiki-propose.md', content: wikiProposePrompt },
-  { vaultPath: 'ai/schemas/wiki-propose.schema.json', content: wikiProposeSchema },
   { vaultPath: 'wiki-staging/Home.md', content: wikiHome },
   { vaultPath: 'wiki-staging/Abstract.md', content: wikiAbstract },
   { vaultPath: 'wiki-staging/Introduction.md', content: wikiIntroduction },
