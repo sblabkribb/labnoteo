@@ -23,8 +23,10 @@ import {
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
   EXPERIMENT_STATUSES,
+  isDiscussFlagged,
   parseFrontMatterYaml,
   serializeFrontMatterEntry,
+  setDiscussFlag,
 } from '@labnoteo/core';
 import * as posix from '@labnoteo/core/posix';
 import { workflowAliasModal } from './modals';
@@ -136,14 +138,57 @@ export async function changeExperimentStatusCommand(app: App, host: LabnoteHost)
 
   // Set (or insert, when absent) `status`. Spreading keeps the order of the
   // existing keys and appends `status` for notes that predate the field.
-  const updatedFrontMatter: Record<string, unknown> = { ...frontMatter, status: chosen };
-  const fmBlock = Object.entries(updatedFrontMatter)
-    .map(([key, value]) => serializeFrontMatterEntry(key, value))
-    .join('\n');
-  const updated = `---\n${fmBlock}\n---\n\n${body}`;
+  const updated = renderNote({ ...frontMatter, status: chosen }, body);
 
   await writeNoteThroughVault(app, host, readmePath, updated);
   host.notify('info', host.t('Experiment status changed: {0}', chosen));
+}
+
+/** Re-emit a note from front matter plus an untouched body. */
+function renderNote(frontMatter: Record<string, unknown>, body: string): string {
+  const fmBlock = Object.entries(frontMatter)
+    .map(([key, value]) => serializeFrontMatterEntry(key, value))
+    .join('\n');
+  return `---\n${fmBlock}\n---\n\n${body}`;
+}
+
+/**
+ * Turn the `discuss` front-matter flag of the active experiment on or off.
+ *
+ * Separate from the status picker on purpose: flagging a note for discussion is
+ * not a lifecycle change, so an `in-progress` experiment can ask for a decision
+ * without pretending to be `needs-review`. The flag is what `issue-sync`
+ * promotes to a GitHub Issue on the next push — writing "논의 필요" in the body
+ * does nothing by itself.
+ */
+export async function toggleDiscussionFlagCommand(app: App, host: LabnoteHost): Promise<void> {
+  const labnoteDir = await resolveLabnoteDir(app, host);
+  if (!labnoteDir) return;
+
+  const readmePath = posix.join(labnoteDir, README);
+  if (!(await host.fs.exists(readmePath))) {
+    host.notify('warn', host.t('Open a lab note first.'));
+    return;
+  }
+
+  // As in the status command: `parseFrontMatterYaml` needs LF-normalised text.
+  const original = (await host.fs.read(readmePath)).replace(/\r\n/g, '\n');
+  const { frontMatter, body } = parseFrontMatterYaml(original);
+
+  const next = !isDiscussFlagged(frontMatter);
+  await writeNoteThroughVault(
+    app,
+    host,
+    readmePath,
+    renderNote(setDiscussFlag(frontMatter, next), body)
+  );
+
+  host.notify(
+    'info',
+    next
+      ? host.t('Flagged for discussion. An issue opens on the next push.')
+      : host.t('Discussion flag cleared. Any issue already opened stays open.')
+  );
 }
 
 /**

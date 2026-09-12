@@ -34,7 +34,9 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
 - frontmatter의 `status` / `project` / `id`는 **확장만** 합니다(필드 추가는 가능,
   기존 값을 임의로 되쓰지 않음).
 - `discuss: true`는 "논의 신호" 필드입니다 — 에이전트가 설정할 수 있으며
-  `status`와는 별개입니다 (아래 Playbook A).
+  `status`와는 별개입니다 (아래 Playbook A). 사람은 플러그인의
+  *Toggle discussion flag* 명령으로 같은 표시를 켜고 끕니다. 해제는 키를
+  제거하는 방식이므로, 해제된 노트에 `discuss: false`를 남기지 마세요.
 - `status` 허용값: `planned`, `in-progress`, `needs-review`, `completed`,
   `failed`, `discontinued`, `needs-repeat`.
 

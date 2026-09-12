@@ -9,6 +9,7 @@ const obsidianKo: Record<string, string> = {
   // Commands
   'Create experiment': '실험 생성',
   'Change experiment status': '실험 상태 변경',
+  'Toggle discussion flag': '논의 표시 전환',
   'Setup research automation': '연구노트 자동화 설정',
   'Create workflow': '워크플로 생성',
   'Insert workflow': '워크플로 삽입',
@@ -52,6 +53,10 @@ const obsidianKo: Record<string, string> = {
   // Notices / results
   'Experiment created: {0}': '실험이 생성되었습니다: {0}',
   'Experiment status changed: {0}': '실험 상태가 변경되었습니다: {0}',
+  'Flagged for discussion. An issue opens on the next push.':
+    '논의 표시를 설정했습니다. 다음 push 때 이슈가 생성됩니다.',
+  'Discussion flag cleared. Any issue already opened stays open.':
+    '논의 표시를 해제했습니다. 이미 생성된 이슈는 닫히지 않습니다.',
   'Overwrite {0}?': '{0} 파일을 덮어쓰시겠습니까?',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run `git config core.hooksPath {6}`).':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 `git config core.hooksPath {6}`을 실행하세요.',

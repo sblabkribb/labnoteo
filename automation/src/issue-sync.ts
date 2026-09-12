@@ -15,6 +15,7 @@
  * Zero runtime deps: node built-ins + inlined `@labnoteo/core`.
  */
 import { pathToFileURL } from 'node:url';
+import { isDiscussFlagged } from '@labnoteo/core';
 import { getChangedFiles } from './lib/git';
 import {
   buildExperimentIssue,
@@ -27,14 +28,17 @@ import { currentRepo, ensureIssue } from './lib/github';
 
 /**
  * Whether an experiment carries an explicit "please open an issue" signal.
- * Pure: `discuss: true` (boolean or the string "true") OR `status: needs-review`.
- * Nothing else — deliberately no free-text scanning (that is Phase 4b's job).
+ * Pure: the `discuss` flag OR `status: needs-review`. Nothing else —
+ * deliberately no free-text scanning, so a passing mention of "논의" in a note
+ * cannot open an issue. Judging free text is the local AI agent's job
+ * (AGENTS.md Playbook A); it sets the flag, and this script acts on it.
+ *
+ * The flag predicate comes from `@labnoteo/core` so the plugin's toggle command
+ * and this script can never disagree about what counts as flagged.
  */
 export function shouldPromote(frontMatter: Record<string, unknown>): boolean {
-  const discuss = frontMatter['discuss'];
-  const discussFlag = discuss === true || String(discuss).trim().toLowerCase() === 'true';
   const status = readStringField(frontMatter, 'status');
-  return discussFlag || status === 'needs-review';
+  return isDiscussFlagged(frontMatter) || status === 'needs-review';
 }
 
 /** The experiments a push should promote to issues (pure selection step). */
