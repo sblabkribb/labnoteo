@@ -20,6 +20,7 @@ const note = (body: string, fm: Record<string, unknown> = {}): ExperimentNote =>
   folderName: '001_PCR',
   frontMatter: { title: 'PCR run', id: 'EXP-001', status: 'completed', ...fm },
   body,
+  bodyLineOffset: 0,
 });
 
 describe('extractFacts', () => {

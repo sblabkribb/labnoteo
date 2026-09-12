@@ -12,7 +12,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
-import { parseFrontMatterYaml } from '@labnoteo/core';
+import { findEnclosingHeading, parseFrontMatterYaml, type IssueMarker } from '@labnoteo/core';
 
 /** File name of the single-source-of-truth note inside each experiment folder. */
 export const README_NAME = 'README.labnote.md';
@@ -37,6 +37,12 @@ export interface ExperimentNote {
   frontMatter: Record<string, unknown>;
   /** README body (front-matter stripped). */
   body: string;
+  /**
+   * Lines dropped ahead of `body` (front matter + blank lines). Added to a
+   * body-relative line number it yields the line in the FILE, which is what a
+   * GitHub permalink needs.
+   */
+  bodyLineOffset: number;
 }
 
 /** Read a front-matter string field, trimmed; undefined when absent/blank. */
@@ -192,6 +198,61 @@ export function buildExperimentIssue(note: ExperimentNote): ExperimentIssue {
 }
 
 /**
+ * Build the Issue payload for one `@issue` marker.
+ *
+ * The identifier is namespaced under the experiment (`EXP-001/ISS-mkd8x3k`) so
+ * a note can carry several independent discussions. It cannot be confused with
+ * the experiment's own `[EXP-001]` token: the `/` breaks the closing bracket,
+ * so neither title contains the other's token.
+ *
+ * The body is context, never a copy of the note: the topic sentence, the
+ * section the marker sits in, and a permalink to that exact line at `sha` —
+ * which is the whole point of a point-level marker. `sha` is the pushed commit
+ * (`GITHUB_SHA`); without it the permalink is omitted rather than guessed.
+ */
+export function buildDiscussionIssue(
+  note: ExperimentNote,
+  marker: IssueMarker,
+  repo: string,
+  sha?: string
+): ExperimentIssue {
+  const experimentId = deriveIdentifier(note.frontMatter, note.folderName);
+  const identifier = `${experimentId}/${marker.id}`;
+  const status = readStringField(note.frontMatter, 'status');
+  const notePath = `${note.dir}/${README_NAME}`;
+  const fileLine = marker.line + note.bodyLineOffset;
+  const section = findEnclosingHeading(note.body, marker.line);
+
+  const labels = ['experiment', 'discussion'];
+  if (status) labels.push(`status:${status}`);
+
+  const lines: string[] = [
+    `**Experiment:** \`${experimentId}\``,
+    `**Note:** \`${notePath}\`${section ? ` → ${section}` : ''}`,
+    `**Marker:** \`${marker.id}\``,
+  ];
+  if (sha) {
+    lines.push(`**Line:** ${apiHtmlUrl(repo, sha, notePath, fileLine)}`);
+  }
+  lines.push(
+    '',
+    '## 💬 Discussion',
+    marker.title,
+    '',
+    '_Raised from a marker in the note. The note remains the source of truth; ' +
+      'removing the marker does not close this issue._'
+  );
+
+  return { identifier, title: `[${identifier}] ${marker.title}`, body: lines.join('\n'), labels };
+}
+
+/** Permalink to one line of a file at a commit. */
+function apiHtmlUrl(repo: string, sha: string, path: string, line: number): string {
+  const base = (process.env.GITHUB_SERVER_URL ?? 'https://github.com').replace(/\/+$/, '');
+  return `${base}/${repo}/blob/${sha}/${path}#L${line}`;
+}
+
+/**
  * Read and parse an experiment's README. Returns undefined when the README is
  * missing or is not an `experiment_type: labnote` note (so non-experiments and
  * partial folders are skipped). Uses node fs; the pure parsing is delegated to
@@ -208,5 +269,7 @@ export function readExperimentNote(dir: string): ExperimentNote | undefined {
   }
   const { frontMatter, body } = parseFrontMatterYaml(raw);
   if (readStringField(frontMatter, 'experiment_type') !== 'labnote') return undefined;
-  return { dir, folderName: experimentFolderName(dir), frontMatter, body };
+  // `body` is a suffix of `raw`, so the line delta is exactly what was dropped.
+  const bodyLineOffset = raw.split('\n').length - body.split('\n').length;
+  return { dir, folderName: experimentFolderName(dir), frontMatter, body, bodyLineOffset };
 }

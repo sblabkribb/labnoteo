@@ -54,6 +54,17 @@
   padding: 0 2px;
 }
 
+/* --- @issue markers (editor + reading mode) ------------------------------
+   Only well-formed markers get this class, so the styling is also the signal
+   that a marker will actually open an issue. Themed colours keep it readable
+   in both light and dark mode. */
+.labnote-issue-marker {
+  background-color: var(--background-modifier-error-hover);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: var(--font-medium);
+}
+
 /* --- Meta date fields (click to pick a date/time) ------------------------ */
 .labnote-date-value {
   cursor: pointer;

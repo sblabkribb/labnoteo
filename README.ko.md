@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.84.0**
+**버전 0.85.0**
 
 생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
@@ -16,6 +16,7 @@
 - **LLM 보조(선택)**: Ollama 또는 OpenAI로 실험 방법 초안 작성, 결과 요약, 샘플 추출을 수행합니다. *어시스턴트에게 요청* 명령은 한 걸음 더 나아가, 모델이 Labnote의 툴을 직접 호출해 목표를 달성하며 보관함을 수정하기 전에 매번 사용자에게 확인합니다. 같은 툴을 외부 MCP 클라이언트에도 노출할 수 있습니다.
 - **실험 상태**: 각 실험의 생애주기(`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …)를 *실험 상태 변경* 명령으로 노트 frontmatter에 기록하고, 검증·Issue 자동화의 기준으로 사용합니다.
 - **논의 표시**: *논의 표시 전환* 명령으로 팀 논의가 필요한 노트를 표시합니다. 생애주기 상태와는 독립적이라 `in-progress`인 실험도 상태를 바꾸지 않고 논의를 올릴 수 있으며, 다음 push 때 GitHub Issue가 열립니다.
+- **논의 이슈 마커**: 질문은 기록하는 도중에 떠오르므로, 그 자리에 `@issue;<ID>;<주제문장>` 마커를 답니다(이미 쓰고 있는 `@dna;…` 샘플 문법의 확장입니다). 마커마다 별도 Issue가 열리고, 이슈 본문에는 그 줄로 가는 링크가 들어갑니다.
 - **연구노트 자동화(선택)**: 명령 한 번으로 GitHub Actions·무의존성(zero-dependency) 스크립트·AI 에이전트 규칙(`AGENTS.md`)을 보관함에 설치해, 노트 검증·Experiment ↔ Issue 연결·Living-Manuscript Wiki 초안을 자동화합니다. 모두 선택적이며 사람이 검토합니다. [연구노트 자동화](#연구노트-자동화) 참고.
 
 ## 요구 사항
@@ -63,6 +64,7 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 | 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트 생성 |
 | 실험 상태 변경 (`Change experiment status`) | 활성 실험의 `status` frontmatter를 피커로 변경 |
 | 논의 표시 전환 (`Toggle discussion flag`) | 활성 실험의 `discuss` 표시를 켜고 끔 — 다음 push 때 GitHub Issue 생성 |
+| 논의 이슈 마커 삽입 (`Insert issue marker`) | 커서 위치에 `@issue;<ID>;<주제문장>` 마커 삽입(선택 영역이 주제문장) — 마커마다 별도 Issue 생성 |
 | 워크플로 생성 (`Create workflow`) | 번호가 매겨진 워크플로 노트 생성 |
 | 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 유닛 오퍼레이션 삽입 |
 | 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 CSV로 내보내기 |
@@ -89,7 +91,7 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 | 사용자 문서 | `QUICKSTART.md`, `.labnoteo/SETUP.md` | 연구원용 퀵스타트(5분 따라하기·치트시트·FAQ)와 관리자/개발자용 설정 가이드(일회성 체크리스트·자산 레퍼런스·아키텍처). |
 | 대용량 파일 보호 | `.labnoteo/scripts/check-large-files.mjs`, `.labnoteo/hooks/pre-commit`, `.gitignore` | 커밋 전에 과도하게 큰 데이터 파일을 차단(Node 없으면 shell로 대체). |
 | 검증 | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값과 실험 id 중복을 검사. |
-| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 Issue를 생성/갱신(결정적, GitHub REST API). |
+| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 스레드 Issue 1개(닫혀 있으면 재오픈), 노트 본문의 `@issue;<ID>;<주제>` 마커마다 그 줄로 링크된 별도 Issue(해결되어 닫힌 것은 유지). 결정적, GitHub REST API. |
 | AI 에이전트 규칙 | `AGENTS.md`, `CLAUDE.md` | 로컬 AI 에이전트(Claude Code, Cursor 등)를 위한 규칙: git 워크플로우·커밋 메시지, 언제 노트에 `discuss: true`를 표시할지, `wiki-staging/`에 사실을 어떻게 초안할지. `CLAUDE.md`는 Claude Code용 `@AGENTS.md` 1줄 import. 재실행 시 labnoteo 관리 마커 블록만 갱신되고 그 밖의 사용자 규칙은 보존됩니다. |
 | Living-Manuscript Wiki(선택) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | 사람이 검토·머지한 `wiki-staging/` 초안을 GitHub Wiki로 발행. |
 

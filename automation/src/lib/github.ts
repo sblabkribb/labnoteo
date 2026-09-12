@@ -43,6 +43,8 @@ export interface ExistingIssue {
   number: number;
   title: string;
   html_url: string;
+  /** Needed to tell "already tracked" from "tracked and finished". */
+  state: 'open' | 'closed';
 }
 
 /**
@@ -50,6 +52,9 @@ export interface ExistingIssue {
  * token. Search is scoped to the repo via the Search API; the client-side
  * `includes` check guards against Search's fuzzy tokenising so we never create a
  * duplicate for an already-tracked experiment.
+ *
+ * Closed issues are included so a finished discussion is never re-created; what
+ * to DO about a closed one is the caller's call (see `EnsureIssueOptions`).
  */
 export async function findIssueByIdentifier(
   repo: string,
@@ -87,18 +92,70 @@ export async function createIssue(
   return (await res.json()) as ExistingIssue;
 }
 
+/** Reopen a closed issue. */
+export async function reopenIssue(repo: string, number: number): Promise<void> {
+  const res = await api(`/repos/${repo}/issues/${number}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ state: 'open' }),
+  });
+  if (!res.ok) {
+    throw new Error(`Issue reopen failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+/** Add a comment to an issue. */
+export async function commentOnIssue(
+  repo: string,
+  number: number,
+  body: string
+): Promise<void> {
+  const res = await api(`/repos/${repo}/issues/${number}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) {
+    throw new Error(`Issue comment failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+/** How `ensureIssue` should treat an identifier whose issue is already closed. */
+export interface EnsureIssueOptions {
+  /**
+   * Reopen (and comment on) a closed issue instead of leaving it alone.
+   *
+   * The two callers want opposite things. An experiment-level issue is ONE
+   * long-lived thread: closing it and later re-raising `discuss` must revive
+   * that thread, or the experiment can never be discussed again. A marker
+   * issue is a single resolved question whose marker stays in the note as a
+   * record — reopening it would undo the resolution.
+   */
+  reopenClosed?: boolean;
+  /** Comment posted when a closed issue is reopened. */
+  reopenComment?: string;
+}
+
 /**
- * Create the experiment issue only when one does not already exist for
- * `identifier` (idempotent). Returns the existing or newly created issue plus
- * whether it was created, so callers can log a deterministic summary.
+ * Create the issue for `identifier` only when one does not already exist
+ * (idempotent), optionally reviving a closed one. Returns the resulting issue
+ * and what happened, so callers can log a deterministic summary.
  */
 export async function ensureIssue(
   repo: string,
   identifier: string,
-  input: CreateIssueInput
-): Promise<{ issue: ExistingIssue; created: boolean }> {
+  input: CreateIssueInput,
+  options: EnsureIssueOptions = {}
+): Promise<{ issue: ExistingIssue; created: boolean; reopened: boolean }> {
   const existing = await findIssueByIdentifier(repo, identifier);
-  if (existing) return { issue: existing, created: false };
+  if (existing) {
+    if (existing.state === 'closed' && options.reopenClosed) {
+      await reopenIssue(repo, existing.number);
+      if (options.reopenComment) {
+        await commentOnIssue(repo, existing.number, options.reopenComment);
+      }
+      return { issue: { ...existing, state: 'open' }, created: false, reopened: true };
+    }
+    return { issue: existing, created: false, reopened: false };
+  }
   const issue = await createIssue(repo, input);
-  return { issue, created: true };
+  return { issue, created: true, reopened: false };
 }

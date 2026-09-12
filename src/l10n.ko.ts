@@ -10,6 +10,7 @@ const obsidianKo: Record<string, string> = {
   'Create experiment': '실험 생성',
   'Change experiment status': '실험 상태 변경',
   'Toggle discussion flag': '논의 표시 전환',
+  'Insert issue marker': '논의 이슈 마커 삽입',
   'Setup research automation': '연구노트 자동화 설정',
   'Create workflow': '워크플로 생성',
   'Insert workflow': '워크플로 삽입',
