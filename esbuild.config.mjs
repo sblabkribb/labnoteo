@@ -36,8 +36,9 @@ const AUTOMATION_ENTRYPOINTS = [
   'automation/src/check-large-files.ts',
   'automation/src/validate.ts',
   'automation/src/issue-sync.ts',
-  'automation/src/issue-gate.ts',
-  'automation/src/wiki-propose.ts',
+  // NOTE: issue-gate.ts / wiki-propose.ts (server-side AI, self-hosted runner)
+  // are intentionally NOT built or scaffolded — the local AI agent (AGENTS.md
+  // playbooks) covers those judgments. Sources remain for a future opt-in.
 ];
 
 // --- Stage 1: automation scripts → dist-automation/*.mjs ---------------------

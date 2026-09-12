@@ -3,13 +3,20 @@
  * into the current vault via {@link LabnoteFs}.
  *
  * Thin Obsidian wiring over the {@link SCAFFOLD_ASSETS} registry: for each asset
- * it either appends missing lines (merge `append-missing`, e.g. `.gitignore`) or
+ * it appends missing lines (merge `append-missing`, e.g. `.gitignore`), upserts
+ * the labnoteo marker block (merge `managed-block`, e.g. `AGENTS.md`), or
  * writes the file, asking `host.confirm` before overwriting an existing file.
  * After writing it points the user to `SETUP.md` and the one-time hook-enable
  * step. The scaffold never runs Git or touches anything outside the registry.
  */
 import type { LabnoteHost } from '@labnoteo/core';
-import { SCAFFOLD_ASSETS, SETUP_DOC_PATH, type ScaffoldAsset } from './assets';
+import {
+  MANAGED_BLOCK_BEGIN,
+  MANAGED_BLOCK_END,
+  SCAFFOLD_ASSETS,
+  SETUP_DOC_PATH,
+  type ScaffoldAsset,
+} from './assets';
 
 /**
  * Merge `snippet` into `existing`, appending only the (trimmed) lines that are
@@ -33,6 +40,31 @@ export function appendMissingLines(existing: string, snippet: string): string {
   return `${existing}${separator}\n${missing.join('\n')}\n`;
 }
 
+/** Escape a literal string for use inside a RegExp (markers contain `(`,`)`,`-`). */
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Insert or refresh the labnoteo-managed marker block inside `existing`.
+ * Pure so the reconciliation is predictable and testable:
+ *  - block present → replace only the marker span (everything else preserved);
+ *  - block absent → append it at the end;
+ *  - empty file → the block becomes the whole content.
+ * Applying the same `inner` twice yields the same output (idempotent).
+ */
+export function upsertManagedBlock(
+  existing: string,
+  inner: string,
+  markers: { begin: string; end: string } = { begin: MANAGED_BLOCK_BEGIN, end: MANAGED_BLOCK_END }
+): string {
+  const wrapped = `${markers.begin}\n${inner.trim()}\n${markers.end}`;
+  const span = new RegExp(`${escapeRegExp(markers.begin)}[\\s\\S]*?${escapeRegExp(markers.end)}`);
+  if (span.test(existing)) return existing.replace(span, wrapped);
+  const separator = existing === '' ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
+  return `${existing}${separator}${wrapped}\n`;
+}
+
 /** Outcome tallies for the completion notice. */
 interface ScaffoldResult {
   written: number;
@@ -46,6 +78,14 @@ async function applyAsset(
   asset: ScaffoldAsset
 ): Promise<keyof ScaffoldResult | undefined> {
   const exists = await host.fs.exists(asset.vaultPath);
+
+  if (asset.merge === 'managed-block') {
+    const current = exists ? await host.fs.read(asset.vaultPath) : '';
+    const updated = upsertManagedBlock(current, asset.content);
+    if (updated === current) return undefined; // block already up to date
+    await host.fs.write(asset.vaultPath, updated);
+    return exists ? 'merged' : 'written';
+  }
 
   if (asset.merge === 'append-missing' && exists) {
     const current = await host.fs.read(asset.vaultPath);

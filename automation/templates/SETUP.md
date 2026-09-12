@@ -47,33 +47,46 @@ pre-commit 훅은 **이미 커밋된** 대용량 파일은 막지 못합니다. 
 | 경로 | 설명 |
 | --- | --- |
 | `scripts/issue-sync.mjs` | `discuss: true` 또는 `status: needs-review` 실험만 Issue 생성/갱신(멱등) |
-| `.github/workflows/experiment-issues.yml` | 결정적 잡(ubuntu) + AI 게이트 잡(self-hosted) |
+| `.github/workflows/experiment-issues.yml` | 결정적 잡(ubuntu, GitHub-hosted)만 — self-hosted 러너 불필요 |
 | `.github/ISSUE_TEMPLATE/experiment.md` | 노트 링크 + Objective + status + Discussion |
 
-### Phase 4b — AI 맥락 게이트 (self-hosted 러너 + 로컬 LLM)
+### AI 에이전트 규칙 (로컬 에이전트 워크플로우)
 
 | 경로 | 설명 |
 | --- | --- |
-| `scripts/issue-gate.mjs` | 키워드 프리필터 → 로컬 LLM 단발 분류(JSON) → 4a와 동일 생성 경로 |
-| `ai/prompts/issue-gate.md` | 게이트 프롬프트 (버전관리 단일 소스) |
-| `ai/schemas/issue-gate.schema.json` | 게이트 응답 JSON 스키마 |
+| `AGENTS.md` | AI 에이전트 규칙 (git/커밋 메시지, 연구노트 규칙, 이슈 신호·Wiki 초안 playbook). 마커 블록만 갱신되므로 사용자 규칙은 마커 밖에 작성 |
+| `CLAUDE.md` | Claude Code용 `@AGENTS.md` 1줄 import (내용 중복 없음, AGENTS.md가 단일 소스) |
 
 ### Phase 5 — Living Manuscript Wiki (사실 연결형)
 
 | 경로 | 설명 |
 | --- | --- |
-| `scripts/wiki-propose.mjs` | 객관적 사실 추출 → 섹션 매핑 → 로컬 LLM 병합 → `wiki-staging/`에 제안만 |
 | `.github/workflows/wiki-sync.yml` | 승인된 `wiki-staging/` → GitHub Wiki 동기화 (토큰 필요, 아래 주의) |
-| `ai/prompts/wiki-propose.md`, `ai/schemas/wiki-propose.schema.json` | Wiki 제안 프롬프트/스키마 |
 | `wiki-staging/*.md` | 논문형 골격(Home/Abstract/…/Results(Finding)/Evidence Index/References) |
 
-> **Phase 4b/5 전제**: self-hosted 러너 + 로컬 LLM 엔드포인트가 필요하며, repo variables
-> `LLM_ENDPOINT`·`LLM_MODEL`을 설정해야 합니다. self-hosted 러너는 **private repo**에서만
-> 안전합니다(공개 repo는 fork PR 실행 위험). AI 잡은 `main` push에서만 동작합니다.
->
 > **Wiki 동기화 인증 주의**: GitHub Wiki는 별도 저장소라 기본 `GITHUB_TOKEN`으로 push가
 > 안 되는 구성이 많습니다. 그 경우 Wiki push 권한이 있는 PAT를 시크릿 `GH_WIKI_TOKEN`에
 > 설정하세요(저장소 관리자가 직접 생성).
+
+## AI 워크플로우 (로컬 에이전트 — self-hosted 러너 불필요)
+
+AI가 필요한 판단은 GitHub Actions가 아니라 **로컬 AI 에이전트**(Claude Code, Cursor 등)가
+`AGENTS.md` 규칙에 따라 수행합니다. 서버측 자동화는 전부 결정적이라 GitHub-hosted 러너만으로
+동작합니다.
+
+- **커밋/푸시**: 에이전트가 네이티브 `git`으로 수행하며, 변경 내용 기반 커밋 메시지를
+  작성합니다(Conventional Commits + `EXP-###`). Obsidian Git 플러그인은 필요 없습니다.
+  `git commit --no-verify`는 금지입니다(대용량 훅 우회 방지).
+- **토론 이슈**: 노트의 자유 서술에서 논의가 필요하다고 판단되면 에이전트가 (사용자 확인 후)
+  frontmatter에 `discuss: true`를 설정합니다. push 후 서버 `issue-sync`가 이슈를 멱등
+  생성/갱신하므로 에이전트가 이슈를 직접 만들지 않습니다(중복 방지).
+- **Wiki 초안**: 에이전트가 노트의 객관적 사실만 `wiki-staging/` 관련 섹션에
+  근거 ID(`EXP-###`)와 함께 추가합니다(해석/의견 금지). 사람이 검토·머지하면
+  `wiki-sync.yml`이 GitHub Wiki로 발행합니다.
+- **Claude Code 사용자**: `CLAUDE.md`의 `@AGENTS.md` import로 위 규칙이 자동 로드됩니다.
+  터미널이든 Copilot 에이전트 모드든 같은 `claude` CLI라면 동일하게 적용됩니다.
+- **에이전트 상태 폴더**(`.claude/`, `.copilot/`, `.opencode/`, `.agents/`)는 설치된
+  `.gitignore`가 커밋에서 제외합니다.
 
 ## 훅 활성화
 
