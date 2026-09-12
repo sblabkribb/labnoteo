@@ -7,16 +7,21 @@
  * the labnoteo marker block (merge `managed-block`, e.g. `AGENTS.md`), or
  * writes the file, asking `host.confirm` before overwriting an existing file.
  * After writing it points researchers to `QUICKSTART.md` and admins to
- * `SETUP.md` (with the one-time hook-enable step). The scaffold never runs Git
- * or touches anything outside the registry.
+ * `.labnoteo/SETUP.md` (with the one-time hook-enable step). The scaffold never
+ * runs Git; the only paths it touches outside the registry are the known
+ * leftovers in `LEGACY_ASSET_PATHS`, and only after the user confirms.
  */
 import type { LabnoteHost } from '@labnoteo/core';
 import {
+  HOOKS_DIR_PATH,
+  LEGACY_ASSET_PATHS,
+  LEGACY_DIRS,
   MANAGED_BLOCK_BEGIN,
   MANAGED_BLOCK_END,
   QUICKSTART_DOC_PATH,
   SCAFFOLD_ASSETS,
   SETUP_DOC_PATH,
+  STALE_IGNORE_LINES,
   type ScaffoldAsset,
 } from './assets';
 
@@ -67,11 +72,27 @@ export function upsertManagedBlock(
   return `${existing}${separator}${wrapped}\n`;
 }
 
+/**
+ * Lines in `existing` that exactly match one of `stale` (compared trimmed).
+ * Exact matching is the point: a substring test would also flag the `.claude/*`
+ * and `!.claude/skills/` lines we just installed and warn on every single run.
+ */
+export function findStaleIgnoreLines(existing: string, stale: string[]): string[] {
+  const present = new Set(
+    existing
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+  );
+  return stale.filter(line => present.has(line));
+}
+
 /** Outcome tallies for the completion notice. */
 interface ScaffoldResult {
   written: number;
   merged: number;
   skipped: number;
+  removed: number;
 }
 
 /** Apply a single asset, returning which tally to bump. */
@@ -109,25 +130,77 @@ async function applyAsset(
 }
 
 /**
+ * Delete leftovers from the pre-`.labnoteo/` layout, after a single
+ * confirmation covering the whole set. Returns how many files went.
+ *
+ * The confirmation spells out the new `core.hooksPath` because removing
+ * `.githooks/pre-commit` while the Git config still points there leaves Git
+ * running no hook at all — large-file protection would switch off silently.
+ */
+async function removeLegacyAssets(host: LabnoteHost): Promise<number> {
+  const present: string[] = [];
+  for (const path of LEGACY_ASSET_PATHS) {
+    if (await host.fs.exists(path)) present.push(path);
+  }
+  if (present.length === 0) return 0;
+
+  const ok = await host.confirm(
+    host.t(
+      'Remove {0} file(s) left by the previous layout ({1})? Afterwards run `git config core.hooksPath {2}` so the pre-commit hook keeps working.',
+      String(present.length),
+      present.join(', '),
+      HOOKS_DIR_PATH
+    ),
+    { confirmLabel: host.t('Remove') }
+  );
+  if (!ok) return 0;
+
+  for (const path of present) await host.fs.remove(path);
+  // Deepest first, so `ai/` is only considered once `ai/prompts` is gone.
+  for (const dir of LEGACY_DIRS) await host.fs.rmdir(dir);
+  return present.length;
+}
+
+/**
  * Iterate the scaffold registry and provision each asset into the vault.
  */
 export async function setupResearchAutomationCommand(host: LabnoteHost): Promise<void> {
-  const result: ScaffoldResult = { written: 0, merged: 0, skipped: 0 };
+  const result: ScaffoldResult = { written: 0, merged: 0, skipped: 0, removed: 0 };
 
   for (const asset of SCAFFOLD_ASSETS) {
     const tally = await applyAsset(host, asset);
     if (tally) result[tally] += 1;
   }
 
+  result.removed = await removeLegacyAssets(host);
+
   host.notify(
     'info',
     host.t(
-      'Research automation set up ({0} written, {1} merged, {2} skipped). Researchers: see {3}. Admin setup: {4} (run `git config core.hooksPath .githooks`).',
+      'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run `git config core.hooksPath {6}`).',
       String(result.written),
       String(result.merged),
       String(result.skipped),
+      String(result.removed),
       QUICKSTART_DOC_PATH,
-      SETUP_DOC_PATH
+      SETUP_DOC_PATH,
+      HOOKS_DIR_PATH
     )
   );
+
+  // `.gitignore` merges by appending, so a vault upgraded from an older version
+  // keeps the blanket `.claude/` / `.agents/` lines that stop agent skills from
+  // ever being committed. Nothing visibly breaks, hence the explicit warning.
+  if (await host.fs.exists('.gitignore')) {
+    const stale = findStaleIgnoreLines(await host.fs.read('.gitignore'), STALE_IGNORE_LINES);
+    if (stale.length > 0) {
+      host.notify(
+        'warn',
+        host.t(
+          'Delete these lines from .gitignore so agent skills can be committed: {0}',
+          stale.join(', ')
+        )
+      );
+    }
+  }
 }

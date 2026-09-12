@@ -1,13 +1,13 @@
 #!/bin/sh
 # labnoteo pre-commit hook — 대용량 파일이 Git에 커밋되는 것을 차단합니다.
-# 활성화: git config core.hooksPath .githooks
+# 활성화: git config core.hooksPath .labnoteo/hooks
 #
-# Node가 있으면 번들 스크립트(scripts/check-large-files.mjs)로 검사하고,
+# Node가 있으면 번들 스크립트(.labnoteo/scripts/check-large-files.mjs)로 검사하고,
 # 없으면 아래의 순수 shell 크기 검사(>50MB 차단)로 대체합니다. (F2: Node-free)
 
 # 1) Node 경로: 정확한 임계값(10/50MB) 및 연구자 친화 메시지
-if command -v node >/dev/null 2>&1 && [ -f scripts/check-large-files.mjs ]; then
-  node scripts/check-large-files.mjs --staged
+if command -v node >/dev/null 2>&1 && [ -f .labnoteo/scripts/check-large-files.mjs ]; then
+  node .labnoteo/scripts/check-large-files.mjs --staged
   exit $?
 fi
 

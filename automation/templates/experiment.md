@@ -6,7 +6,7 @@ labels: experiment
 ---
 
 <!--
-이 템플릿은 자동화(scripts/issue-sync.mjs)가 생성하는 실험 이슈와 형식을 맞춥니다.
+이 템플릿은 자동화(.labnoteo/scripts/issue-sync.mjs)가 생성하는 실험 이슈와 형식을 맞춥니다.
 연구노트 전체를 복사하지 마세요 — 노트가 SSOT(단일 출처)입니다.
 식별자 = frontmatter `id`(예: EXP-001) 또는 폴더명 `###_이름`.
 -->

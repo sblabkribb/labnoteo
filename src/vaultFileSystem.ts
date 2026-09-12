@@ -114,6 +114,17 @@ export class VaultFileSystem implements LabnoteFs {
     }
   }
 
+  async rmdir(path: string): Promise<void> {
+    const p = normalize(path);
+    if (!(await this.adapter.exists(p))) return;
+    // Check emptiness rather than passing `recursive: true` and relying on the
+    // adapter to refuse: the contract's "no-op if not empty" must not depend on
+    // which error a given host throws.
+    const listed = await this.adapter.list(p);
+    if (listed.files.length > 0 || listed.folders.length > 0) return;
+    await this.adapter.rmdir(p, false);
+  }
+
   /**
    * Create the parent directory of a file path. One `mkdir` suffices: the
    * adapter creates intermediate folders, which is why writing

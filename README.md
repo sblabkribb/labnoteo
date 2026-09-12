@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.82.0**
+**Version 0.83.0**
 
 A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
 
@@ -76,18 +76,20 @@ Both are in the community directory, so install them from Settings → Community
 
 Beyond the notebook itself, labnoteo can turn your vault into a lightweight research-notes system on GitHub — note validation, Experiment ↔ Issue links, and a Living-Manuscript Wiki — without you writing any CI by hand. Because every vault is different, the plugin *provisions* these assets into whichever vault it is installed in.
 
-Run **Setup research automation** from the command palette. It writes the files below into the current vault — creating parent folders, confirming before it overwrites anything, and only *appending* missing lines to an existing `.gitignore` — then points researchers at the generated `QUICKSTART.md` (day-to-day usage) and admins at `SETUP.md` (one-time setup).
+Run **Setup research automation** from the command palette. It writes the files below into the current vault — creating parent folders, confirming before it overwrites anything, and only *appending* missing lines to an existing `.gitignore` — then points researchers at the generated `QUICKSTART.md` (day-to-day usage) and admins at `.labnoteo/SETUP.md` (one-time setup).
+
+The machinery lives in a single hidden `.labnoteo/` folder, so Obsidian's file explorer keeps showing only what a researcher opens: `labnote/`, `wiki-staging/`, `QUICKSTART.md` and the agent rules. Upgrading from an earlier version, the command also offers to delete the files it used to scatter across the vault root.
 
 | Area | Files | What it does |
 | --- | --- | --- |
-| User docs | `QUICKSTART.md`, `SETUP.md` | A researcher-facing quick start (5-minute walkthrough, cheatsheet, FAQ) and an admin/developer setup guide (one-time checklist, asset reference, architecture). |
-| Large-file protection | `scripts/check-large-files.mjs`, `.githooks/pre-commit`, `.gitignore` | Blocks oversized data files before commit (with a Node-free shell fallback). |
-| Validation | `scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values and duplicate experiment ids. |
-| Experiment ↔ Issue | `scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens/updates one Issue per experiment marked `discuss: true` or `status: needs-review` (deterministic, via the GitHub REST API). |
+| User docs | `QUICKSTART.md`, `.labnoteo/SETUP.md` | A researcher-facing quick start (5-minute walkthrough, cheatsheet, FAQ) and an admin/developer setup guide (one-time checklist, asset reference, architecture). |
+| Large-file protection | `.labnoteo/scripts/check-large-files.mjs`, `.labnoteo/hooks/pre-commit`, `.gitignore` | Blocks oversized data files before commit (with a Node-free shell fallback). |
+| Validation | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values and duplicate experiment ids. |
+| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens/updates one Issue per experiment marked `discuss: true` or `status: needs-review` (deterministic, via the GitHub REST API). |
 | AI agent rules | `AGENTS.md`, `CLAUDE.md` | Rules for a local AI agent (Claude Code, Cursor, …): git workflow and commit messages, when to flag a note with `discuss: true`, and how to draft facts into `wiki-staging/`. `CLAUDE.md` is a one-line `@AGENTS.md` import for Claude Code. Only the labnoteo-managed marker block is refreshed on re-runs — your own rules outside it are preserved. |
 | Living-Manuscript Wiki (optional) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | Publishes the human-reviewed `wiki-staging/` drafts to the GitHub Wiki after they are merged. |
 
-The bundled scripts are **zero-dependency** Node ESM: they reuse labnoteo's own `@labnoteo/core` functions (so they never drift from the plugin) and run with `node scripts/*.mjs` — no `npm install` inside your vault.
+The bundled scripts are **zero-dependency** Node ESM: they reuse labnoteo's own `@labnoteo/core` functions (so they never drift from the plugin) and run with `node .labnoteo/scripts/*.mjs` — no `npm install` inside your vault.
 
 **Prerequisites & scope**
 
@@ -96,7 +98,7 @@ The bundled scripts are **zero-dependency** Node ESM: they reuse labnoteo's own 
 - Automation **never rewrites your notes** — it only opens Issues and publishes reviewed Wiki drafts. Scientific judgment and `status` changes stay with you.
 - After a plugin update, re-run the command to refresh the scripts, then review the diff before committing.
 
-See the generated `QUICKSTART.md` (researchers) and `SETUP.md` (admins) in your vault for the walkthrough and the full setup checklist.
+See the generated `QUICKSTART.md` (researchers) and `.labnoteo/SETUP.md` (admins) in your vault for the walkthrough and the full setup checklist.
 
 ## Settings
 

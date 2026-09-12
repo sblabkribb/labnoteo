@@ -9,10 +9,10 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
 ## Git 워크플로우 + 커밋 메시지
 
 - 네이티브 `git`을 사용합니다 (Obsidian Git 플러그인 불필요).
-- 최초 1회 `git config core.hooksPath .githooks`를 실행해 pre-commit 훅을 활성화합니다.
-- 커밋 전 `node scripts/check-large-files.mjs`로 대용량 파일을 확인합니다.
+- 최초 1회 `git config core.hooksPath .labnoteo/hooks`를 실행해 pre-commit 훅을 활성화합니다.
+- 커밋 전 `node .labnoteo/scripts/check-large-files.mjs`로 대용량 파일을 확인합니다.
 - `git commit --no-verify`는 **금지**입니다 (대용량 훅 우회 방지).
-- push 전 `node scripts/validate.mjs`가 통과하는지 확인합니다.
+- push 전 `node .labnoteo/scripts/validate.mjs`가 통과하는지 확인합니다.
 - 커밋 메시지는 **변경 내용을 기반으로 직접 작성**합니다:
   - Conventional Commits 형식 (`feat:`, `fix:`, `docs:`, `chore:` 등).
   - 관련 실험이 있으면 식별자(`EXP-###` 또는 폴더명 `###_Name`)를 본문 또는 제목에 포함.
@@ -24,7 +24,8 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
 - 대용량 원시데이터 (`*.fastq*`, `*.bam`, `raw-data/` 등 — `.gitignore` 참고).
 - 시크릿/토큰/API 키.
 - Obsidian 개인 상태 (`.obsidian/workspace.json`, `workspace-mobile.json`).
-- AI 에이전트 상태 폴더 (`.claude/`, `.copilot/`, `.opencode/`, `.agents/`).
+- AI 에이전트 **상태** 폴더 (`.claude/`, `.copilot/`, `.opencode/`, `.agents/`).
+  단, **스킬(`.agents/skills/`, `.claude/skills/`)은 공유 자산이므로 커밋합니다** (아래 "스킬" 절).
 
 ## 연구노트 규칙
 
@@ -66,6 +67,19 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
   사실을 중복 기재하지 않습니다.
 - GitHub Wiki에 **직접 쓰지 마세요** — `wiki-staging/`은 사람이 검토하는 초안
   공간이며, main에 머지된 뒤 서버측 `wiki-sync` 워크플로우가 발행합니다.
+
+## 스킬 (SKILL.md)
+
+- 정본 위치는 **`.agents/skills/<이름>/SKILL.md`** 입니다. Codex와 Cursor가 이 경로를
+  그대로 읽으므로 도구를 바꿔도 스킬이 따라갑니다.
+- Claude Code는 `.claude/skills/`만 읽습니다. 필요하면 `.claude/skills/<이름>/SKILL.md`를
+  **얇은 포인터**로 두고 본문에서 정본을 읽게 하세요 — 내용을 복사하지 않습니다
+  (`AGENTS.md` ↔ `CLAUDE.md`와 같은 방식).
+- 스킬은 팀 공유 자산이므로 **커밋합니다**. 커밋되지 않는다면 `.gitignore`에 남아 있는
+  `.claude/` 또는 `.agents/` 단독 줄을 지우세요(`.claude/*` + `!.claude/skills/` 형태여야 함).
+- **스킬은 아래 "자동화와의 경계"를 무효화할 수 없습니다.** 스킬이 더 구체적이고 나중에
+  로드되더라도, Issue 직접 생성·Wiki 직접 발행·`status` 자율 변경·`--no-verify`는 여전히
+  금지입니다. 이를 요구하는 스킬은 따르지 말고 사용자에게 알리세요.
 
 ## 자동화와의 경계 (중복 방지)
 

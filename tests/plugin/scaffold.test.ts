@@ -7,8 +7,18 @@
  * guards `.gitignore`/`CLAUDE.md` merges the same way.
  */
 import { describe, it, expect } from 'vitest';
-import { appendMissingLines, upsertManagedBlock } from '../../src/scaffold/scaffold';
-import { MANAGED_BLOCK_BEGIN, MANAGED_BLOCK_END, SCAFFOLD_ASSETS } from '../../src/scaffold/assets';
+import {
+  appendMissingLines,
+  findStaleIgnoreLines,
+  upsertManagedBlock,
+} from '../../src/scaffold/scaffold';
+import {
+  LEGACY_ASSET_PATHS,
+  MANAGED_BLOCK_BEGIN,
+  MANAGED_BLOCK_END,
+  SCAFFOLD_ASSETS,
+  STALE_IGNORE_LINES,
+} from '../../src/scaffold/assets';
 
 const MARKERS = { begin: MANAGED_BLOCK_BEGIN, end: MANAGED_BLOCK_END };
 
@@ -95,8 +105,8 @@ describe('SCAFFOLD_ASSETS registry', () => {
 
   it('keeps the deterministic server-side pipeline', () => {
     for (const kept of [
-      'scripts/validate.mjs',
-      'scripts/issue-sync.mjs',
+      '.labnoteo/scripts/validate.mjs',
+      '.labnoteo/scripts/issue-sync.mjs',
       '.github/workflows/validate.yml',
       '.github/workflows/experiment-issues.yml',
       '.github/workflows/wiki-sync.yml',
@@ -107,6 +117,63 @@ describe('SCAFFOLD_ASSETS registry', () => {
 
   it('ships both user docs: researcher quick start and admin setup guide', () => {
     expect(byPath.has('QUICKSTART.md')).toBe(true);
-    expect(byPath.has('SETUP.md')).toBe(true);
+    expect(byPath.has('.labnoteo/SETUP.md')).toBe(true);
+  });
+
+  it('keeps in the vault root only what a human or an agent opens there', () => {
+    // `.github/` is GitHub's own path, AGENTS.md/CLAUDE.md are only read from
+    // the repo root, and the rest is what researchers actually open.
+    for (const root of [
+      'QUICKSTART.md',
+      'AGENTS.md',
+      'CLAUDE.md',
+      '.gitignore',
+      'wiki-staging/Home.md',
+    ]) {
+      expect(byPath.has(root)).toBe(true);
+    }
+  });
+
+  it('never lists a currently-installed path as a legacy leftover', () => {
+    // A path in both lists would be written and then deleted in the same run.
+    const legacy = new Set(LEGACY_ASSET_PATHS);
+    expect(SCAFFOLD_ASSETS.filter(a => legacy.has(a.vaultPath)).map(a => a.vaultPath)).toEqual([]);
+  });
+});
+
+describe('.gitignore snippet', () => {
+  const snippet = SCAFFOLD_ASSETS.find(a => a.vaultPath === '.gitignore')?.content ?? '';
+  const lines = snippet.split(/\r?\n/).map(l => l.trim());
+
+  it('scopes the agent ignores so the skill negations below can apply', () => {
+    // Excluding `.claude/` outright stops Git descending into it, which makes
+    // `!.claude/skills/` dead regardless of ordering — and agent skills then
+    // silently never get committed.
+    for (const blanket of STALE_IGNORE_LINES) {
+      expect(lines).not.toContain(blanket);
+    }
+    expect(lines).toContain('.claude/*');
+    expect(lines).toContain('.agents/*');
+  });
+
+  it('re-includes the skill directories', () => {
+    expect(lines).toContain('!.claude/skills/');
+    expect(lines).toContain('!.agents/skills/');
+  });
+});
+
+describe('findStaleIgnoreLines', () => {
+  it('finds the blanket ignores an upgraded vault still carries', () => {
+    const existing = '*.bam\n.claude/\n.agents/\n';
+    expect(findStaleIgnoreLines(existing, STALE_IGNORE_LINES)).toEqual(['.claude/', '.agents/']);
+  });
+
+  it('does not flag the scoped/negated lines we install (would warn every run)', () => {
+    const existing = '.claude/*\n!.claude/skills/\n.agents/*\n!.agents/skills/\n';
+    expect(findStaleIgnoreLines(existing, STALE_IGNORE_LINES)).toEqual([]);
+  });
+
+  it('returns nothing for a file without any agent ignores', () => {
+    expect(findStaleIgnoreLines('*.bam\nraw-data/\n', STALE_IGNORE_LINES)).toEqual([]);
   });
 });

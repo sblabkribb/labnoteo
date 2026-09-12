@@ -18,8 +18,12 @@ instrument-data/
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 
-# === AI 에이전트 상태 (규칙은 AGENTS.md로 버전관리, 세션 상태는 제외) ===
-.claude/
+# === AI 에이전트 (상태는 제외, 스킬은 팀 공유 자산이므로 버전관리) ===
+# `.agents/`처럼 폴더를 통째로 제외하면 Git이 내부로 내려가지 않아 아래 `!` 예외가
+# 무효가 됩니다. 반드시 `/*`로 자식만 제외해야 스킬 예외가 동작합니다.
+.agents/*
+!.agents/skills/
+.claude/*
+!.claude/skills/
 .copilot/
 .opencode/
-.agents/

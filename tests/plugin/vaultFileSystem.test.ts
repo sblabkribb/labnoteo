@@ -82,6 +82,11 @@ class FakeAdapter {
     await tick();
     this.files.delete(p);
   }
+
+  async rmdir(p: string, _recursive: boolean): Promise<void> {
+    await tick();
+    this.dirs.delete(p);
+  }
 }
 
 /**

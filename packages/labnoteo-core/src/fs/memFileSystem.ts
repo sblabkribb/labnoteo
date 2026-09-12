@@ -89,6 +89,18 @@ export class MemFileSystem implements LabnoteFs {
     this.files.delete(path);
   }
 
+  async rmdir(path: string): Promise<void> {
+    // `remove` only drops files, and `markParents` registered this directory
+    // when they were written, so the entry outlives its contents and has to be
+    // dropped explicitly here.
+    if (!this.dirs.has(path)) return;
+    const prefix = path.endsWith('/') ? path : `${path}/`;
+    for (const key of [...this.files.keys(), ...this.dirs]) {
+      if (key.startsWith(prefix)) return;
+    }
+    this.dirs.delete(path);
+  }
+
   /** Test helper: raw snapshot of written file contents. */
   snapshot(): Record<string, string> {
     return Object.fromEntries(this.files);

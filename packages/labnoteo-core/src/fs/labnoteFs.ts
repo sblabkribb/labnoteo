@@ -53,4 +53,10 @@ export interface LabnoteFs {
   list(dir: string): Promise<string[]>;
   /** Delete the file at `path`. No-op if it does not exist. */
   remove(path: string): Promise<void>;
+  /**
+   * Delete the directory at `path`. Non-recursive by design: a no-op if the
+   * directory is missing or still has entries, so a caller pruning leftovers
+   * can never take a user's files with it.
+   */
+  rmdir(path: string): Promise<void>;
 }

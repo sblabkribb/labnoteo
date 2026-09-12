@@ -34,4 +34,4 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.event.after }}
-        run: node scripts/issue-sync.mjs
+        run: node .labnoteo/scripts/issue-sync.mjs

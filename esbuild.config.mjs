@@ -3,7 +3,7 @@
  *
  * Stage 1 (automation): the `automation/src/*.ts` sources are bundled to
  * zero-dependency Node ESM `.mjs` files in `dist-automation/`. These are the
- * scripts the plugin later scaffolds into a vault (`node scripts/*.mjs`). They
+ * scripts the plugin later scaffolds into a vault (`node .labnoteo/scripts/*.mjs`). They
  * share the same `@labnoteo/core` workspace source the plugin uses, so there is
  * no drift; only Node built-ins stay external (js-yaml / core are inlined).
  *
