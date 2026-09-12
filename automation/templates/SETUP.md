@@ -1,48 +1,65 @@
-# 연구노트 자동화 설정 (labnoteo)
+# 연구노트 자동화 설정 가이드 (관리자/개발자용)
 
-이 문서와 함께 설치된 파일들은 **labnoteo 플러그인의 "연구노트 자동화 설정" 명령**이
-현재 보관함(vault)에 프로비저닝한 것입니다. 아래 순서대로 한 번만 설정하면 됩니다.
+> **이 문서는 저장소를 처음 설정하는 관리자·개발자용입니다.**
+> 실험하는 연구원의 일상 사용법은 **`QUICKSTART.md`** 를 보세요.
 
-## Phase 0 — 현황 점검 (자동화 켜기 전에 먼저)
+이 문서와 함께 설치된 파일들은 labnoteo 플러그인의 **"Setup research automation"**
+명령이 현재 보관함(vault)에 프로비저닝한 것입니다.
 
-pre-commit 훅은 **이미 커밋된** 대용량 파일은 막지 못합니다. 먼저 점검하세요.
+## 최초 설정 체크리스트 (한 번만)
 
-- [ ] **Git 이력 대용량 파일 감사**: 아래로 이미 들어간 큰 파일을 확인합니다.
+순서대로 진행하세요.
+
+- [ ] **① 비공개(PRIVATE) GitHub 저장소 확인** — 연구 정보 보호의 전제입니다.
+      공개 저장소는 fork PR을 통한 워크플로우 악용 위험도 있습니다.
+- [ ] **② GitHub로 push** — 보관함이 GitHub 저장소여야 Actions(검증/이슈/Wiki)가 동작합니다.
+- [ ] **③ pre-commit 훅 활성화** — 보관함 루트에서 한 번 실행:
+
+  ```sh
+  git config core.hooksPath .githooks
+  ```
+
+- [ ] **④ (Wiki 사용 시) Wiki 초기화 + 토큰** — GitHub Wiki는 별도 저장소입니다.
+      저장소 Wiki 탭에서 첫 페이지를 한 번 만들어 초기화하고, 기본 `GITHUB_TOKEN`으로
+      Wiki push가 안 되는 구성이라면 Wiki push 권한이 있는 PAT를 시크릿
+      `GH_WIKI_TOKEN`에 설정하세요(관리자가 직접 생성).
+- [ ] **⑤ (선택·고급) 기존 Git 이력 대용량 감사** — pre-commit 훅은 **이미 커밋된**
+      대용량 파일은 막지 못합니다. 오래된 보관함이라면 확인하세요:
+
   ```sh
   git rev-list --objects --all \
     | git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' \
     | awk '/^blob/ {print $3, $4}' | sort -nr | head -20
   ```
-  큰 파일이 이미 있으면 history rewrite(`git filter-repo` 등) 또는 저장소 이전 여부를 사람이 판단합니다.
-- [ ] **비공개(PRIVATE) 저장소 확인**: 연구 정보 보호 + (향후) self-hosted 러너 보안의 전제입니다.
-      공개 저장소라면 fork PR이 러너 코드를 실행할 수 있어 위험합니다.
-- [ ] **`.obsidian` ignore 정책**: 전체 제외 금지. 개인 상태(`workspace.json`,
-      `workspace-mobile.json`)만 제외하고 공유 설정은 버전관리합니다. (설치된 `.gitignore` 참고)
 
-## 사전 조건
+  큰 파일이 이미 있으면 history rewrite(`git filter-repo` 등) 또는 저장소 이전 여부를
+  사람이 판단합니다.
 
-- [ ] **GitHub 저장소로 push** 되어 있어야 GitHub Actions(향후 단계)가 동작합니다.
-- [ ] 로컬 대용량 파일 훅은 **로컬 Node**를 전제로 합니다. Node가 없으면
-      `.githooks/pre-commit`이 순수 shell 크기 검사로 대체됩니다(서버측 검증이 최종 게이트).
+**참고 사항**
 
-## 설치되는 자산
+- **`.obsidian` ignore 정책**: 전체 제외 금지. 개인 상태(`workspace.json`,
+  `workspace-mobile.json`)만 제외하고 공유 설정은 버전관리합니다. (설치된 `.gitignore` 참고)
+- 로컬 대용량 파일 훅은 **로컬 Node**를 전제로 합니다. Node가 없으면
+  `.githooks/pre-commit`이 순수 shell 크기 검사로 대체됩니다(서버측 검증이 최종 게이트).
 
-### Phase 2c — 대용량 파일 보호
+## 설치되는 자산 (레퍼런스)
+
+### 대용량 파일 보호
 
 | 경로 | 설명 |
 | --- | --- |
 | `scripts/check-large-files.mjs` | 파일 크기 검사(<10MB 허용 / 10–50MB 경고 / >50MB 차단, 자동 이동 없음) |
 | `.githooks/pre-commit` | 커밋 전 대용량 파일 차단 훅 (Node 없으면 shell 대체) |
-| `.gitignore` | 대용량 데이터 패턴 + Obsidian 개인 상태 (기존 내용에 누락분만 추가) |
+| `.gitignore` | 대용량 데이터 패턴 + Obsidian 개인 상태 + AI 에이전트 상태 폴더 (기존 내용에 누락분만 추가) |
 
-### Phase 3 — 검증 (GitHub-hosted)
+### 노트 검증 (GitHub-hosted)
 
 | 경로 | 설명 |
 | --- | --- |
 | `scripts/validate.mjs` | status 허용값 / 중복 id / 대용량 파일 중앙 재검사 (결정적) |
 | `.github/workflows/validate.yml` | `labnote/**` push마다 `node scripts/validate.mjs` 실행 |
 
-### Phase 4a — Experiment ↔ Issue (결정적, AI 불필요)
+### Experiment ↔ Issue (결정적, AI 불필요)
 
 | 경로 | 설명 |
 | --- | --- |
@@ -57,18 +74,21 @@ pre-commit 훅은 **이미 커밋된** 대용량 파일은 막지 못합니다. 
 | `AGENTS.md` | AI 에이전트 규칙 (git/커밋 메시지, 연구노트 규칙, 이슈 신호·Wiki 초안 playbook). 마커 블록만 갱신되므로 사용자 규칙은 마커 밖에 작성 |
 | `CLAUDE.md` | Claude Code용 `@AGENTS.md` 1줄 import (내용 중복 없음, AGENTS.md가 단일 소스) |
 
-### Phase 5 — Living Manuscript Wiki (사실 연결형)
+### Living Manuscript Wiki (사실 연결형)
 
 | 경로 | 설명 |
 | --- | --- |
-| `.github/workflows/wiki-sync.yml` | 승인된 `wiki-staging/` → GitHub Wiki 동기화 (토큰 필요, 아래 주의) |
+| `.github/workflows/wiki-sync.yml` | 승인된 `wiki-staging/` → GitHub Wiki 동기화 (체크리스트 ④의 토큰 참고) |
 | `wiki-staging/*.md` | 논문형 골격(Home/Abstract/…/Results(Finding)/Evidence Index/References) |
 
-> **Wiki 동기화 인증 주의**: GitHub Wiki는 별도 저장소라 기본 `GITHUB_TOKEN`으로 push가
-> 안 되는 구성이 많습니다. 그 경우 Wiki push 권한이 있는 PAT를 시크릿 `GH_WIKI_TOKEN`에
-> 설정하세요(저장소 관리자가 직접 생성).
+### 사용자 문서
 
-## AI 워크플로우 (로컬 에이전트 — self-hosted 러너 불필요)
+| 경로 | 설명 |
+| --- | --- |
+| `QUICKSTART.md` | 연구원용 일상 사용 가이드(5분 따라하기 + 치트시트 + FAQ) |
+| `SETUP.md` | 이 문서 — 관리자/개발자용 설정 가이드 |
+
+## 아키텍처: AI 워크플로우 (로컬 에이전트 — self-hosted 러너 불필요)
 
 AI가 필요한 판단은 GitHub Actions가 아니라 **로컬 AI 에이전트**(Claude Code, Cursor 등)가
 `AGENTS.md` 규칙에 따라 수행합니다. 서버측 자동화는 전부 결정적이라 GitHub-hosted 러너만으로
@@ -88,21 +108,18 @@ AI가 필요한 판단은 GitHub Actions가 아니라 **로컬 AI 에이전트**
 - **에이전트 상태 폴더**(`.claude/`, `.copilot/`, `.opencode/`, `.agents/`)는 설치된
   `.gitignore`가 커밋에서 제외합니다.
 
-## 훅 활성화
+연구원 관점의 사용 절차(실험 생성 → 논의 표시 → 커밋 → 이슈 확인 → Wiki)는
+`QUICKSTART.md`에 있습니다.
 
-커밋 전 대용량 파일 검사를 켜려면 보관함 루트에서 한 번 실행하세요.
-
-```sh
-git config core.hooksPath .githooks
-```
-
-수동 점검이 필요하면 직접 실행할 수도 있습니다.
+## 수동 점검 명령
 
 ```sh
-node scripts/check-large-files.mjs
+node scripts/check-large-files.mjs   # 대용량 파일 검사
+node scripts/validate.mjs            # 노트 검증 (status/중복 id)
 ```
 
 ## 업데이트
 
-플러그인을 업데이트한 뒤 "연구노트 자동화 설정" 명령을 다시 실행하면 스크립트가 갱신됩니다.
-변경 사항은 Git diff로 검토한 뒤 커밋하세요.
+플러그인을 업데이트한 뒤 "Setup research automation" 명령을 다시 실행하면 스크립트와
+문서가 갱신됩니다. 변경 사항은 Git diff로 검토한 뒤 커밋하세요. (`AGENTS.md`는 마커
+블록만, `.gitignore`/`CLAUDE.md`는 누락 줄만 갱신되므로 사용자 수정이 보존됩니다.)

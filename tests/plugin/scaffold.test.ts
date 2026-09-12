@@ -104,4 +104,9 @@ describe('SCAFFOLD_ASSETS registry', () => {
       expect(byPath.has(kept)).toBe(true);
     }
   });
+
+  it('ships both user docs: researcher quick start and admin setup guide', () => {
+    expect(byPath.has('QUICKSTART.md')).toBe(true);
+    expect(byPath.has('SETUP.md')).toBe(true);
+  });
 });

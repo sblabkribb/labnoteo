@@ -20,6 +20,7 @@ import issueSyncScript from '../../dist-automation/issue-sync.mjs';
 import gitignoreSnippet from '../../automation/templates/gitignore.snippet';
 import preCommitHook from '../../automation/templates/pre-commit.sh';
 import setupReadme from '../../automation/templates/SETUP.md';
+import quickstartDoc from '../../automation/templates/QUICKSTART.md';
 // AI agent rules (single source for the local-agent AI workflow) — installed as
 // a managed block inside the vault's AGENTS.md so user rules are preserved.
 import agentsRules from '../../automation/templates/AGENTS.md';
@@ -67,8 +68,11 @@ export interface ScaffoldAsset {
   merge?: ScaffoldMergeStrategy;
 }
 
-/** Vault path of the setup guide, surfaced in the completion notice. */
+/** Vault path of the admin/developer setup guide, surfaced in the completion notice. */
 export const SETUP_DOC_PATH = 'SETUP.md';
+
+/** Vault path of the researcher-facing quick-start guide, surfaced in the notice. */
+export const QUICKSTART_DOC_PATH = 'QUICKSTART.md';
 
 /**
  * Assets installed by the current phase (Phase 2c: large-file protection).
@@ -79,6 +83,7 @@ export const SCAFFOLD_ASSETS: ScaffoldAsset[] = [
   { vaultPath: 'scripts/check-large-files.mjs', content: checkLargeFilesScript },
   { vaultPath: '.githooks/pre-commit', content: preCommitHook },
   { vaultPath: SETUP_DOC_PATH, content: setupReadme },
+  { vaultPath: QUICKSTART_DOC_PATH, content: quickstartDoc },
   { vaultPath: '.gitignore', content: gitignoreSnippet, merge: 'append-missing' },
 
   // Phase 3 — deterministic validation.
