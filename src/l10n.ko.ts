@@ -53,8 +53,8 @@ const obsidianKo: Record<string, string> = {
   'Experiment created: {0}': '실험이 생성되었습니다: {0}',
   'Experiment status changed: {0}': '실험 상태가 변경되었습니다: {0}',
   'Overwrite {0}?': '{0} 파일을 덮어쓰시겠습니까?',
-  'Research automation set up ({0} written, {1} merged, {2} skipped). See {3} and run `git config core.hooksPath .githooks`.':
-    '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2}). {3} 문서를 확인하고 `git config core.hooksPath .githooks`를 실행하세요.',
+  'Research automation set up ({0} written, {1} merged, {2} skipped). Researchers: see {3}. Admin setup: {4} (run `git config core.hooksPath .githooks`).':
+    '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2}). 연구원 안내는 {3}, 관리자 설정은 {4} 문서를 확인하고 `git config core.hooksPath .githooks`를 실행하세요.',
   'Exported {0} CSV file(s).': 'CSV 파일 {0}개를 내보냈습니다.',
   'No tables found in this note.': '이 노트에서 표를 찾을 수 없습니다.',
   'Command failed: {0}': '명령 실행 실패: {0}',

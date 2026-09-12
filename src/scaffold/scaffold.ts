@@ -6,13 +6,15 @@
  * it appends missing lines (merge `append-missing`, e.g. `.gitignore`), upserts
  * the labnoteo marker block (merge `managed-block`, e.g. `AGENTS.md`), or
  * writes the file, asking `host.confirm` before overwriting an existing file.
- * After writing it points the user to `SETUP.md` and the one-time hook-enable
- * step. The scaffold never runs Git or touches anything outside the registry.
+ * After writing it points researchers to `QUICKSTART.md` and admins to
+ * `SETUP.md` (with the one-time hook-enable step). The scaffold never runs Git
+ * or touches anything outside the registry.
  */
 import type { LabnoteHost } from '@labnoteo/core';
 import {
   MANAGED_BLOCK_BEGIN,
   MANAGED_BLOCK_END,
+  QUICKSTART_DOC_PATH,
   SCAFFOLD_ASSETS,
   SETUP_DOC_PATH,
   type ScaffoldAsset,
@@ -120,10 +122,11 @@ export async function setupResearchAutomationCommand(host: LabnoteHost): Promise
   host.notify(
     'info',
     host.t(
-      'Research automation set up ({0} written, {1} merged, {2} skipped). See {3} and run `git config core.hooksPath .githooks`.',
+      'Research automation set up ({0} written, {1} merged, {2} skipped). Researchers: see {3}. Admin setup: {4} (run `git config core.hooksPath .githooks`).',
       String(result.written),
       String(result.merged),
       String(result.skipped),
+      QUICKSTART_DOC_PATH,
       SETUP_DOC_PATH
     )
   );

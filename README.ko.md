@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.81.0**
+**버전 0.82.0**
 
 생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
@@ -78,10 +78,11 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 
 노트 자체를 넘어, labnoteo는 보관함을 GitHub 위의 경량 연구노트 시스템으로 바꿔 줍니다 — 노트 검증, Experiment ↔ Issue 연결, Living-Manuscript Wiki를 CI를 직접 작성하지 않고도 구성합니다. 보관함은 사용자마다 다르므로, 플러그인이 설치된 보관함에 이 자산들을 직접 **프로비저닝**합니다.
 
-명령 팔레트에서 **연구노트 자동화 설정**(`Setup research automation`)을 실행하세요. 아래 파일들을 현재 보관함에 기록합니다 — 상위 폴더를 만들고, 덮어쓰기 전에는 확인을 받으며, 기존 `.gitignore`에는 누락된 줄만 *추가*합니다. 이후 일회성 설정 절차는 생성된 `SETUP.md`가 안내합니다.
+명령 팔레트에서 **연구노트 자동화 설정**(`Setup research automation`)을 실행하세요. 아래 파일들을 현재 보관함에 기록합니다 — 상위 폴더를 만들고, 덮어쓰기 전에는 확인을 받으며, 기존 `.gitignore`에는 누락된 줄만 *추가*합니다. 이후 연구원의 일상 사용법은 생성된 `QUICKSTART.md`가, 일회성 설정 절차는 `SETUP.md`(관리자용)가 안내합니다.
 
 | 영역 | 파일 | 하는 일 |
 | --- | --- | --- |
+| 사용자 문서 | `QUICKSTART.md`, `SETUP.md` | 연구원용 퀵스타트(5분 따라하기·치트시트·FAQ)와 관리자/개발자용 설정 가이드(일회성 체크리스트·자산 레퍼런스·아키텍처). |
 | 대용량 파일 보호 | `scripts/check-large-files.mjs`, `.githooks/pre-commit`, `.gitignore` | 커밋 전에 과도하게 큰 데이터 파일을 차단(Node 없으면 shell로 대체). |
 | 검증 | `scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값과 실험 id 중복을 검사. |
 | Experiment ↔ Issue | `scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 Issue를 생성/갱신(결정적, GitHub REST API). |
@@ -97,7 +98,7 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 - 자동화는 **노트를 절대 되쓰지 않습니다** — Issue를 열고 검토된 Wiki 초안을 발행만 하며, 과학적 판단과 `status` 변경은 사람의 몫입니다.
 - 플러그인 업데이트 후에는 명령을 다시 실행해 스크립트를 갱신하고, 커밋 전에 diff를 검토하세요.
 
-전체 체크리스트와 단계별 상세는 보관함에 생성된 `SETUP.md`를 참고하세요.
+따라하기·치트시트는 보관함에 생성된 `QUICKSTART.md`(연구원용)를, 전체 설정 체크리스트는 `SETUP.md`(관리자용)를 참고하세요.
 
 ## 설정
 
