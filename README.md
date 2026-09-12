@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.84.0**
+**Version 0.85.0**
 
 A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
 
@@ -16,6 +16,7 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 - **LLM assistance (optional)**: Draft methods, summarize results, and extract samples via Ollama or OpenAI. The *Ask assistant* command goes further and lets the model call Labnote's own tools to reach a goal, confirming with you before any write. The same tools are available to external MCP clients.
 - **Experiment status**: Track each experiment's lifecycle (`planned` → `in-progress` → `needs-review` → `completed` / `failed` / …) in the note's frontmatter with the *Change experiment status* command, and drive validation and Issue automation from it.
 - **Discussion flag**: Mark a note as needing team discussion with *Toggle discussion flag*, independent of its lifecycle status — an `in-progress` experiment can ask for a decision without pretending to be done. The next push opens a GitHub Issue for it.
+- **Issue markers**: Questions come up mid-sentence, so drop an `@issue;<ID>;<topic>` marker right where it arose (extending the `@dna;…` sample grammar you already use). Every marker opens its own Issue, linked back to that exact line of the note.
 - **Research automation (optional)**: One command scaffolds GitHub Actions, zero-dependency scripts, and AI-agent rules (`AGENTS.md`) into your vault to validate notes, open Experiment ↔ Issue links, and draft a Living-Manuscript Wiki — all opt-in and human-reviewed. See [Research automation](#research-automation).
 
 ## Requirements
@@ -61,6 +62,7 @@ Both are in the community directory, so install them from Settings → Community
 | Create experiment | Create a new `.labnote.md` experiment note |
 | Change experiment status | Update the active experiment's `status` frontmatter via a picker |
 | Toggle discussion flag | Turn the active experiment's `discuss` flag on/off, so the next push opens a GitHub Issue |
+| Insert issue marker | Drop an `@issue;<ID>;<topic>` marker at the cursor (selection becomes the topic); each marker opens its own Issue |
 | Create workflow | Create a numbered workflow note |
 | Insert unit operation | Insert a unit operation from the catalog |
 | Export tables to CSV | Export note tables to CSV |
@@ -87,7 +89,7 @@ The machinery lives in a single hidden `.labnoteo/` folder, so Obsidian's file e
 | User docs | `QUICKSTART.md`, `.labnoteo/SETUP.md` | A researcher-facing quick start (5-minute walkthrough, cheatsheet, FAQ) and an admin/developer setup guide (one-time checklist, asset reference, architecture). |
 | Large-file protection | `.labnoteo/scripts/check-large-files.mjs`, `.labnoteo/hooks/pre-commit`, `.gitignore` | Blocks oversized data files before commit (with a Node-free shell fallback). |
 | Validation | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values and duplicate experiment ids. |
-| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens/updates one Issue per experiment marked `discuss: true` or `status: needs-review` (deterministic, via the GitHub REST API). |
+| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens one long-lived Issue per experiment marked `discuss: true` or `status: needs-review` (reopened if it was closed), plus one Issue per `@issue;<ID>;<topic>` marker in the note, linked to that line (a resolved marker Issue stays closed). Deterministic, via the GitHub REST API. |
 | AI agent rules | `AGENTS.md`, `CLAUDE.md` | Rules for a local AI agent (Claude Code, Cursor, …): git workflow and commit messages, when to flag a note with `discuss: true`, and how to draft facts into `wiki-staging/`. `CLAUDE.md` is a one-line `@AGENTS.md` import for Claude Code. Only the labnoteo-managed marker block is refreshed on re-runs — your own rules outside it are preserved. |
 | Living-Manuscript Wiki (optional) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | Publishes the human-reviewed `wiki-staging/` drafts to the GitHub Wiki after they are merged. |
 

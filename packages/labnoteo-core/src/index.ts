@@ -41,6 +41,25 @@ export {
 // toggle command and the automation that promotes flagged notes to Issues.
 export { DISCUSS_FLAG_KEY, isDiscussFlagged, setDiscussFlag } from './lib/discussFlag';
 
+// === `@issue` markers ========================================================
+// Point-level discussion signal. Shared by the plugin insert command, the
+// automation that promotes markers to Issues, and the validator that reports
+// broken ones — one grammar, three callers.
+export {
+  ISSUE_MARKER_KEYWORD,
+  ISSUE_MARKER_ID_PREFIX,
+  parseIssueMarkers,
+  findIssueMarkerRanges,
+  generateIssueMarkerId,
+  resetIssueMarkerIdCounter,
+  renderIssueMarker,
+  findEnclosingHeading,
+  type IssueMarker,
+  type MalformedIssueMarker,
+  type IssueMarkerScan,
+  type IssueMarkerRange,
+} from './lib/issueMarker';
+
 // === Transport-agnostic domain tool set (MCP server + built-in AI commands) ===
 export {
   createLabnoteTools,

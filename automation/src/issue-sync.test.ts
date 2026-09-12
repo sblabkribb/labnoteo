@@ -10,6 +10,7 @@ const note = (fm: Record<string, unknown>): ExperimentNote => ({
   folderName: '001_X',
   frontMatter: fm,
   body: '',
+  bodyLineOffset: 0,
 });
 
 describe('shouldPromote', () => {

@@ -4,9 +4,16 @@
 // controlled, `id` unique, non-labnote notes ignored.
 import { validateExperiments, type ValidatedNote } from './validate';
 
-const note = (path: string, fm: Record<string, unknown>): ValidatedNote => ({
+const note = (
+  path: string,
+  fm: Record<string, unknown>,
+  body = '',
+  bodyLineOffset = 0
+): ValidatedNote => ({
   path,
   frontMatter: { experiment_type: 'labnote', ...fm },
+  body,
+  bodyLineOffset,
 });
 
 describe('validateExperiments', () => {
@@ -49,7 +56,55 @@ describe('validateExperiments', () => {
 
   it('ignores notes that are not experiment_type: labnote', () => {
     expect(
-      validateExperiments([{ path: 'x', frontMatter: { experiment_type: 'other' } }])
+      validateExperiments([
+        { path: 'x', frontMatter: { experiment_type: 'other' }, body: '', bodyLineOffset: 0 },
+      ])
+    ).toEqual([]);
+  });
+});
+
+// A mistyped marker opens no issue and reports nothing, so the researcher
+// believes a discussion was raised when it was not. These rules are the only
+// thing that surfaces that.
+describe('validateExperiments — @issue markers', () => {
+  const ok = { status: 'in-progress' };
+
+  it('accepts well-formed markers', () => {
+    const body = '## Results\n@issue;ISS-a1;재현 조건 확인\n@issue;ISS-b2;다른 논의';
+    expect(validateExperiments([note('a', ok, body)])).toEqual([]);
+  });
+
+  it('flags a marker written without an ID and points at the fix', () => {
+    const errors = validateExperiments([note('a', ok, '@issue;수율이 재현되지 않음')]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('malformed `@issue` marker');
+    expect(errors[0]).toContain('missing marker ID');
+    expect(errors[0]).toContain('Insert issue marker');
+  });
+
+  it('flags a marker with no topic sentence', () => {
+    const errors = validateExperiments([note('a', ok, '@issue;ISS-a1;')]);
+    expect(errors[0]).toContain('missing topic sentence');
+  });
+
+  it('cites the line in the file, not in the body', () => {
+    // Body line 2, with 4 front-matter lines stripped, is file line 6.
+    const errors = validateExperiments([note('a', ok, 'prose\n@issue;broken', 4)]);
+    expect(errors[0]).toContain('a:6:');
+  });
+
+  it('rejects a marker ID reused within one note', () => {
+    const errors = validateExperiments([note('a', ok, '@issue;ISS-a1;첫째\n@issue;ISS-a1;둘째')]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('duplicate marker ID `ISS-a1`');
+  });
+
+  it('allows the same marker ID in different notes, since issues are namespaced', () => {
+    expect(
+      validateExperiments([
+        note('a', { ...ok, id: 'EXP-001' }, '@issue;ISS-a1;x'),
+        note('b', { ...ok, id: 'EXP-002' }, '@issue;ISS-a1;x'),
+      ])
     ).toEqual([]);
   });
 });

@@ -23,8 +23,11 @@ import {
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
   EXPERIMENT_STATUSES,
+  generateIssueMarkerId,
   isDiscussFlagged,
   parseFrontMatterYaml,
+  parseIssueMarkers,
+  renderIssueMarker,
   serializeFrontMatterEntry,
   setDiscussFlag,
 } from '@labnoteo/core';
@@ -142,6 +145,30 @@ export async function changeExperimentStatusCommand(app: App, host: LabnoteHost)
 
   await writeNoteThroughVault(app, host, readmePath, updated);
   host.notify('info', host.t('Experiment status changed: {0}', chosen));
+}
+
+/**
+ * Insert an `@issue` marker at the cursor, with a freshly generated ID.
+ *
+ * Discussion comes up mid-sentence while writing, so this is an editor command
+ * rather than a note-level one: select the sentence that raises the question
+ * and it becomes the topic; with no selection the marker is left open and the
+ * cursor lands where the topic goes.
+ *
+ * The ID exists so the topic can be reworded later without orphaning the issue
+ * it opened, which is also why it is generated rather than typed.
+ */
+export function insertIssueMarkerCommand(editor: Editor): void {
+  const title = editor.getSelection().trim().replace(/\s*\n\s*/g, ' ');
+
+  // Timestamps make a collision almost impossible; a marker copy-pasted within
+  // the same millisecond is the one case, and it would silently merge two
+  // discussions into one issue.
+  const used = new Set(parseIssueMarkers(editor.getValue()).markers.map(m => m.id));
+  let id = generateIssueMarkerId();
+  while (used.has(id)) id = generateIssueMarkerId();
+
+  editor.replaceSelection(renderIssueMarker({ id, title }));
 }
 
 /** Re-emit a note from front matter plus an untouched body. */

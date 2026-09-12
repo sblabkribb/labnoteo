@@ -20,6 +20,7 @@ import { createObsidianHost } from './obsidianHost';
 import {
   createExperimentCommand,
   changeExperimentStatusCommand,
+  insertIssueMarkerCommand,
   toggleDiscussionFlagCommand,
   createWorkflowCommand,
   insertUnitOperationCommand,
@@ -80,6 +81,7 @@ export default class LabnotePlugin extends Plugin {
 
     this.registerCommands();
     this.registerSampleFeatures();
+    this.registerInlineHighlighting();
     this.registerEditorExtension(createMetaDatePickerExtension(this.t('Pick date and time')));
     this.registerViews();
     this.registerFileMenu();
@@ -151,6 +153,14 @@ export default class LabnotePlugin extends Plugin {
       id: 'change-experiment-status',
       name: this.t('Change experiment status'),
       callback: () => this.run(() => changeExperimentStatusCommand(this.app, this.host)),
+    });
+
+    this.addCommand({
+      id: 'insert-issue-marker',
+      name: this.t('Insert issue marker'),
+      editorCallback: editor => {
+        insertIssueMarkerCommand(editor);
+      },
     });
 
     this.addCommand({
@@ -455,17 +465,29 @@ export default class LabnotePlugin extends Plugin {
     });
     this.registerEditorSuggest(this.sampleSuggest);
 
-    // Highlighting — one live getter shared by both surfaces.
-    const getState = (): HighlightState => getSampleDisplayMeta(this.settings.customSampleTypes);
-    this.registerEditorExtension(createSampleHighlightPlugin(getState));
-    this.registerMarkdownPostProcessor(createSampleReadingHighlighter(getState));
-
     // Persist sample definitions to {Type}.json when a lab note is edited.
     this.registerEvent(
       this.app.vault.on('modify', file => {
         if (file instanceof TFile) this.scheduleSampleSync(file);
       })
     );
+  }
+
+  /**
+   * Highlighting of inline tokens on both surfaces, from one live getter.
+   *
+   * Registered outside `registerSampleFeatures` because `@issue` markers belong
+   * to the research-automation flow, not to sample tracking: turning sample
+   * tracking off must not stop a marker from showing that it is well formed.
+   * Handing the scanner an empty type list is what disables the sample half.
+   */
+  private registerInlineHighlighting(): void {
+    const getState = (): HighlightState =>
+      this.settings.sampleTracking
+        ? getSampleDisplayMeta(this.settings.customSampleTypes)
+        : { types: [], colors: {} };
+    this.registerEditorExtension(createSampleHighlightPlugin(getState));
+    this.registerMarkdownPostProcessor(createSampleReadingHighlighter(getState));
   }
 
   /** Debounced write-through of a lab note's sample definitions. */
