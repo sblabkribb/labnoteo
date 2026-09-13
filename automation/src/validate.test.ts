@@ -12,8 +12,7 @@ const note = (
 ): ValidatedNote => ({
   path,
   frontMatter: { experiment_type: 'labnote', ...fm },
-  body,
-  bodyLineOffset,
+  sources: [{ path, body, bodyLineOffset }],
 });
 
 describe('validateExperiments', () => {
@@ -57,7 +56,7 @@ describe('validateExperiments', () => {
   it('ignores notes that are not experiment_type: labnote', () => {
     expect(
       validateExperiments([
-        { path: 'x', frontMatter: { experiment_type: 'other' }, body: '', bodyLineOffset: 0 },
+        { path: 'x', frontMatter: { experiment_type: 'other' }, sources: [] },
       ])
     ).toEqual([]);
   });
@@ -99,12 +98,47 @@ describe('validateExperiments — @issue markers', () => {
     expect(errors[0]).toContain('duplicate marker ID `ISS-a1`');
   });
 
-  it('allows the same marker ID in different notes, since issues are namespaced', () => {
+  it('allows the same marker ID in different experiments, since issues are namespaced', () => {
     expect(
       validateExperiments([
         note('a', { ...ok, id: 'EXP-001' }, '@issue;ISS-a1;x'),
         note('b', { ...ok, id: 'EXP-002' }, '@issue;ISS-a1;x'),
       ])
     ).toEqual([]);
+  });
+
+  // The run is written in the workflow notes, so that is where most markers
+  // live. Validating only the README would leave them silently unchecked.
+  it('checks markers in workflow notes, not just the README', () => {
+    const errors = validateExperiments([
+      {
+        path: 'labnote/001_A/README.labnote.md',
+        frontMatter: { experiment_type: 'labnote', ...ok },
+        sources: [
+          { path: 'labnote/001_A/README.labnote.md', body: '', bodyLineOffset: 0 },
+          { path: 'labnote/001_A/01_WD001_Design.labnote.md', body: '@issue;깨진마커', bodyLineOffset: 3 },
+        ],
+      },
+    ]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('labnote/001_A/01_WD001_Design.labnote.md:4:');
+  });
+
+  // The issue identifier is `<experiment>/<marker ID>`, so a reused ID across
+  // two files of one experiment would quietly target a single issue.
+  it('rejects a marker ID reused across two notes of one experiment', () => {
+    const errors = validateExperiments([
+      {
+        path: 'labnote/001_A/README.labnote.md',
+        frontMatter: { experiment_type: 'labnote', ...ok },
+        sources: [
+          { path: 'labnote/001_A/README.labnote.md', body: '@issue;ISS-a1;첫째', bodyLineOffset: 0 },
+          { path: 'labnote/001_A/01_WD001_Design.labnote.md', body: '@issue;ISS-a1;둘째', bodyLineOffset: 0 },
+        ],
+      },
+    ]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('duplicate marker ID `ISS-a1`');
+    expect(errors[0]).toContain('already used at labnote/001_A/README.labnote.md:1');
   });
 });

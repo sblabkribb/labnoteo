@@ -8,11 +8,13 @@
  * ensures a `[identifier]` issue exists (idempotent), labelled `experiment` and
  * `status:*`. Title + Objective are extracted DETERMINISTICALLY (never AI).
  *
- * It ALSO promotes every `@issue;ID;topic` marker in the note to its own
- * `[identifier/ID]` issue. A marker is an explicit token, not prose, so acting
- * on it does not reintroduce the false positives that free-text scanning had.
- * The two kinds differ in one way that matters: the experiment thread is
- * reopened when closed, a resolved marker issue is left closed.
+ * It ALSO promotes every `@issue;ID;topic` marker to its own `[identifier/ID]`
+ * issue. A marker is an explicit token, not prose, so acting on it does not
+ * reintroduce the false positives that free-text scanning had. Markers are read
+ * from EVERY `*.labnote.md` in the folder, not just the README — the run is
+ * written in the workflow notes, so that is where questions about it are
+ * raised. The two kinds differ in one way that matters: the experiment thread
+ * is reopened when closed, a resolved marker issue is left closed.
  *
  * GitHub is reached with `fetch` + `GITHUB_TOKEN` (REST) — NOT `gh` — so the 4b
  * self-hosted path reuses the exact same code. Issue numbers are NOT written
@@ -28,6 +30,7 @@ import {
   buildExperimentIssue,
   groupChangedExperiments,
   readExperimentNote,
+  readMarkerSources,
   readStringField,
   type ExperimentIssue,
   type ExperimentNote,
@@ -61,15 +64,21 @@ export async function run(): Promise<number> {
     .map(dir => readExperimentNote(dir))
     .filter((n): n is ExperimentNote => n !== undefined);
   const promotable = selectPromotable(notes);
-  const scans = notes.map(note => ({ note, scan: parseIssueMarkers(note.body) }));
+  const scans = notes.flatMap(note =>
+    readMarkerSources(note.dir).map(source => ({
+      note,
+      source,
+      scan: parseIssueMarkers(source.body),
+    }))
+  );
   const markerCount = scans.reduce((n, s) => n + s.scan.markers.length, 0);
 
   // Broken markers are reported but never guessed at: `validate` fails the run
   // with the same information, so this is a nudge, not the gate.
-  for (const { note, scan } of scans) {
+  for (const { source, scan } of scans) {
     for (const bad of scan.malformed) {
       console.warn(
-        `⚠️  ${note.dir}/README.labnote.md:${bad.line + note.bodyLineOffset} ` +
+        `⚠️  ${source.path}:${bad.line + source.bodyLineOffset} ` +
           `마커 형식 오류(${bad.reason}): ${bad.text}`
       );
     }
@@ -118,9 +127,9 @@ export async function run(): Promise<number> {
 
   // A marker issue is one resolved question. Its marker stays in the note as a
   // record, so a closed issue must stay closed — no `reopenClosed` here.
-  for (const { note, scan } of scans) {
+  for (const { note, source, scan } of scans) {
     for (const marker of scan.markers) {
-      const bad = await sync(buildDiscussionIssue(note, marker, repo, sha), {});
+      const bad = await sync(buildDiscussionIssue(note, source, marker, repo, sha), {});
       if (bad) failed += 1;
     }
   }

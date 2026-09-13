@@ -3,6 +3,8 @@
 // Pins the deterministic experiment-context rules shared by issue-sync,
 // issue-gate and wiki-propose: identifier/title derivation, Objective extraction
 // (placeholder omitted), file→experiment grouping, and the issue payload.
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
   deriveIdentifier,
   deriveIssueTitle,
@@ -12,6 +14,7 @@ import {
   groupChangedExperiments,
   buildDiscussionIssue,
   buildExperimentIssue,
+  readMarkerSources,
   OBJECTIVE_PLACEHOLDER,
   type ExperimentNote,
 } from './experiments';
@@ -86,13 +89,57 @@ describe('groupChangedExperiments', () => {
   });
 });
 
+// Markers are mostly written in the workflow notes, so reading only the README
+// loses them. These pin the folder-wide scan.
+describe('readMarkerSources', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(`${tmpdir()}/labnoteo-`).replace(/\\/g, '/');
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const write = (name: string, text: string): void => writeFileSync(`${dir}/${name}`, text);
+
+  it('reads every *.labnote.md, README first then name order', () => {
+    write('02_B.labnote.md', 'b');
+    write('README.labnote.md', 'r');
+    write('01_A.labnote.md', 'a');
+    expect(readMarkerSources(dir).map(s => s.path)).toEqual([
+      `${dir}/README.labnote.md`,
+      `${dir}/01_A.labnote.md`,
+      `${dir}/02_B.labnote.md`,
+    ]);
+  });
+
+  it('ignores non-note files and subfolders', () => {
+    write('README.labnote.md', 'r');
+    write('notes.md', 'x');
+    mkdirSync(`${dir}/resources`);
+    expect(readMarkerSources(dir)).toHaveLength(1);
+  });
+
+  it('offsets each file by its own front matter', () => {
+    write('01_A.labnote.md', '---\ntitle: A\n---\n\n@issue;ISS-a1;논의\n');
+    write('README.labnote.md', '@issue;ISS-r1;논의\n');
+    const [readme, workflow] = readMarkerSources(dir);
+    expect(readme.bodyLineOffset).toBe(0);
+    expect(workflow.bodyLineOffset).toBe(4);
+  });
+
+  it('returns nothing for a missing folder rather than throwing', () => {
+    expect(readMarkerSources(`${dir}/nope`)).toEqual([]);
+  });
+});
+
 describe('buildExperimentIssue', () => {
   const note: ExperimentNote = {
     dir: 'labnote/001_PCR',
     folderName: '001_PCR',
     frontMatter: { title: 'PCR run', status: 'needs-review', id: 'EXP-001' },
     body: '## 🎯 Experiment Objective\nMaximise yield.\n',
-    bodyLineOffset: 0,
   };
   it('builds a deterministic title, labels and body with objective', () => {
     const issue = buildExperimentIssue(note);
@@ -112,36 +159,43 @@ describe('buildExperimentIssue', () => {
 });
 
 describe('buildDiscussionIssue', () => {
-  // Front matter is 4 lines here, so body line 3 is file line 7.
   const note: ExperimentNote = {
     dir: 'labnote/001_PCR',
     folderName: '001_PCR',
     frontMatter: { title: 'PCR run', status: 'in-progress', id: 'EXP-001' },
+    body: '',
+  };
+  // The marker lives in a workflow note, where the run is actually written.
+  // Front matter is 4 lines here, so body line 3 is file line 7.
+  const source = {
+    path: 'labnote/001_PCR/02_WB150_PCR.labnote.md',
     body: '## Results\n수율 40%.\n@issue;ISS-mkd8x3k;시드 배양 시간 차이 때문인지 논의 필요\n',
     bodyLineOffset: 4,
   };
   const marker = { id: 'ISS-mkd8x3k', title: '시드 배양 시간 차이 때문인지 논의 필요', line: 3 };
 
   it('namespaces the identifier under the experiment', () => {
-    const issue = buildDiscussionIssue(note, marker, 'acme/vault', 'abc1234');
+    const issue = buildDiscussionIssue(note, source, marker, 'acme/vault', 'abc1234');
     expect(issue.identifier).toBe('EXP-001/ISS-mkd8x3k');
     expect(issue.title).toBe('[EXP-001/ISS-mkd8x3k] 시드 배양 시간 차이 때문인지 논의 필요');
     expect(issue.labels).toEqual(['experiment', 'discussion', 'status:in-progress']);
   });
 
-  it('links the exact line, offsetting the body-relative number by the front matter', () => {
-    const issue = buildDiscussionIssue(note, marker, 'acme/vault', 'abc1234');
+  it('links the file the marker is in, not the README, at the exact line', () => {
+    const issue = buildDiscussionIssue(note, source, marker, 'acme/vault', 'abc1234');
     expect(issue.body).toContain(
-      'https://github.com/acme/vault/blob/abc1234/labnote/001_PCR/README.labnote.md#L7'
+      'https://github.com/acme/vault/blob/abc1234/labnote/001_PCR/02_WB150_PCR.labnote.md#L7'
     );
   });
 
   it('carries the enclosing section so the issue has context', () => {
-    expect(buildDiscussionIssue(note, marker, 'acme/vault', 'abc').body).toContain('→ Results');
+    expect(buildDiscussionIssue(note, source, marker, 'acme/vault', 'abc').body).toContain(
+      '→ Results'
+    );
   });
 
   it('omits the permalink rather than guessing when the commit is unknown', () => {
-    const issue = buildDiscussionIssue(note, marker, 'acme/vault', undefined);
+    const issue = buildDiscussionIssue(note, source, marker, 'acme/vault', undefined);
     expect(issue.body).not.toContain('/blob/');
     expect(issue.body).toContain(marker.title);
   });
@@ -151,7 +205,7 @@ describe('buildDiscussionIssue', () => {
   // so an overlap would make a marker issue satisfy the experiment's lookup.
   it('produces a token that cannot be confused with the experiment token', () => {
     const experiment = buildExperimentIssue(note);
-    const discussion = buildDiscussionIssue(note, marker, 'acme/vault', 'abc');
+    const discussion = buildDiscussionIssue(note, source, marker, 'acme/vault', 'abc');
     expect(discussion.title.includes(`[${experiment.identifier}]`)).toBe(false);
     expect(experiment.title.includes(`[${discussion.identifier}]`)).toBe(false);
   });
