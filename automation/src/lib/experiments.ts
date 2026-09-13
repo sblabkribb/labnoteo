@@ -10,12 +10,15 @@
  *
  * Zero runtime deps: only node built-ins + the inlined `@labnoteo/core`.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { findEnclosingHeading, parseFrontMatterYaml, type IssueMarker } from '@labnoteo/core';
 
 /** File name of the single-source-of-truth note inside each experiment folder. */
 export const README_NAME = 'README.labnote.md';
+
+/** Suffix shared by the README and every workflow note in an experiment. */
+export const LABNOTE_SUFFIX = '.labnote.md';
 
 /** Heading of the Objective section extracted deterministically for issues. */
 export const OBJECTIVE_HEADING = '🎯 Experiment Objective';
@@ -36,6 +39,22 @@ export interface ExperimentNote {
   /** Parsed README front-matter. */
   frontMatter: Record<string, unknown>;
   /** README body (front-matter stripped). */
+  body: string;
+}
+
+/**
+ * One note file scanned for `@issue` markers.
+ *
+ * Markers are NOT a README-only affair: the run itself is written in the
+ * workflow notes, so that is where a question about it is raised. Every
+ * `*.labnote.md` in the folder is therefore a marker source, and each carries
+ * its own path and offset because the issue must link to the line the
+ * researcher actually wrote on.
+ */
+export interface MarkerSource {
+  /** Repo-relative POSIX path of the file holding the markers. */
+  path: string;
+  /** Body (front-matter stripped). */
   body: string;
   /**
    * Lines dropped ahead of `body` (front matter + blank lines). Added to a
@@ -212,6 +231,7 @@ export function buildExperimentIssue(note: ExperimentNote): ExperimentIssue {
  */
 export function buildDiscussionIssue(
   note: ExperimentNote,
+  source: MarkerSource,
   marker: IssueMarker,
   repo: string,
   sha?: string
@@ -219,9 +239,9 @@ export function buildDiscussionIssue(
   const experimentId = deriveIdentifier(note.frontMatter, note.folderName);
   const identifier = `${experimentId}/${marker.id}`;
   const status = readStringField(note.frontMatter, 'status');
-  const notePath = `${note.dir}/${README_NAME}`;
-  const fileLine = marker.line + note.bodyLineOffset;
-  const section = findEnclosingHeading(note.body, marker.line);
+  const notePath = source.path;
+  const fileLine = marker.line + source.bodyLineOffset;
+  const section = findEnclosingHeading(source.body, marker.line);
 
   const labels = ['experiment', 'discussion'];
   if (status) labels.push(`status:${status}`);
@@ -269,7 +289,43 @@ export function readExperimentNote(dir: string): ExperimentNote | undefined {
   }
   const { frontMatter, body } = parseFrontMatterYaml(raw);
   if (readStringField(frontMatter, 'experiment_type') !== 'labnote') return undefined;
-  // `body` is a suffix of `raw`, so the line delta is exactly what was dropped.
-  const bodyLineOffset = raw.split('\n').length - body.split('\n').length;
-  return { dir, folderName: experimentFolderName(dir), frontMatter, body, bodyLineOffset };
+  return { dir, folderName: experimentFolderName(dir), frontMatter, body };
+}
+
+/**
+ * Every `*.labnote.md` in an experiment folder, README first and the workflow
+ * notes after it in name order (so output and issue creation are stable).
+ *
+ * The whole folder is read, not just the files this push changed: a marker
+ * written before the automation could act on it would otherwise stay invisible
+ * until the researcher happened to edit that note again. Re-reading is safe
+ * because `ensureIssue` is idempotent.
+ *
+ * Unreadable files are skipped rather than guessed at — `validate` reports them.
+ */
+export function readMarkerSources(dir: string): MarkerSource[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.endsWith(LABNOTE_SUFFIX))
+      .map(entry => entry.name)
+      .sort();
+  } catch {
+    return [];
+  }
+  names.sort((a, b) => (a === README_NAME ? -1 : b === README_NAME ? 1 : 0));
+
+  const sources: MarkerSource[] = [];
+  for (const name of names) {
+    const path = `${dir}/${name}`;
+    try {
+      const raw = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+      const { body } = parseFrontMatterYaml(raw);
+      // `body` is a suffix of `raw`, so the line delta is exactly what was dropped.
+      sources.push({ path, body, bodyLineOffset: raw.split('\n').length - body.split('\n').length });
+    } catch {
+      continue;
+    }
+  }
+  return sources;
 }

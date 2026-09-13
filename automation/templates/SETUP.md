@@ -93,7 +93,7 @@ vault/
 
 | 경로 | 설명 |
 | --- | --- |
-| `.labnoteo/scripts/issue-sync.mjs` | `discuss: true`/`status: needs-review` 실험은 스레드 이슈 1개(닫혀 있으면 재오픈), 본문의 `@issue;<ID>;<주제>` 마커는 각각 별도 이슈(닫힌 것은 그대로). 모두 멱등 |
+| `.labnoteo/scripts/issue-sync.mjs` | `discuss: true`/`status: needs-review` 실험은 스레드 이슈 1개(닫혀 있으면 재오픈), 폴더 내 모든 `*.labnote.md`의 `@issue;<ID>;<주제>` 마커는 각각 별도 이슈(닫힌 것은 그대로). 모두 멱등 |
 | `.github/workflows/experiment-issues.yml` | 결정적 잡(ubuntu, GitHub-hosted)만 — self-hosted 러너 불필요 |
 | `.github/ISSUE_TEMPLATE/experiment.md` | 노트 링크 + Objective + status + Discussion |
 
@@ -132,8 +132,11 @@ AI가 필요한 판단은 GitHub Actions가 아니라 **로컬 AI 에이전트**
   생성/갱신하므로 에이전트가 이슈를 직접 만들지 않습니다(중복 방지).
   에이전트를 쓰지 않는 연구원은 플러그인의 *Toggle discussion flag* 명령으로 같은
   표시를 켭니다 — 본문 문구만으로는 이슈가 열리지 않습니다(자유 서술 스캔 없음).
-- **지점별 논의**: 노트 본문의 `@issue;<ID>;<주제문장>` 마커마다 별도 이슈가 열리며,
-  이슈 본문에는 그 줄로 가는 커밋 기준 퍼머링크가 들어갑니다. 마커는 명시적 토큰이라
+- **지점별 논의**: 실험 폴더의 **모든 `*.labnote.md`**(README + 워크플로 노트) 본문에서
+  `@issue;<ID>;<주제문장>` 마커마다 별도 이슈가 열리며,
+  이슈 본문에는 마커가 있는 그 파일·그 줄로 가는 커밋 기준 퍼머링크가 들어갑니다.
+  스캔 범위는 "이번 push에서 바뀐 파일"이 아니라 "바뀐 실험 폴더 전체"라
+  이전 push에 남아 있던 마커도 다음 push 때 처리됩니다(`ensureIssue`가 멱등). 마커는 명시적 토큰이라
   오탐이 없어 AI 판단 없이 결정적으로 처리됩니다. ID는 플러그인의
   *Insert issue marker* 명령이 생성하며, 형식이 깨진 마커는 `validate`가 줄 번호와
   함께 오류로 보고합니다(조용히 무시되면 논의가 유실되기 때문).

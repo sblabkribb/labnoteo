@@ -5,7 +5,8 @@
  * `experiment_type: labnote` verifies:
  *   - `status` is one of the controlled `EXPERIMENT_STATUSES` (required),
  *   - `id` values are unique across experiments (duplicate → error),
- *   - `@issue` markers parse and their IDs are unique within the note,
+ *   - `@issue` markers in ANY `*.labnote.md` of the folder parse, and their IDs
+ *     are unique within the experiment,
  * then re-runs the central large-file size guard.
  *
  * Lenient by design initially: only `status` is required; other fields are
@@ -20,17 +21,24 @@ import { pathToFileURL } from 'node:url';
 import { isValidStatus, EXPERIMENT_STATUSES } from '@labnoteo/core/lib/experimentStatus';
 import { parseFrontMatterYaml, parseIssueMarkers } from '@labnoteo/core';
 import { run as runLargeFileCheck } from './check-large-files';
-import { README_NAME, readStringField } from './lib/experiments';
+import {
+  README_NAME,
+  readMarkerSources,
+  readStringField,
+  type MarkerSource,
+} from './lib/experiments';
 
-/** One parsed note handed to the pure validator. */
+/** One parsed experiment handed to the pure validator. */
 export interface ValidatedNote {
   /** Repo-relative POSIX path to the README. */
   path: string;
   frontMatter: Record<string, unknown>;
-  /** Body (front matter stripped); scanned for `@issue` markers. */
-  body: string;
-  /** Lines dropped ahead of `body`, so errors can cite the line in the FILE. */
-  bodyLineOffset: number;
+  /**
+   * Every `*.labnote.md` in the experiment folder (README included), scanned
+   * for `@issue` markers — the same scope `issue-sync` promotes from, so a
+   * marker can never pass validation yet be ignored by the sync, or vice versa.
+   */
+  sources: MarkerSource[];
 }
 
 /**
@@ -83,38 +91,40 @@ export function validateExperiments(notes: ValidatedNote[]): string[] {
 }
 
 /**
- * Errors for one note's `@issue` markers: malformed ones, and IDs reused within
- * the note (which would collapse two discussions into one issue).
+ * Errors for one experiment's `@issue` markers: malformed ones, and IDs reused
+ * within the experiment (which would collapse two discussions into one issue).
+ *
+ * Uniqueness is checked across the whole folder, not per file, because the
+ * issue identifier is `<experiment>/<marker ID>` — two files in one experiment
+ * sharing an ID would silently target the same issue.
  *
  * Line numbers are translated to FILE lines so the message points where the
  * editor does.
  */
 function validateMarkers(note: ValidatedNote): string[] {
   const errors: string[] = [];
-  const { markers, malformed } = parseIssueMarkers(note.body);
+  const seen = new Map<string, string>();
 
-  for (const bad of malformed) {
-    const detail =
-      bad.reason === 'missing-id'
-        ? 'missing marker ID'
-        : 'missing topic sentence';
-    errors.push(
-      `${note.path}:${bad.line + note.bodyLineOffset}: malformed \`@issue\` marker ` +
-        `(${detail}). Expected \`@issue;<ID>;<topic>\` — use the ` +
-        `"Insert issue marker" command so the ID is generated for you. Got: ${bad.text}`
-    );
-  }
+  for (const source of note.sources) {
+    const { markers, malformed } = parseIssueMarkers(source.body);
 
-  const seen = new Map<string, number>();
-  for (const marker of markers) {
-    const first = seen.get(marker.id);
-    if (first !== undefined) {
+    for (const bad of malformed) {
+      const detail = bad.reason === 'missing-id' ? 'missing marker ID' : 'missing topic sentence';
       errors.push(
-        `${note.path}:${marker.line + note.bodyLineOffset}: duplicate marker ID ` +
-          `\`${marker.id}\` (already used on line ${first + note.bodyLineOffset}).`
+        `${source.path}:${bad.line + source.bodyLineOffset}: malformed \`@issue\` marker ` +
+          `(${detail}). Expected \`@issue;<ID>;<topic>\` — use the ` +
+          `"Insert issue marker" command so the ID is generated for you. Got: ${bad.text}`
       );
-    } else {
-      seen.set(marker.id, marker.line);
+    }
+
+    for (const marker of markers) {
+      const where = `${source.path}:${marker.line + source.bodyLineOffset}`;
+      const first = seen.get(marker.id);
+      if (first !== undefined) {
+        errors.push(`${where}: duplicate marker ID \`${marker.id}\` (already used at ${first}).`);
+      } else {
+        seen.set(marker.id, where);
+      }
     }
   }
 
@@ -159,19 +169,14 @@ function loadNotes(): ValidatedNote[] {
 
   return findReadmes('labnote').map(path => {
     let frontMatter: Record<string, unknown> = {};
-    let body = '';
-    let bodyLineOffset = 0;
     try {
       const raw = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-      const parsed = parseFrontMatterYaml(raw);
-      frontMatter = parsed.frontMatter;
-      body = parsed.body;
-      // `body` is a suffix of `raw`, so the line delta is exactly what was dropped.
-      bodyLineOffset = raw.split('\n').length - body.split('\n').length;
+      frontMatter = parseFrontMatterYaml(raw).frontMatter;
     } catch {
       // Unreadable file: surfaced as a missing-status error downstream.
     }
-    return { path, frontMatter, body, bodyLineOffset };
+    const dir = path.slice(0, -(README_NAME.length + 1));
+    return { path, frontMatter, sources: readMarkerSources(dir) };
   });
 }
 
