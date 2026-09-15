@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.86.0**
+**Version 0.87.0**
 
 A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
 
@@ -86,10 +86,11 @@ The machinery lives in a single hidden `.labnoteo/` folder, so Obsidian's file e
 
 | Area | Files | What it does |
 | --- | --- | --- |
-| User docs | `QUICKSTART.md`, `.labnoteo/SETUP.md` | A researcher-facing quick start (5-minute walkthrough, cheatsheet, FAQ) and an admin/developer setup guide (one-time checklist, asset reference, architecture). |
+| User docs | `QUICKSTART.md`, `.labnoteo/SETUP.md` | A researcher-facing guide (5-minute walkthrough, cheatsheet, feature reference, FAQ) and an admin/developer setup guide (one-time checklist, asset reference, architecture). |
 | Large-file protection | `.labnoteo/scripts/check-large-files.mjs`, `.labnoteo/hooks/pre-commit`, `.gitignore` | Blocks oversized data files before commit (with a Node-free shell fallback). |
-| Validation | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values and duplicate experiment ids. |
-| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens one long-lived Issue per experiment marked `discuss: true` or `status: needs-review` (reopened if it was closed), plus one Issue per `@issue;<ID>;<topic>` marker in the note, linked to that line (a resolved marker Issue stays closed). Deterministic, via the GitHub REST API. |
+| Validation | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | On push, checks `status` values, duplicate experiment ids, and that `@issue` markers parse with folder-unique ids. |
+| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | Opens one long-lived Issue per experiment marked `discuss: true` or `status: needs-review` (reopened if it was closed), plus one Issue per `@issue;<ID>;<topic>` marker found in *any* `*.labnote.md` of the changed experiment folder, linked to that line (a resolved marker Issue stays closed). Deterministic, via the GitHub REST API. |
+| Manual backfill | `experiment-issues.yml` / `validate.yml` `workflow_dispatch` | Run either workflow from the Actions tab. `issue-sync` then scans every experiment folder (`--all`) instead of the push diff, picking up markers written before the automation existed — idempotent, and it deliberately leaves closed discussion threads closed. |
 | AI agent rules | `AGENTS.md`, `CLAUDE.md` | Rules for a local AI agent (Claude Code, Cursor, …): git workflow and commit messages, when to flag a note with `discuss: true`, and how to draft facts into `wiki-staging/`. `CLAUDE.md` is a one-line `@AGENTS.md` import for Claude Code. Only the labnoteo-managed marker block is refreshed on re-runs — your own rules outside it are preserved. |
 | Living-Manuscript Wiki (optional) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | Publishes the human-reviewed `wiki-staging/` drafts to the GitHub Wiki after they are merged. |
 
@@ -183,7 +184,8 @@ This is an npm workspaces monorepo:
 
 - `src/` — the Obsidian plugin, bundled to `main.js` at the repository root via esbuild. The plugin lives at the root because Obsidian's community directory reads `manifest.json` from there.
 - `packages/labnoteo-core` — platform-neutral core logic (parsers, workflow/sample domain), consumed by the plugin. It must not import Node-only APIs; anything platform-specific goes behind a port (`LabnoteFs`, `LabnoteHost`).
-- `automation/` — sources for the vault-scaffolded [Research automation](#research-automation) scripts. esbuild builds them (Stage 1) to zero-dependency `dist-automation/*.mjs` — reusing the same `@labnoteo/core` source as the plugin, so there is no drift — and embeds them (plus the workflow/AGENTS.md/Wiki templates) as strings inside `main.js` (Stage 2). This keeps a 3-file install self-sufficient; the *Setup research automation* command writes those strings out into the vault.
+- `automation/` — sources for the vault-scaffolded [Research automation](#research-automation) scripts. esbuild builds them (Stage 1) to zero-dependency `dist-automation/*.mjs` — reusing the same `@labnoteo/core` source as the plugin, so there is no drift — and embeds them (plus the workflow/AGENTS.md/Wiki templates) as strings inside `main.js` (Stage 2). This keeps a 3-file install self-sufficient; the *Setup research automation* command writes those strings out into the vault. Not every source here ships: `issue-gate.ts` and `wiki-propose.ts` are excluded from the build, since the local AI agent makes those judgments now (see `esbuild.config.mjs`); they are kept as sources for a possible opt-in path.
+- `issue-sync` and `validate` must see the *same* markers, so both read a folder through `readMarkerSources` rather than reading a README directly — narrowing either one alone would mean opening issues for markers that were never validated, or the reverse.
 - `tests/` — plugin-layer tests, plus a runtime stub for the `obsidian` package (which ships types only). Core tests live beside the code in `packages/labnoteo-core/src/__tests__/`.
 
 ```bash

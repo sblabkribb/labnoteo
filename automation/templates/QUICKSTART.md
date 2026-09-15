@@ -2,7 +2,15 @@
 
 > 실험하는 연구원을 위한 문서입니다. 저장소 최초 설정(관리자용)은 `.labnoteo/SETUP.md`를 보세요.
 
-## 이 보관함으로 할 수 있는 일
+**처음이라면 [5분 따라하기](#5분-따라하기)만 먼저 하세요.** 그 아래는 필요할 때 찾아보는 참조입니다.
+
+| 빨리 가기 | |
+| --- | --- |
+| [5분 따라하기](#5분-따라하기) · [Wiki에 결과 쌓기](#wiki에-결과-쌓기-실험이-마무리되면) · [치트시트](#치트시트) | 처음 한 번 |
+| [명령 찾는 법](#명령-찾는-법) · [실험 폴더의 구조](#실험-폴더의-구조) · [기록하기](#기록하기) · [샘플 다루기](#샘플-다루기) · [AI 도우미](#ai-도우미) | 필요할 때 |
+| [자주 겪는 문제](#자주-겪는-문제) | 막혔을 때 |
+
+## 이 보관함으로 하는 일
 
 - Obsidian에서 쓰는 **노트가 곧 공식 연구 기록**입니다 (`labnote/` 폴더).
 - 노트를 **push하면 자동으로**: 노트 형식이 검증되고, 논의가 필요한 실험은 GitHub Issue가 열립니다.
@@ -14,18 +22,25 @@
 - 관리자가 `.labnoteo/SETUP.md`의 최초 설정(GitHub 저장소 연결, 훅 활성화)을 마쳤는지
   확인하세요. (`.labnoteo/`는 숨김 폴더라 Obsidian 탐색기에는 보이지 않습니다 —
   탐색기 대신 파일 관리자나 에디터로 열어야 합니다.)
-- 명령은 Obsidian **명령 팔레트**(Ctrl/Cmd+P)에서 **영문 이름**으로 검색합니다.
+- 명령은 Obsidian **명령 팔레트**(Ctrl/Cmd+P)에서 찾습니다. 이름은 Obsidian의
+  표시 언어를 따라가니, 한국어로 쓰고 있다면 `실험 생성`처럼 한글로 검색하세요
+  ([대응표](#명령-찾는-법)).
 
 ## 5분 따라하기
 
 ### 1. 실험 만들기
 
-명령 팔레트 → **`Create experiment`** → 실험 이름 입력.
-`labnote/###_이름/README.labnote.md`가 생기고, 여기에 목적·방법·결과를 기록합니다.
+명령 팔레트 → **`Create experiment`** (실험 생성) → 실험 이름 입력.
+`labnote/###_이름/README.labnote.md`가 생기고 바로 열립니다.
+
+**열리자마자 frontmatter의 `author`를 채우세요.** 비워 두면 이 실험에서 이후 만드는
+모든 워크플로·유닛 오퍼레이션의 `Experimenter`가 **경고 없이 빈 값**으로 들어갑니다.
+
+README에는 목적(`Experiment Objective`)·관련 워크플로·요약을 기록합니다.
 
 ### 2. 진행 상태 바꾸기
 
-명령 팔레트 → **`Change experiment status`** → 상태 선택
+명령 팔레트 → **`Change experiment status`** (실험 상태 변경) → 상태 선택
 (`planned` → `in-progress` → `completed` / `failed` 등).
 
 ### 3. 기록하다 논의가 필요하면 그 자리에 표시하기
@@ -40,12 +55,15 @@
 `@issue;`부터 줄 끝까지가 한 마커이고, 뒤의 문장이 이슈 제목이 됩니다.
 한 노트에 **여러 개**를 달 수 있고 각각 별도 이슈로 열립니다.
 실험 폴더 안의 `README.labnote.md`든 워크플로 노트든 **어느 노트에 적어도 됩니다** —
-실제로 질문은 대개 작업을 적는 워크플로 노트에서 나옵니다.
+실제로 질문은 대개 작업을 적는 워크플로 노트에서 나옵니다
+([폴더 구조](#실험-폴더의-구조) 참고).
 선택한 문장이 없으면 빈 마커가 들어가니 이어서 주제를 적으면 됩니다.
 
 `ISS-...`는 자동으로 붙는 식별자입니다. 이게 있어야 나중에 주제문장을 고쳐도
 같은 이슈로 유지됩니다. **직접 짓지 마세요** — 명령이 만들어 줍니다.
 마커가 색으로 강조되지 않는다면 형식이 잘못된 것이라 이슈가 열리지 않습니다.
+같은 이유로 **마커가 있는 줄을 복사해 다른 노트에 붙여넣지 마세요** — ID가 따라가
+두 질문이 한 이슈로 합쳐집니다. 복사했다면 그 줄의 마커를 지우고 새로 삽입하세요.
 
 **실험 전체를 놓고 논의해야 한다면** 지점 마커 대신 명령 팔레트 →
 **`Toggle discussion flag`**(논의 표시 전환)을 씁니다. 진행 상태(`status`)와는
@@ -65,6 +83,9 @@ AI 에이전트(Claude Code 등)에게 말하면 끝입니다:
 에이전트는 이 보관함의 `AGENTS.md` 규칙에 따라 커밋 메시지를 자동 작성하고,
 대용량 파일 검사를 통과한 뒤 push합니다. (직접 `git add / commit / push` 해도 됩니다.)
 
+커밋할 때 노트 검증 경고가 뜰 수 있습니다. **커밋을 막지는 않지만**, 그대로 push하면
+서버 검증이 같은 내용으로 실패하니 먼저 고치는 편이 낫습니다.
+
 ### 5. 이슈 자동 생성 확인하기
 
 push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
@@ -78,8 +99,15 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 
 (실험ID는 frontmatter의 `id`가 있으면 `EXP-###`, 없으면 폴더명 `###_이름`입니다.)
 
+**바뀐 노트만 보는 게 아닙니다.** 자동화는 이번 push에서 바뀐 파일이 속한
+**실험 폴더 전체**를 훑습니다. 예전 push 때 적어 두고 잊은 마커가 같은 폴더에
+있었다면, 그 폴더의 아무 노트나 다시 고쳐 push하는 것만으로 함께 처리됩니다.
+
 논의가 끝나면 GitHub에서 이슈를 닫으면 됩니다. 노트의 마커를 지워도 이슈는
 닫히지 않고, 닫힌 마커 이슈가 다시 열리지도 않습니다.
+
+> **작업 브랜치에 push해도 이슈는 열립니다.** 검증과 이슈 생성에는 브랜치 제한이
+> 없습니다. 아직 논의를 올리고 싶지 않다면 마커를 나중에 넣으세요.
 
 ## Wiki에 결과 쌓기 (실험이 마무리되면)
 
@@ -87,20 +115,192 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
    — 에이전트가 `wiki-staging/`의 논문형 섹션(Methods, Results 등)에
    **사실 + 근거 실험ID**만 추가합니다 (해석·결론은 사람 몫).
 2. 초안을 읽고 검토·수정합니다.
-3. 커밋해서 main에 반영하면 GitHub Wiki로 자동 발행됩니다.
+3. **`main`에 머지되어야** GitHub Wiki로 발행됩니다. 이슈와 달리 작업 브랜치에
+   push하는 것만으로는 발행되지 않습니다.
 
 ## 치트시트
 
 | 하고 싶은 일 | 방법 |
 | --- | --- |
-| 새 실험 시작 | 명령 팔레트 → `Create experiment` |
+| 새 실험 시작 | 명령 팔레트 → `Create experiment` → **`author` 채우기** |
 | 실험 상태 변경 | 명령 팔레트 → `Change experiment status` |
+| 워크플로(실험 단계) 추가 | 명령 팔레트 → `Create workflow` (README 체크리스트에 자동 등록) |
+| 워크플로에 작업 단위 추가 | 워크플로 파일에서 → `Insert unit operation` (README에서는 안 됨) |
+| 샘플 참조 넣기 | 본문에 `@dna` 입력 → 자동완성 |
+| 샘플 목록 보기 | 왼쪽 리본의 시험관 아이콘, 또는 `Open sample view` |
+| 샘플 정의 확인 | 샘플 ID 위에서 **우클릭** → `Go to definition` |
+| 날짜 기록 | `Insert date` / `Insert date and time`, 또는 Meta의 날짜 값을 **클릭** |
+| 표를 CSV로 | 명령 팔레트 → `Export tables to CSV` (탐색기 우클릭도 가능) |
 | 이 지점을 논의 | 문장 선택 → 명령 팔레트 → `Insert issue marker` → 커밋·푸시 |
 | 실험 전체를 논의 | 명령 팔레트 → `Toggle discussion flag` → 커밋·푸시 → Issues 탭 확인 |
 | 커밋·푸시 | AI 에이전트에게 "커밋하고 푸시해줘" (또는 직접 git) |
-| 결과를 Wiki에 반영 | 에이전트에게 "사실을 wiki-staging에 정리해줘" → 검토 → 머지 |
+| 결과를 Wiki에 반영 | 에이전트에게 "사실을 wiki-staging에 정리해줘" → 검토 → `main` 머지 |
 | 대용량 원시데이터 | Git에 넣지 말고 `raw-data/` 등 별도 보관(자동 제외됨), 노트에는 경로/ID만 기록 |
 | AI로 방법 초안/결과 요약 | 명령 팔레트 → `AI: Draft Method section` / `AI: Summarize results` |
+
+---
+
+아래부터는 필요할 때 찾아보는 참조입니다.
+
+## 명령 찾는 법
+
+명령 팔레트(Ctrl/Cmd+P)에서 **`Labnote`** 를 치면 이 플러그인의 명령만 모입니다
+(팔레트에는 `Labnote Assistant: ` 접두사가 붙습니다).
+
+**이름은 Obsidian의 표시 언어를 따릅니다.** 한국어 UI면 한국어 이름으로,
+영어 UI면 영어 이름으로 검색해야 합니다.
+
+| English | 한국어 |
+| --- | --- |
+| Create experiment | 실험 생성 |
+| Change experiment status | 실험 상태 변경 |
+| Insert issue marker | 논의 이슈 마커 삽입 |
+| Toggle discussion flag | 논의 표시 전환 |
+| Create workflow | 워크플로 생성 |
+| Insert unit operation | 유닛 오퍼레이션 삽입 |
+| Insert date / Insert date and time | 날짜 삽입 / 날짜 및 시간 삽입 |
+| Export tables to CSV | 표를 CSV로 내보내기 |
+| Open workflow view / Open sample view | 워크플로 뷰 열기 / 샘플 뷰 열기 |
+| AI: Draft Method section | AI: Method 섹션 초안 작성 |
+| AI: Summarize results | AI: 결과 요약 |
+| AI: Extract sample definitions | AI: 샘플 정의 추출 |
+| AI: Ask assistant (uses tools) | AI: 어시스턴트에게 요청 (툴 사용) |
+| Setup research automation | 연구노트 자동화 설정 |
+
+### 팔레트에 없는 기능 (우클릭 · 클릭 전용)
+
+팔레트만 훑어서는 존재를 알 수 없는 것들입니다.
+
+| 기능 | 어디서 | 하는 일 |
+| --- | --- | --- |
+| **Insert workflow** (워크플로 삽입) | `README.labnote.md` 편집 중 **우클릭** | 워크플로 파일을 만들고 이 README의 체크리스트에 등록. 다른 폴더에서 옮겨 온 워크플로를 등록하는 유일한 방법이기도 합니다. |
+| **Go to definition** (정의로 이동) | 샘플 ID 위에서 **우클릭** | 그 샘플의 타입·별칭·설명·저장 파일을 팝업으로. 설정에서 **샘플 추적이 꺼져 있으면 메뉴 자체가 뜨지 않습니다.** 일반 `.md` 노트에서도 됩니다. |
+| **날짜 선택기** | `#### Meta`의 `Start_date` / `End_date` **값을 클릭** | 달력·시계 피커. 값이 비어 있으면 줄 끝의 📅 아이콘을 누르세요. 읽기 모드에서는 동작하지 않습니다. |
+| **표 CSV 내보내기** | 파일 탐색기에서 노트 **우클릭** | 팔레트 명령과 동일. |
+| **리본 아이콘 2개** | 왼쪽 사이드바 | 상자 = 워크플로 뷰, 시험관 = 샘플 뷰. |
+
+## 실험 폴더의 구조
+
+`Create experiment`가 만드는 것과, 쓰다 보면 생기는 것:
+
+```
+labnote/
+  001_Yield_optimization/
+    README.labnote.md          ← 실험의 얼굴. 목적·워크플로 목록·요약
+    001_WD010_General_Design_of_Experiment.labnote.md   ← 워크플로 노트
+    002_WB020_Cloning.labnote.md
+    images/                    ← 그림 넣는 곳
+    resources/
+      labsamples/              ← 이 실험에서만 쓰는 샘플 (DNA.json, Primer.json …)
+resources/
+  labsamples/                  ← 보관함 전체에서 공유하는 샘플
+  workflows/                   ← 워크플로·유닛 오퍼레이션 카탈로그 (수정 가능)
+```
+
+**`@issue` 마커는 이 폴더 안 어느 `.labnote.md`에 적어도 됩니다.** 자동화는 폴더
+전체를 훑기 때문입니다.
+
+README frontmatter:
+
+| 필드 | 뜻 | 기본값 |
+| --- | --- | --- |
+| `title` | 실험 제목 | 입력한 이름 |
+| `author` | 실험자 | **빈 값 — 직접 채우세요** |
+| `experiment_type` | `labnote`여야 검증·자동화 대상이 됩니다 | `labnote` |
+| `sample_tracking` | 샘플 추적 사용 여부 | `yes` |
+| `status` | 진행 상태 (`Change experiment status`로 변경) | `planned` |
+| `project` | 상위 과제명 | 빈 값 |
+| `created_date` / `last_updated_date` | 날짜 | 오늘 |
+| `id` | `EXP-###` 식별자 (선택). 없으면 폴더명이 실험ID | 없음 |
+| `discuss` | 논의 표시 (`Toggle discussion flag`가 켜고 끕니다) | 없음 |
+
+## 기록하기
+
+### 워크플로 노트 (실험의 단계)
+
+명령 팔레트 → **`Create workflow`** → 카탈로그에서 단계 선택 → 별칭 입력.
+`002_WB020_Cloning_형질전환.labnote.md`처럼 **번호 + 카탈로그 코드 + 이름** 형식으로
+만들어지고, README의 `## 🗂️ Related Workflows` 체크리스트에 자동 등록됩니다.
+
+- 탐색기에서 **이름을 바꾸면** 번호 순서에 맞춰 README 체크리스트가 다시 정렬됩니다.
+- **삭제하면** 체크리스트 항목이 사라지고, 그 노트가 정의한 샘플도 정리됩니다.
+- **다른 실험 폴더로 옮기면 아무 README도 갱신되지 않습니다.** 옮긴 뒤 대상
+  README에서 우클릭 → `Insert workflow`로 등록하세요.
+- 파일명에서 `###_` 접두사나 `.labnote.md`를 지우면 **위 자동 동기화가 전부 멈춥니다.**
+
+### 유닛 오퍼레이션 (한 번의 작업)
+
+**워크플로 노트를 연 상태에서** 명령 팔레트 → **`Insert unit operation`** →
+카탈로그에서 장비/소프트웨어 작업 선택. README에서 실행하면
+"워크플로 파일에서 실행해주세요" 경고만 뜨고 아무 일도 일어나지 않습니다.
+
+커서 위치에 `### [UHW010 Liquid Handling]` 헤딩과 `#### Meta`(실험자·시작/종료 시각),
+그리고 Input / Method / Output 같은 빈 섹션이 들어갑니다. 삽입 후 문서 맨 위
+`## Related Unit Operations` 목차가 헤딩 순서대로 다시 만들어집니다.
+
+`Experimenter`는 같은 폴더 README의 `author`에서 가져옵니다 — 비어 있으면 빈 값입니다.
+`Start_date`는 삽입 시각이 자동으로, `End_date`는 비어 있으니 **작업이 끝나면 값을
+클릭해** 채우세요.
+
+### 날짜 · 표
+
+- **`Insert date` / `Insert date and time`**: 커서 위치에 오늘 날짜/시각.
+- **`Export tables to CSV`**: 노트 안의 모든 마크다운 표를 각각 CSV로 내보냅니다.
+  노트와 **같은 폴더**에 `노트이름.labnote_table1.csv` 식으로 저장됩니다.
+
+## 샘플 다루기
+
+DNA, 프라이머, 시약 같은 것들을 ID로 추적합니다. **본문에는 참조만 남고, 정의(별칭·설명)는
+`{타입}.json`에 저장**되는 구조라, 별칭을 한 번 고치면 모든 노트에서 같은 뜻이 유지됩니다.
+
+### 본문에서 쓰기
+
+편집 중 `@` 뒤에 타입을 치면 자동완성이 뜹니다.
+
+| 입력 | 뜻 |
+| --- | --- |
+| `@dna`, `@rna`, `@plasmid`, `@primer`, `@protein`, `@reagent`, `@equip`, `@labware` | 그 타입만 검색 |
+| `@sample` | 전체 타입 검색 |
+| `@item` | `@labware`와 같음 |
+
+목록 아래에 있는 항목이 실제로 만드는 동작입니다:
+
+- **`새 {타입} ID 생성`** — ID를 자동으로 만들어 등록하고 본문에는 참조를 넣습니다.
+- **`직접 입력`** — ID·별칭·설명을 손으로 씁니다.
+- **`{타입} 카탈로그 검색`** — `Reagent` / `Labware` / `Equip`은 새로 만들지 않고
+  카탈로그(제품 목록)에서 고릅니다. 카탈로그 파일이 없으면 안내가 뜹니다.
+
+문법이 궁금하다면: 정의는 `@dna;DNA-1737000000000;별칭;설명`, 참조는 `DNA-1737000000000;별칭`
+입니다. 별칭 없이 설명만 쓸 때는 `@dna;ID;;설명`처럼 자리를 비워 두세요.
+
+**저장하면 약 1초 뒤 JSON에 반영됩니다.** 단 `.labnote.md` 파일만 대상이라, 일반
+`.md` 노트에 쓴 정의는 동기화되지 않습니다.
+
+### 샘플 뷰
+
+리본의 시험관 아이콘 또는 `Open sample view`. 4단 트리입니다:
+
+**Local / Global** → **타입** → **샘플 ID | 별칭** → **별칭·설명**
+
+`Local`은 지금 열어 둔 노트가 속한 실험의 샘플, `Global`은 보관함 전체 공용입니다.
+샘플을 우클릭하면 ID 복사, 참조 삽입, 편집, 삭제, **Local ↔ Global 이동**을 할 수 있습니다.
+
+## AI 도우미
+
+Obsidian 안에서 쓰는 보조 기능입니다 (커밋·이슈·Wiki를 다루는 외부 AI 에이전트와는
+별개입니다).
+
+| 명령 | 읽는 것 | 쓰는 곳 |
+| --- | --- | --- |
+| `AI: Draft Method section` | 지금 노트 | **커서 위치**에 Method 초안 삽입 |
+| `AI: Summarize results` | 지금 노트 전체(선택 영역이 아님) | **커서 위치**에 요약 불릿 삽입 |
+| `AI: Extract sample definitions` | 지금 노트 | **본문에는 넣지 않고** 샘플 JSON에만 등록 — 결과는 샘플 뷰에서 확인하고, 본문에 쓸 참조는 직접 넣어야 합니다 |
+| `AI: Ask assistant (uses tools)` | 입력한 목표 + 지금 노트 | 보관함을 직접 수정. **쓰기 전에 대상 경로를 보여주고 확인을 받습니다** |
+
+**설정 위치**: 설정 → 커뮤니티 플러그인 → **Labnote Assistant** → `AI provider` →
+**Provider**. 기본값은 `Disabled`라 그대로 두면 AI 명령이 동작하지 않습니다.
+`Ollama`(로컬) 또는 `OpenAI-compatible`을 고르고 엔드포인트·모델명을 채우세요.
+API 키는 OpenAI 계열에만 전송되며 Ollama로는 절대 나가지 않습니다.
 
 ## 자주 겪는 문제
 
@@ -108,18 +308,41 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 - 노트에 `@issue` 마커, 논의 표시(`discuss: true`), 또는 `status: needs-review` 중 하나가 있는지 확인하세요 — 이 신호가 있어야 이슈가 열립니다. 본문에 "논의 필요"라고 적은 것만으로는 열리지 않습니다.
 - GitHub 저장소의 **Actions 탭**에서 `experiment-issues` 워크플로우가 실행됐는지 확인하세요.
 
+**Actions 탭에 실행 기록 자체가 없어요**
+- 이 워크플로우들은 **`labnote/` 아래 파일이 바뀐 push에서만** 돕니다. 설정 파일이나 Wiki 초안만 고쳐 push하면 아무것도 실행되지 않습니다.
+- 지금 당장 돌리고 싶다면 **Actions 탭 → `experiment-issues` → `Run workflow`** 를 누르세요. 수동 실행은 바뀐 파일이 아니라 **모든 실험 폴더**를 훑으므로, 그동안 처리되지 않고 남아 있던 마커가 한꺼번에 이슈로 열립니다.
+
+**플러그인을 업데이트했는데 서버 동작이 예전 그대로예요**
+- GitHub Actions는 **저장소에 커밋된** `.labnoteo/scripts/*.mjs`를 실행합니다. 플러그인만 업데이트해서는 바뀌지 않습니다.
+- 명령 팔레트 → `Setup research automation`을 다시 실행해 스크립트를 갱신하고, `.labnoteo/`를 **커밋하고 push**하세요.
+
 **마커를 넣었는데 이슈가 안 생겨요**
 - 마커가 색으로 강조되어 있나요? 강조되지 않으면 형식이 잘못된 것입니다. 형식은 `@issue;<ID>;<주제문장>`이고, 세 부분이 모두 있어야 합니다.
 - 손으로 `@issue;논의 필요`처럼 ID 없이 쓰면 무시됩니다. 명령 팔레트 → `Insert issue marker`로 넣으면 ID가 자동으로 붙습니다.
 - **Actions 탭**의 `validate`가 실패했다면 어느 줄이 잘못됐는지 알려줍니다.
 - 이미 닫은 마커 이슈는 다시 열리지 않습니다. 새 논의는 새 마커로 시작하세요.
 
+**"duplicate marker ID" 경고가 떠요**
+- 마커가 있는 줄을 복사해 같은 실험 폴더의 다른 노트에 붙여넣은 것입니다. ID가 겹치면 두 질문이 **한 이슈로 합쳐집니다.**
+- 복사된 쪽의 마커를 지우고 `Insert issue marker`로 새로 넣으세요.
+
+**`Insert unit operation`이 "워크플로 파일에서 실행해주세요"라고만 해요**
+- README나 일반 노트에서는 동작하지 않습니다. `###_이름.labnote.md` 형식의 워크플로 노트를 열고 실행하세요.
+- 워크플로 파일인데도 거부된다면 파일명이 `###_`로 시작하는지, `.labnote.md`로 끝나는지 확인하세요.
+
+**워크플로를 다른 실험으로 옮겼는데 체크리스트에 안 보여요**
+- 폴더 간 이동은 자동 등록되지 않습니다. 대상 실험의 `README.labnote.md`를 열고 편집 영역에서 **우클릭 → `Insert workflow`** 로 등록하세요.
+- 원래 실험의 README에는 항목이 남아 있으니 직접 지우면 됩니다.
+
 **커밋이 거부돼요 (대용량 파일)**
 - 50MB 초과 파일은 커밋이 차단됩니다. 파일을 `raw-data/` 등 Git 밖 보관 위치로 옮기고, 노트에는 경로/ID만 남기세요.
 - `git commit --no-verify`로 우회하지 마세요 — 서버 검증에서 다시 걸립니다.
 
 **AI 명령이 응답이 없어요**
-- Obsidian 설정 → Labnote Assistant → **Provider**가 `Disabled`가 아닌지(Ollama/OpenAI) 확인하고, 엔드포인트·모델명을 설정하세요.
+- 설정 → Labnote Assistant → **Provider**가 `Disabled`가 아닌지(Ollama/OpenAI) 확인하고, 엔드포인트·모델명을 설정하세요.
 
 **노트 검증이 실패해요 (Actions의 validate)**
-- `status` 값이 허용 목록(`planned`, `in-progress`, `needs-review`, `completed`, `failed`, `discontinued`, `needs-repeat`)에 있는지, 실험 `id`가 중복되지 않는지 확인하세요.
+- `status` 값이 허용 목록(`planned`, `in-progress`, `needs-review`, `completed`, `failed`, `discontinued`, `needs-repeat`)에 있는지, 실험 `id`와 마커 ID가 중복되지 않는지 확인하세요.
+
+**Wiki가 갱신되지 않아요**
+- Wiki 발행은 **`main` 브랜치에 들어갔을 때만** 일어납니다. 작업 브랜치에 `wiki-staging/`을 고쳐 push해도 발행되지 않습니다(이슈·검증과 다른 점입니다).

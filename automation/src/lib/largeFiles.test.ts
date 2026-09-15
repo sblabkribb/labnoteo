@@ -7,7 +7,7 @@ import {
   classifyFileSize,
   WARN_THRESHOLD_BYTES,
   BLOCK_THRESHOLD_BYTES,
-} from './check-large-files';
+} from './largeFiles';
 
 describe('classifyFileSize', () => {
   it('classifies files under 10 MB as ok', () => {

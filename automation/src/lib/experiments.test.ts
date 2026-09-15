@@ -14,6 +14,8 @@ import {
   groupChangedExperiments,
   buildDiscussionIssue,
   buildExperimentIssue,
+  findAllExperimentDirs,
+  findExperimentReadmes,
   readMarkerSources,
   OBJECTIVE_PLACEHOLDER,
   type ExperimentNote,
@@ -86,6 +88,49 @@ describe('groupChangedExperiments', () => {
         'labnote/notes.md',
       ])
     ).toEqual(['labnote/001_A', 'labnote/002_B']);
+  });
+});
+
+// The two ways of finding experiments must not disagree: `validate` walks the
+// tree, while the push path derives folders from changed files. A backfill uses
+// the walk, so it has to be narrowed to what the push path would accept.
+describe('findExperimentReadmes / findAllExperimentDirs', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(`${tmpdir()}/labnoteo-`).replace(/\\/g, '/');
+  });
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const readme = (dir: string): void => {
+    mkdirSync(`${root}/${dir}`, { recursive: true });
+    writeFileSync(`${root}/${dir}/README.labnote.md`, '');
+  };
+
+  it('finds READMEs at any depth, sorted, skipping ignored dirs', () => {
+    readme('labnote/002_B');
+    readme('labnote/001_A');
+    readme('labnote/.git/003_C');
+    expect(findExperimentReadmes(`${root}/labnote`)).toEqual([
+      `${root}/labnote/001_A/README.labnote.md`,
+      `${root}/labnote/002_B/README.labnote.md`,
+    ]);
+  });
+
+  it('returns nothing when the root is missing', () => {
+    expect(findExperimentReadmes(`${root}/nope`)).toEqual([]);
+    expect(findAllExperimentDirs(`${root}/nope`)).toEqual([]);
+  });
+
+  // A misnamed folder must still be validated (so its errors surface), but a
+  // backfill must not open issues somewhere a push could never reach.
+  it('keeps non-numbered folders for validation but drops them from the dirs', () => {
+    readme('labnote/001_A');
+    readme('labnote/scratch');
+    expect(findExperimentReadmes(`${root}/labnote`)).toHaveLength(2);
+    expect(findAllExperimentDirs(`${root}/labnote`)).toEqual([`${root}/labnote/001_A`]);
   });
 });
 
