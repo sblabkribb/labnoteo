@@ -16,6 +16,10 @@
  * raised. The two kinds differ in one way that matters: the experiment thread
  * is reopened when closed, a resolved marker issue is left closed.
  *
+ * `--all` scans every experiment folder instead of the push diff, so markers
+ * that predate the automation are not stranded. The workflow passes it only on
+ * a manual run.
+ *
  * GitHub is reached with `fetch` + `GITHUB_TOKEN` (REST) — NOT `gh` — so the 4b
  * self-hosted path reuses the exact same code. Issue numbers are NOT written
  * back into notes (loop/merge-conflict avoidance).
@@ -28,6 +32,7 @@ import { getChangedFiles } from './lib/git';
 import {
   buildDiscussionIssue,
   buildExperimentIssue,
+  findAllExperimentDirs,
   groupChangedExperiments,
   readExperimentNote,
   readMarkerSources,
@@ -57,9 +62,35 @@ export function selectPromotable(notes: ExperimentNote[]): ExperimentNote[] {
   return notes.filter(note => shouldPromote(note.frontMatter));
 }
 
-/** Run the sync. Returns the process exit code (0 = ok, 1 = an issue failed). */
-export async function run(): Promise<number> {
-  const dirs = groupChangedExperiments(getChangedFiles());
+/**
+ * How to sync an experiment's long-lived discussion thread.
+ *
+ * A push reopens a closed thread, because re-raising `discuss` is how someone
+ * asks to talk about the experiment again. A backfill (`--all`) does not: it
+ * revisits every note at once, including ones whose discussion ended long ago
+ * with the flag simply left behind, so reopening there would resurrect settled
+ * threads wholesale. Pure, so the distinction is pinned by a test.
+ */
+export function experimentIssueOptions(all: boolean, sha?: string): EnsureIssueOptions {
+  return {
+    reopenClosed: !all,
+    reopenComment:
+      '논의가 다시 요청되어 이슈를 재오픈했습니다' +
+      `${sha ? ` (커밋 \`${sha.slice(0, 7)}\`)` : ''}.`,
+  };
+}
+
+/**
+ * Run the sync. Returns the process exit code (0 = ok, 1 = an issue failed).
+ *
+ * With `--all` every experiment folder is scanned instead of the push diff, so
+ * a marker written before the automation could act on it is picked up without
+ * having to edit its note again. The workflow passes the flag only on a manual
+ * `workflow_dispatch`, so the push path is unchanged.
+ */
+export async function run(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const all = argv.includes('--all');
+  const dirs = all ? findAllExperimentDirs() : groupChangedExperiments(getChangedFiles());
   const notes = dirs
     .map(dir => readExperimentNote(dir))
     .filter((n): n is ExperimentNote => n !== undefined);
@@ -111,17 +142,9 @@ export async function run(): Promise<number> {
     }
   };
 
-  // An experiment thread is long-lived: re-raising `discuss` after the thread
-  // was closed must revive it, otherwise the experiment can never be discussed
-  // a second time.
+  const experimentOptions = experimentIssueOptions(all, sha);
   for (const note of promotable) {
-    const payload = buildExperimentIssue(note);
-    const bad = await sync(payload, {
-      reopenClosed: true,
-      reopenComment:
-        '논의가 다시 요청되어 이슈를 재오픈했습니다' +
-        `${sha ? ` (커밋 \`${sha.slice(0, 7)}\`)` : ''}.`,
-    });
+    const bad = await sync(buildExperimentIssue(note), experimentOptions);
     if (bad) failed += 1;
   }
 

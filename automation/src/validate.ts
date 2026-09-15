@@ -16,12 +16,13 @@
  *
  * Zero runtime deps: node built-ins + inlined `@labnoteo/core`.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { isValidStatus, EXPERIMENT_STATUSES } from '@labnoteo/core/lib/experimentStatus';
 import { parseFrontMatterYaml, parseIssueMarkers } from '@labnoteo/core';
-import { run as runLargeFileCheck } from './check-large-files';
+import { run as runLargeFileCheck } from './lib/largeFiles';
 import {
+  findExperimentReadmes,
   README_NAME,
   readMarkerSources,
   readStringField,
@@ -131,43 +132,9 @@ function validateMarkers(note: ValidatedNote): string[] {
   return errors;
 }
 
-const IGNORED_DIRS = new Set(['.git', 'node_modules']);
-
-/** Recursively collect every `README.labnote.md` under `labnote/`. */
-function findReadmes(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = `${dir}/${entry.name}`;
-      if (entry.isDirectory()) {
-        if (IGNORED_DIRS.has(entry.name)) continue;
-        walk(full);
-      } else if (entry.isFile() && entry.name === README_NAME) {
-        out.push(full);
-      }
-    }
-  };
-  walk(root);
-  return out;
-}
-
 /** Load and parse every experiment README under `labnote/`. */
 function loadNotes(): ValidatedNote[] {
-  let hasLabnote = true;
-  try {
-    if (!statSync('labnote').isDirectory()) hasLabnote = false;
-  } catch {
-    hasLabnote = false;
-  }
-  if (!hasLabnote) return [];
-
-  return findReadmes('labnote').map(path => {
+  return findExperimentReadmes().map(path => {
     let frontMatter: Record<string, unknown> = {};
     try {
       const raw = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
@@ -180,8 +147,16 @@ function loadNotes(): ValidatedNote[] {
   });
 }
 
-/** Run all checks. Returns the process exit code (0 = ok, 1 = failures). */
-export function run(): number {
+/**
+ * Run all checks. Returns the process exit code (0 = ok, 1 = failures).
+ *
+ * `--notes-only` skips the large-file re-check. The pre-commit hook needs that:
+ * it has already checked the staged files, whereas the re-check here scans the
+ * whole vault, so without the flag every commit would re-report files that were
+ * committed long ago.
+ */
+export function run(argv: string[] = process.argv.slice(2)): number {
+  const notesOnly = argv.includes('--notes-only');
   const notes = loadNotes();
   const errors = validateExperiments(notes);
 
@@ -190,7 +165,7 @@ export function run(): number {
   }
 
   // Central re-run of the large-file guard (same module the hook uses).
-  const largeFileCode = runLargeFileCheck([]);
+  const largeFileCode = notesOnly ? 0 : runLargeFileCheck([]);
 
   if (errors.length === 0 && largeFileCode === 0) {
     console.log(`✅ validate: ${notes.length}개 노트 검증 통과.`);

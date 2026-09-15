@@ -10,7 +10,7 @@
  *
  * Zero runtime deps: only node built-ins + the inlined `@labnoteo/core`.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { findEnclosingHeading, parseFrontMatterYaml, type IssueMarker } from '@labnoteo/core';
 
@@ -171,6 +171,63 @@ export function groupChangedExperiments(changedFiles: string[]): string[] {
   const dirs = new Set<string>();
   for (const file of changedFiles) {
     const dir = getExperimentDir(file);
+    if (dir) dirs.add(dir);
+  }
+  return [...dirs].sort();
+}
+
+/** Directories never worth descending into when walking a vault. */
+const IGNORED_DIRS = new Set(['.git', 'node_modules']);
+
+/**
+ * Every `README.labnote.md` under `root`, at any depth, sorted.
+ *
+ * Deliberately NOT filtered to `###_` folders: `validate` must report problems
+ * in a misnamed folder rather than silently skip it. Callers that act on
+ * experiments (issue-sync) narrow the result with `getExperimentDir`, which is
+ * the stricter rule the push-diff path already uses.
+ *
+ * Returns an empty list when `root` is absent, so a vault without notes is not
+ * an error.
+ */
+export function findExperimentReadmes(root = 'labnote'): string[] {
+  try {
+    if (!statSync(root).isDirectory()) return [];
+  } catch {
+    return [];
+  }
+
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (IGNORED_DIRS.has(entry.name)) continue;
+        walk(full);
+      } else if (entry.isFile() && entry.name === README_NAME) {
+        out.push(full);
+      }
+    }
+  };
+  walk(root);
+  return out.sort();
+}
+
+/**
+ * Every experiment folder in the vault, by the same rule the push-diff path
+ * uses (`getExperimentDir`). Backing a `--all` backfill with this keeps manual
+ * runs from reaching folders a normal push could never promote.
+ */
+export function findAllExperimentDirs(root = 'labnote'): string[] {
+  const dirs = new Set<string>();
+  for (const readme of findExperimentReadmes(root)) {
+    const dir = getExperimentDir(readme);
     if (dir) dirs.add(dir);
   }
   return [...dirs].sort();

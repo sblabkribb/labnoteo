@@ -161,9 +161,13 @@ export async function changeExperimentStatusCommand(app: App, host: LabnoteHost)
 export function insertIssueMarkerCommand(editor: Editor): void {
   const title = editor.getSelection().trim().replace(/\s*\n\s*/g, ' ');
 
-  // Timestamps make a collision almost impossible; a marker copy-pasted within
-  // the same millisecond is the one case, and it would silently merge two
-  // discussions into one issue.
+  // IDs are a timestamp plus a counter, so generating a duplicate is not
+  // actually possible; this scan is kept only because it costs nothing.
+  //
+  // The real source of duplicates is copying a marker line into another note,
+  // which carries the ID along and never goes through this command. Two notes
+  // then point at one issue and the discussions merge silently. The pre-commit
+  // hook and the server `validate` catch that, since only they see the folder.
   const used = new Set(parseIssueMarkers(editor.getValue()).markers.map(m => m.id));
   let id = generateIssueMarkerId();
   while (used.has(id)) id = generateIssueMarkerId();

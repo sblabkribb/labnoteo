@@ -13,6 +13,10 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
 - 커밋 전 `node .labnoteo/scripts/check-large-files.mjs`로 대용량 파일을 확인합니다.
 - `git commit --no-verify`는 **금지**입니다 (대용량 훅 우회 방지).
 - push 전 `node .labnoteo/scripts/validate.mjs`가 통과하는지 확인합니다.
+- **`.labnoteo/` 아래가 갱신되어 있으면 같은 커밋에 포함합니다.** GitHub Actions는
+  플러그인이 아니라 저장소에 커밋된 스크립트를 실행하므로, 사용자가 *연구노트 자동화
+  설정*을 다시 돌려 스크립트가 바뀐 상태에서 노트만 커밋하면 서버는 계속 옛 동작을
+  합니다. `git status`에 `.labnoteo/`, `.github/`, `AGENTS.md`가 보이면 빠뜨리지 마세요.
 - 커밋 메시지는 **변경 내용을 기반으로 직접 작성**합니다:
   - Conventional Commits 형식 (`feat:`, `fix:`, `docs:`, `chore:` 등).
   - 관련 실험이 있으면 식별자(`EXP-###` 또는 폴더명 `###_Name`)를 본문 또는 제목에 포함.
@@ -62,6 +66,10 @@ Cursor 등)는 아래 규칙을 따라 작업합니다.
   `@issue;<ID>;<주제문장>` 마커를 답니다 (역시 사용자 확인 후). 한 노트에
   여러 개를 달 수 있고 각각 별도 이슈가 됩니다. 실험 전체를 놓고 논의해야
   할 때만 `discuss: true`를 씁니다.
+- **마커 ID는 실험 폴더 안에서 유일해야 합니다.** 노트를 복제하거나 템플릿으로 다른
+  노트를 만드는 것은 정당한 작업이지만, 마커가 있는 줄을 그대로 옮기면 ID가 따라가
+  두 논의가 한 이슈로 합쳐집니다. 복사된 줄의 마커는 **ID를 새로 만들거나(같은 규칙:
+  `ISS-` + 현재 시각 base36) 마커 자체를 지우세요.**
 - GitHub Issue를 **직접 생성하지 마세요** — push 후 서버측 `issue-sync`가
   `discuss: true` / `status: needs-review` 노트와 `@issue` 마커를 `[식별자]`
   토큰으로 멱등 생성/갱신합니다. 직접 만들면 중복이 됩니다.

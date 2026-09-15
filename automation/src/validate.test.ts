@@ -2,7 +2,10 @@
 //
 // Pins the pure, deterministic validation rules (Phase 3): `status` required and
 // controlled, `id` unique, non-labnote notes ignored.
-import { validateExperiments, type ValidatedNote } from './validate';
+const largeFileCheck = vi.hoisted(() => vi.fn(() => 0));
+vi.mock('./lib/largeFiles', () => ({ run: largeFileCheck }));
+
+import { run, validateExperiments, type ValidatedNote } from './validate';
 
 const note = (
   path: string,
@@ -140,5 +143,30 @@ describe('validateExperiments — @issue markers', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('duplicate marker ID `ISS-a1`');
     expect(errors[0]).toContain('already used at labnote/001_A/README.labnote.md:1');
+  });
+});
+
+// The pre-commit hook runs this on every commit that touches a note, so the
+// large-file re-check has to be skippable: the hook already checked the staged
+// files, while the re-check here scans the whole vault.
+describe('run --notes-only', () => {
+  beforeEach(() => {
+    largeFileCheck.mockClear();
+  });
+
+  it('re-runs the vault-wide size guard by default', () => {
+    run([]);
+    expect(largeFileCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the size guard with --notes-only', () => {
+    run(['--notes-only']);
+    expect(largeFileCheck).not.toHaveBeenCalled();
+  });
+
+  it('still reports a blocked file when the guard does run', () => {
+    largeFileCheck.mockReturnValueOnce(1);
+    expect(run([])).toBe(1);
+    expect(run(['--notes-only'])).toBe(0);
   });
 });

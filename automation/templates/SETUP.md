@@ -66,7 +66,16 @@ vault/
 ├── QUICKSTART.md         연구원 가이드
 ├── wiki-staging/         원고 초안 (사람이 편집)
 └── labnote/              실험 노트
+    └── 001_Yield_opt/          ← 실험 폴더 = 자동화의 스캔 단위
+        ├── README.labnote.md   frontmatter(status/id/discuss) + 마커
+        ├── 001_WD010_….labnote.md   워크플로 노트 — 마커는 여기에도
+        ├── 002_WB020_….labnote.md
+        └── resources/labsamples/
 ```
+
+`issue-sync`와 `validate`는 **실험 폴더 안의 모든 `*.labnote.md`** 에서 `@issue` 마커를
+읽습니다. README 하나가 아니라 폴더 전체가 단위라는 점이 마커 ID 유일성 범위와도
+직결됩니다(같은 폴더 안에서 ID가 겹치면 두 논의가 한 이슈로 합쳐짐).
 
 루트에 남는 것에는 각각 이유가 있습니다. `.github/`는 GitHub이 강제하는 경로이고,
 `AGENTS.md`/`CLAUDE.md`는 AI 에이전트가 저장소 루트에서만 찾습니다. `QUICKSTART.md`와
@@ -79,23 +88,36 @@ vault/
 | 경로 | 설명 |
 | --- | --- |
 | `.labnoteo/scripts/check-large-files.mjs` | 파일 크기 검사(<10MB 허용 / 10–50MB 경고 / >50MB 차단, 자동 이동 없음) |
-| `.labnoteo/hooks/pre-commit` | 커밋 전 대용량 파일 차단 훅 (Node 없으면 shell 대체) |
+| `.labnoteo/hooks/pre-commit` | 커밋 전 대용량 파일 **차단**. 이어서 `labnote/` 파일이 스테이징된 커밋에 한해 `validate.mjs --notes-only`를 **경고 전용**으로 실행(마커 형식·ID 중복을 push 전에 알림). Node 없으면 shell 크기 검사로 대체 |
 | `.gitignore` | 대용량 데이터 패턴 + Obsidian 개인 상태 + AI 에이전트 상태 폴더(**스킬은 제외 예외로 커밋됨**) (기존 내용에 누락분만 추가) |
 
 ### 노트 검증 (GitHub-hosted)
 
 | 경로 | 설명 |
 | --- | --- |
-| `.labnoteo/scripts/validate.mjs` | status 허용값 / 중복 id / 대용량 파일 중앙 재검사 (결정적) |
-| `.github/workflows/validate.yml` | `labnote/**` push마다 `node .labnoteo/scripts/validate.mjs` 실행 |
+| `.labnoteo/scripts/validate.mjs` | status 허용값 / 중복 id / `@issue` 마커 형식·폴더 내 ID 중복 / 대용량 파일 중앙 재검사 (결정적). `--notes-only`는 마지막 대용량 재검사를 생략(훅 전용) |
+| `.github/workflows/validate.yml` | `labnote/**` push마다 `node .labnoteo/scripts/validate.mjs` 실행. Actions 탭에서 **수동 실행**도 가능(항상 전체 검사) |
 
 ### Experiment ↔ Issue (결정적, AI 불필요)
 
 | 경로 | 설명 |
 | --- | --- |
 | `.labnoteo/scripts/issue-sync.mjs` | `discuss: true`/`status: needs-review` 실험은 스레드 이슈 1개(닫혀 있으면 재오픈), 폴더 내 모든 `*.labnote.md`의 `@issue;<ID>;<주제>` 마커는 각각 별도 이슈(닫힌 것은 그대로). 모두 멱등 |
-| `.github/workflows/experiment-issues.yml` | 결정적 잡(ubuntu, GitHub-hosted)만 — self-hosted 러너 불필요 |
-| `.github/ISSUE_TEMPLATE/experiment.md` | 노트 링크 + Objective + status + Discussion |
+| `.github/workflows/experiment-issues.yml` | 결정적 잡(ubuntu, GitHub-hosted)만 — self-hosted 러너 불필요. Actions 탭의 **수동 실행은 `--all` 백필**(아래 참고) |
+| `.github/ISSUE_TEMPLATE/experiment.md` | 노트 링크 + Objective + status + Discussion. 사람이 **실험 단위** 논의를 직접 열 때 쓰는 서식이라 항상 README를 가리킵니다 |
+
+**백필(`--all`)** — push는 이번에 바뀐 실험 폴더만 봅니다. 자동화를 도입하기 전에 적어
+둔 마커나, 그 뒤로 한 번도 건드리지 않은 폴더의 마커는 그대로 잠들어 있습니다. Actions
+탭 → `experiment-issues` → **Run workflow**를 누르면 모든 실험 폴더를 훑어 한꺼번에
+채웁니다.
+
+- 처음 한 번은 **잠들어 있던 마커가 전부 이슈로 열립니다.** 규모를 먼저 가늠하려면
+  `git grep -c '@issue;' -- 'labnote/**/*.labnote.md'`로 세어 보세요.
+- 백필은 **닫힌 실험 이슈를 재오픈하지 않습니다.** `discuss: true`가 남은 채 논의만
+  끝난 노트가 흔한데, 그걸 한꺼번에 되살리는 건 백필의 일이 아니기 때문입니다.
+  (평소 push에서는 재오픈이 정상 동작입니다.)
+- 마커가 많으면 GitHub 2차 레이트 리밋에 걸려 중간에 실패할 수 있습니다. `ensureIssue`가
+  멱등이라 **그냥 다시 실행하면** 됩니다 — 중복 이슈는 생기지 않습니다.
 
 ### AI 에이전트 규칙 (로컬 에이전트 워크플로우)
 
@@ -115,8 +137,27 @@ vault/
 
 | 경로 | 설명 |
 | --- | --- |
-| `QUICKSTART.md` | 연구원용 일상 사용 가이드(5분 따라하기 + 치트시트 + FAQ) |
+| `QUICKSTART.md` | 연구원용 일상 사용 가이드(5분 따라하기 + 치트시트 + 기능 참조 + FAQ) |
 | `.labnoteo/SETUP.md` | 이 문서 — 관리자/개발자용 설정 가이드 |
+
+## 워크플로우 실행 조건 (문의가 가장 잦은 지점)
+
+"push했는데 아무 일도 안 일어난다"는 대부분 아래 표로 설명됩니다.
+
+| 워크플로우 | 경로 조건 | 브랜치 | 수동 실행 |
+| --- | --- | --- | --- |
+| `validate` | `labnote/**` 변경 | **모든 브랜치** | 가능 (전체 검사) |
+| `experiment-issues` | `labnote/**` 변경 | **모든 브랜치** | 가능 (`--all` 백필) |
+| `wiki-sync` | `wiki-staging/**` 변경 | **`main`만** | 가능 |
+
+여기서 나오는 세 가지 착각:
+
+- **경로 조건이 먼저입니다.** `.labnoteo/` 스크립트만 고쳐 push하면 `labnote/`가 바뀌지
+  않았으므로 실행 자체가 없습니다. 실행 기록이 아예 비어 있다면 워크플로우 오류가 아니라
+  이 조건에 걸린 것입니다.
+- **이슈는 작업 브랜치에서도 열립니다.** 머지 전에 열리는 게 의도된 동작입니다.
+- **Wiki만 `main`을 요구합니다.** 브랜치에서 `wiki-staging/`을 고쳐 놓고 발행을 기다리는
+  일이 없도록 연구원에게 안내하세요(`QUICKSTART.md`에도 적혀 있습니다).
 
 ## 아키텍처: AI 워크플로우 (로컬 에이전트 — self-hosted 러너 불필요)
 
@@ -157,14 +198,43 @@ AI가 필요한 판단은 GitHub Actions가 아니라 **로컬 AI 에이전트**
 
 ```sh
 node .labnoteo/scripts/check-large-files.mjs   # 대용량 파일 검사
-node .labnoteo/scripts/validate.mjs            # 노트 검증 (status/중복 id)
+node .labnoteo/scripts/validate.mjs            # 노트 검증 (status/중복 id/@issue 마커)
+node .labnoteo/scripts/validate.mjs --notes-only  # 위에서 대용량 재검사만 생략 (훅과 동일)
 ```
 
 ## 업데이트
 
 플러그인을 업데이트한 뒤 "Setup research automation" 명령을 다시 실행하면 스크립트와
 문서가 갱신됩니다. 변경 사항은 Git diff로 검토한 뒤 커밋하세요. (`AGENTS.md`는 마커
-블록만, `.gitignore`/`CLAUDE.md`는 누락 줄만 갱신되므로 사용자 수정이 보존됩니다.)
+블록만, `.gitignore`/`CLAUDE.md`는 누락 줄만 갱신되므로 사용자 수정이 보존됩니다.
+반면 `QUICKSTART.md`와 이 문서는 **통째로 교체**되므로, 덧붙여 둔 메모가 있다면 미리
+옮겨 두세요.)
+
+**갱신된 스크립트는 커밋하고 push해야 서버 동작이 바뀝니다.** GitHub Actions는 플러그인이
+아니라 저장소에 **커밋된** `.labnoteo/scripts/*.mjs`를 실행합니다. 재설정만 하고 push하지
+않으면 서버는 계속 옛 스크립트를 돌리고, 로그도 옛 메시지를 출력합니다.
+
+```sh
+git add .labnoteo .github AGENTS.md CLAUDE.md QUICKSTART.md .gitignore
+git commit -m "chore(labnoteo): 자동화 자산 갱신"
+git push
+```
+
+push 자체는 `labnote/`를 건드리지 않으므로 워크플로우가 돌지 않습니다. 새 동작을 바로
+확인하려면 노트 변경을 같은 push에 포함시키거나, Actions 탭에서 수동 실행하세요.
+
+### 0.86.0 이전 보관함에서 올라올 때 (한 번만)
+
+`@issue` 마커 스캔 범위가 `README.labnote.md` 하나에서 **실험 폴더의 모든
+`*.labnote.md`** 로 넓어졌습니다. 그전까지 워크플로 노트에 적은 마커는 전부 무시되고
+있었습니다.
+
+- [ ] 재설정 후 `.labnoteo/`를 **커밋·push**(위 참고).
+- [ ] Actions 탭에서 `experiment-issues`를 **수동 실행**해 잠들어 있던 마커를 백필.
+      **그동안 쌓인 마커가 한꺼번에 이슈로 열립니다** — 규모가 걱정되면 먼저
+      `git grep -c '@issue;' -- 'labnote/**/*.labnote.md'`로 세어 보세요.
+- [ ] 마커 ID가 폴더 안에서 겹치면 이제 `validate`가 실패합니다. 실패하면 보고된
+      줄에서 한쪽 마커를 지우고 *Insert issue marker*로 새로 넣으세요.
 
 ### 0.82.0 이전 보관함에서 올라올 때 (한 번만)
 

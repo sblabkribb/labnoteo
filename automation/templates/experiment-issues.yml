@@ -12,6 +12,9 @@ on:
   push:
     paths:
       - 'labnote/**'
+  # 수동 실행은 백필입니다: push diff 대신 모든 실험 폴더를 훑어, 자동화가 도입되기
+  # 전에 적어 둔 마커나 그동안 놓친 신호를 한 번에 채웁니다(멱등).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,4 +37,4 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.event.after }}
-        run: node .labnoteo/scripts/issue-sync.mjs
+        run: node .labnoteo/scripts/issue-sync.mjs ${{ github.event_name == 'workflow_dispatch' && '--all' || '' }}

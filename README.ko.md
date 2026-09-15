@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.86.0**
+**버전 0.87.0**
 
 생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
@@ -88,10 +88,11 @@ BRAT이 이 저장소의 릴리스를 추적하므로, 이후 버전은 파일�
 
 | 영역 | 파일 | 하는 일 |
 | --- | --- | --- |
-| 사용자 문서 | `QUICKSTART.md`, `.labnoteo/SETUP.md` | 연구원용 퀵스타트(5분 따라하기·치트시트·FAQ)와 관리자/개발자용 설정 가이드(일회성 체크리스트·자산 레퍼런스·아키텍처). |
+| 사용자 문서 | `QUICKSTART.md`, `.labnoteo/SETUP.md` | 연구원용 가이드(5분 따라하기·치트시트·기능 레퍼런스·FAQ)와 관리자/개발자용 설정 가이드(일회성 체크리스트·자산 레퍼런스·아키텍처). |
 | 대용량 파일 보호 | `.labnoteo/scripts/check-large-files.mjs`, `.labnoteo/hooks/pre-commit`, `.gitignore` | 커밋 전에 과도하게 큰 데이터 파일을 차단(Node 없으면 shell로 대체). |
-| 검증 | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값과 실험 id 중복을 검사. |
-| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 스레드 Issue 1개(닫혀 있으면 재오픈), 노트 본문의 `@issue;<ID>;<주제>` 마커마다 그 줄로 링크된 별도 Issue(해결되어 닫힌 것은 유지). 결정적, GitHub REST API. |
+| 검증 | `.labnoteo/scripts/validate.mjs`, `.github/workflows/validate.yml` | push마다 `status` 값, 실험 id 중복, `@issue` 마커 형식과 폴더 내 ID 유일성을 검사. |
+| Experiment ↔ Issue | `.labnoteo/scripts/issue-sync.mjs`, `.github/workflows/experiment-issues.yml`, `.github/ISSUE_TEMPLATE/experiment.md` | `discuss: true` 또는 `status: needs-review`인 실험마다 스레드 Issue 1개(닫혀 있으면 재오픈), 바뀐 실험 폴더의 **모든** `*.labnote.md`에서 찾은 `@issue;<ID>;<주제>` 마커마다 그 줄로 링크된 별도 Issue(해결되어 닫힌 것은 유지). 결정적, GitHub REST API. |
+| 수동 백필 | `experiment-issues.yml` / `validate.yml`의 `workflow_dispatch` | Actions 탭에서 직접 실행. `issue-sync`는 push diff 대신 모든 실험 폴더를 훑어(`--all`) 자동화 도입 전에 적어 둔 마커까지 채웁니다 — 멱등이며, 닫힌 논의 스레드는 의도적으로 그대로 둡니다. |
 | AI 에이전트 규칙 | `AGENTS.md`, `CLAUDE.md` | 로컬 AI 에이전트(Claude Code, Cursor 등)를 위한 규칙: git 워크플로우·커밋 메시지, 언제 노트에 `discuss: true`를 표시할지, `wiki-staging/`에 사실을 어떻게 초안할지. `CLAUDE.md`는 Claude Code용 `@AGENTS.md` 1줄 import. 재실행 시 labnoteo 관리 마커 블록만 갱신되고 그 밖의 사용자 규칙은 보존됩니다. |
 | Living-Manuscript Wiki(선택) | `.github/workflows/wiki-sync.yml`, `wiki-staging/*` | 사람이 검토·머지한 `wiki-staging/` 초안을 GitHub Wiki로 발행. |
 
@@ -185,7 +186,8 @@ npm workspaces 모노레포 구조입니다:
 
 - `src/` — Obsidian 플러그인. esbuild로 저장소 루트의 `main.js`로 번들됩니다. Obsidian 커뮤니티 디렉터리가 루트의 `manifest.json`을 읽기 때문에 플러그인이 루트에 있습니다.
 - `packages/labnoteo-core` — 플랫폼 중립 core 로직 (파서, 워크플로/샘플 도메인). 플러그인이 사용합니다. Node 전용 API를 import하면 안 되며, 플랫폼 의존 기능은 포트(`LabnoteFs`, `LabnoteHost`) 뒤에 둡니다.
-- `automation/` — 보관함에 설치되는 [연구노트 자동화](#연구노트-자동화) 스크립트의 소스. esbuild가 (1단계) 무의존성 `dist-automation/*.mjs`로 번들하고 — 플러그인과 같은 `@labnoteo/core` 소스를 재사용하므로 드리프트가 없음 — (2단계) 워크플로/AGENTS.md/Wiki 템플릿과 함께 `main.js`에 문자열로 임베드합니다. 덕분에 3-파일 설치만으로 자립합니다. *연구노트 자동화 설정* 명령이 그 문자열을 보관함에 기록합니다.
+- `automation/` — 보관함에 설치되는 [연구노트 자동화](#연구노트-자동화) 스크립트의 소스. esbuild가 (1단계) 무의존성 `dist-automation/*.mjs`로 번들하고 — 플러그인과 같은 `@labnoteo/core` 소스를 재사용하므로 드리프트가 없음 — (2단계) 워크플로/AGENTS.md/Wiki 템플릿과 함께 `main.js`에 문자열로 임베드합니다. 덕분에 3-파일 설치만으로 자립합니다. *연구노트 자동화 설정* 명령이 그 문자열을 보관함에 기록합니다. 이 폴더의 소스가 전부 배포되는 것은 아닙니다 — `issue-gate.ts`와 `wiki-propose.ts`는 그 판단을 이제 로컬 AI 에이전트가 맡으므로 빌드에서 제외되어 있고(`esbuild.config.mjs`), 향후 opt-in 경로를 위해 소스만 남겨 둡니다.
+- `issue-sync`와 `validate`는 **같은 마커를 봐야** 합니다. 그래서 둘 다 README를 직접 읽지 않고 `readMarkerSources`로 폴더를 읽습니다 — 한쪽만 범위를 좁히면 검증되지 않은 마커로 이슈가 열리거나 그 반대가 됩니다.
 - `tests/` — 플러그인 계층 테스트와 `obsidian` 패키지의 런타임 스텁(해당 패키지는 타입만 제공). core 테스트는 코드 옆 `packages/labnoteo-core/src/__tests__/`에 있습니다.
 
 ```bash
