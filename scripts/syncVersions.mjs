@@ -8,7 +8,7 @@
  *   - packages/labnoteo-core/package.json
  *   - manifest.json                            (Obsidian plugin version)
  *   - versions.json                            ({version: minAppVersion})
- *   - README.md / README.ko.md                 (the version badge line)
+ *   - README.md / README.en.md                 (the version badge line)
  *
  * The root `package.json` is itself the plugin package, so it needs no copy.
  *
@@ -80,11 +80,11 @@ const targets = [
   },
   {
     path: join(root, 'README.md'),
-    next: replaceReadmeBadge(readFileSync(join(root, 'README.md'), 'utf8'), 'Version'),
+    next: replaceReadmeBadge(readFileSync(join(root, 'README.md'), 'utf8'), '버전'),
   },
   {
-    path: join(root, 'README.ko.md'),
-    next: replaceReadmeBadge(readFileSync(join(root, 'README.ko.md'), 'utf8'), '버전'),
+    path: join(root, 'README.en.md'),
+    next: replaceReadmeBadge(readFileSync(join(root, 'README.en.md'), 'utf8'), 'Version'),
   },
 ];
 
