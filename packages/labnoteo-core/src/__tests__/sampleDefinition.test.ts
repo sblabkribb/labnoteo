@@ -6,6 +6,8 @@ import {
   buildSampleReferenceText,
   isCatalogSampleType,
   sampleSuggestActions,
+  getSampleDisplayMeta,
+  SAMPLE_TYPES,
 } from '../lib/sampleUtils';
 import { parseSampleTrigger } from '../sample/sampleSuggest';
 
@@ -54,6 +56,21 @@ describe('isCatalogSampleType', () => {
     expect(isCatalogSampleType('DNA')).toBe(false);
     expect(isCatalogSampleType('RNA')).toBe(false);
     expect(isCatalogSampleType('Custom')).toBe(false);
+  });
+});
+
+describe('the built-in Other type', () => {
+  it('is offered in the tree with a colour of its own', () => {
+    const meta = getSampleDisplayMeta();
+    expect(meta.types).toContain('Other');
+    expect(meta.colors.Other).toBeTruthy();
+  });
+
+  it('is authored, not a catalog type, so ids can be generated or typed', () => {
+    expect(isCatalogSampleType('Other')).toBe(false);
+    const t = parseSampleTrigger('@other:', [...SAMPLE_TYPES])!;
+    expect(t.typesToSearch).toEqual(['Other']);
+    expect(sampleSuggestActions(t)).toEqual({ generate: true, manual: true, catalog: false });
   });
 });
 

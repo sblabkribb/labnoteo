@@ -23,6 +23,7 @@ import {
   insertIssueMarkerCommand,
   toggleDiscussionFlagCommand,
   createWorkflowCommand,
+  renumberWorkflowsCommand,
   insertUnitOperationCommand,
   insertWorkflowLinkCommand,
   syncReadmeOrderOnRename,
@@ -179,6 +180,12 @@ export default class LabnotePlugin extends Plugin {
       id: 'create-workflow',
       name: this.t('Create workflow'),
       callback: () => this.run(() => createWorkflowCommand(this.app, this.host)),
+    });
+
+    this.addCommand({
+      id: 'renumber-workflows',
+      name: this.t('Renumber workflows'),
+      callback: () => this.run(() => renumberWorkflowsCommand(this.app, this.host)),
     });
 
     this.addCommand({

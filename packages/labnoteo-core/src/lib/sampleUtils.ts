@@ -8,7 +8,7 @@ import { escapeRegExp } from './regexUtils';
 /**
  * Sample types available
  */
-export const SAMPLE_TYPES = ['DNA', 'RNA', 'Plasmid', 'Reagent', 'Primer', 'Protein', 'Equip', 'Labware'] as const;
+export const SAMPLE_TYPES = ['DNA', 'RNA', 'Plasmid', 'Reagent', 'Primer', 'Protein', 'Equip', 'Labware', 'Other'] as const;
 export type SampleType = typeof SAMPLE_TYPES[number];
 
 /**
@@ -122,6 +122,7 @@ export const sampleTypeColors: Record<SampleType, string> = {
   Protein: '#DDA0DD',
   Equip: '#FFA07A',
   Labware: '#D8BFD8',
+  Other: '#B0BEC5',
 };
 
 /**

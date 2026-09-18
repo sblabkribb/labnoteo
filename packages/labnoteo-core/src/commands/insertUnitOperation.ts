@@ -1,5 +1,5 @@
 /**
- * Shared command logic: insert a Unit Operation block at the cursor.
+ * Shared command logic: insert a Unit Operation block into a workflow file.
  *
  * This is the platform-neutral (text-editor / Obsidian CM6) path. It is written
  * against {@link LabnoteHost} so both the VS Code extension and the Obsidian
@@ -7,6 +7,7 @@
  * that this function does not attempt to model.
  */
 import type { LabnoteHost } from '../host';
+import { findUnitOpInsertOffset } from '../sections/workflowSectionParser';
 import { isValidWorkflowPath, parseExperimenterFromReadme } from '../lib/workflowStructure';
 import { getSeoulDateTimeString } from '../lib/dateUtils';
 import { buildSwUnitOpMarkdown, buildHwUnitOpMarkdown } from '../lib/unitOpTemplate';
@@ -23,13 +24,19 @@ export interface InsertUnitOperationInput {
 }
 
 /**
- * Insert a unit-operation template at the active cursor.
+ * Insert a unit-operation template at the end of the workflow's
+ * `## Related Unit Operations` section, after any blocks already there.
+ *
+ * The cursor is deliberately not used as the insertion point: a unit operation
+ * is the next step of a procedure, so it belongs after the previous one no
+ * matter where the user happens to be reading. `findUnitOpInsertOffset` picks
+ * the spot and falls back to the end of the document.
  *
  * Returns `true` when a block was inserted, `false` when the command bailed
  * (no active workflow document, invalid path, or missing info) — after already
  * having notified the user in that case.
  */
-export async function insertUnitOperationAtCursor(
+export async function insertUnitOperation(
   host: LabnoteHost,
   input: InsertUnitOperationInput
 ): Promise<boolean> {
@@ -67,7 +74,8 @@ export async function insertUnitOperationAtCursor(
       ? buildSwUnitOpMarkdown(info, { experimenter, dateTime, software })
       : buildHwUnitOpMarkdown(info, { experimenter, dateTime, equipment });
 
-  await target.insertAtCursor(template);
+  const offset = findUnitOpInsertOffset(await target.getText());
+  await target.replaceRange(offset, offset, template);
   host.notify('info', host.t('Unit operation inserted: {0} {1}', opId, opName));
   return true;
 }

@@ -2,7 +2,7 @@
  * ObsidianHost — the Obsidian implementation of {@link LabnoteHost}.
  *
  * Mirrors `src/host/vscodeHost.ts` on the extension side so the same core
- * command logic (e.g. `insertUnitOperationAtCursor`) runs unchanged. Because
+ * command logic (e.g. `insertUnitOperation`) runs unchanged. Because
  * Obsidian has no Section Editor webview, the {@link EditTarget} collapses to a
  * single CodeMirror editor implementation.
  *

@@ -14,6 +14,7 @@ export {
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
+  findUnitOpInsertOffset,
 } from './sections/workflowSectionParser';
 
 // Re-exported from the dependency-free heading module so browser consumers
@@ -81,7 +82,7 @@ export type {
 
 // === Shared command logic (host-driven; consumed by both platforms) ===
 export {
-  insertUnitOperationAtCursor,
+  insertUnitOperation,
   type InsertUnitOperationInput,
 } from './commands/insertUnitOperation';
 

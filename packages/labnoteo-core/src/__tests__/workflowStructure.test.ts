@@ -4,6 +4,9 @@ import {
   reconcileWorkflowChecklist,
   parseWorkflowChecklistFromReadme,
   sanitizeWorkflowName,
+  planWorkflowRenumber,
+  buildRenumberStagingName,
+  collapseWorkflowRenames,
 } from '../lib/workflowStructure';
 import { sanitizeTitle } from '../lib/labnoteStructure';
 
@@ -92,6 +95,112 @@ describe('reconcileWorkflowChecklist', () => {
     ]);
     expect(res.changed).toBe(false);
     expect(res.content).toBe(md);
+  });
+});
+
+describe('planWorkflowRenumber', () => {
+  it('closes gaps while keeping the current order', () => {
+    expect(
+      planWorkflowRenumber([
+        '001_WD010_First.labnote.md',
+        '005_WS010_Second.labnote.md',
+        '009_WD020_Third.labnote.md',
+      ])
+    ).toEqual([
+      { from: '005_WS010_Second.labnote.md', to: '002_WS010_Second.labnote.md' },
+      { from: '009_WD020_Third.labnote.md', to: '003_WD020_Third.labnote.md' },
+    ]);
+  });
+
+  it('gives duplicated numbers distinct sequential ones', () => {
+    expect(
+      planWorkflowRenumber(['001_WD020_Beta.labnote.md', '001_WD010_Alpha.labnote.md'])
+    ).toEqual([{ from: '001_WD020_Beta.labnote.md', to: '002_WD020_Beta.labnote.md' }]);
+  });
+
+  it('plans nothing when the folder is already sequential', () => {
+    expect(
+      planWorkflowRenumber(['001_WD010_A.labnote.md', '002_WD010_B.labnote.md'])
+    ).toEqual([]);
+  });
+
+  it('ignores the README and any non-standard file name', () => {
+    expect(
+      planWorkflowRenumber([
+        'README.labnote.md',
+        'notes.md',
+        'manual-notes.labnote.md',
+        '004_WD010_Only.labnote.md',
+      ])
+    ).toEqual([{ from: '004_WD010_Only.labnote.md', to: '001_WD010_Only.labnote.md' }]);
+  });
+
+  it('preserves a Korean name verbatim rather than re-sanitizing it', () => {
+    expect(planWorkflowRenumber(['003_WD010_실험_1.labnote.md'])).toEqual([
+      { from: '003_WD010_실험_1.labnote.md', to: '001_WD010_실험_1.labnote.md' },
+    ]);
+  });
+});
+
+describe('buildRenumberStagingName', () => {
+  it('stages under a name that is still a valid, parseable workflow file', () => {
+    const staged = buildRenumberStagingName(
+      { from: '002_WD010_A.labnote.md', to: '001_WD010_A.labnote.md' },
+      0
+    );
+    expect(staged).toBe('001_WD010_A_staging0.labnote.md');
+  });
+
+  it('keeps two files that swap numbers apart while staged', () => {
+    const renames = planWorkflowRenumber([
+      '002_WD010_A.labnote.md',
+      '002_WD020_B.labnote.md',
+      '001_WD030_C.labnote.md',
+    ]);
+    const staged = renames.map((r, i) => buildRenumberStagingName(r, i));
+    expect(new Set(staged).size).toBe(staged.length);
+    // No staging name collides with a name still on disk.
+    for (const name of staged) {
+      expect(renames.some(r => r.from === name)).toBe(false);
+    }
+  });
+});
+
+describe('collapseWorkflowRenames', () => {
+  it('collapses a staged two-hop rename into a single hop', () => {
+    expect(
+      collapseWorkflowRenames([
+        { from: '002_WD010_A.labnote.md', to: '001_WD010_A_staging0.labnote.md' },
+        { from: '001_WD010_A_staging0.labnote.md', to: '001_WD010_A.labnote.md' },
+      ])
+    ).toEqual([{ from: '002_WD010_A.labnote.md', to: '001_WD010_A.labnote.md' }]);
+  });
+
+  it('drops a rename that ends back at the original name', () => {
+    expect(
+      collapseWorkflowRenames([
+        { from: '001_WD010_A.labnote.md', to: '002_WD010_A.labnote.md' },
+        { from: '002_WD010_A.labnote.md', to: '001_WD010_A.labnote.md' },
+      ])
+    ).toEqual([]);
+  });
+});
+
+describe('reconcileWorkflowChecklist with staged renames', () => {
+  it('relinks to the final name, not the staging one', () => {
+    const readme = readmeWith([
+      '- [ ] [A](./002_WD010_A.labnote.md)',
+      '- [ ] [B](./001_WD020_B.labnote.md)',
+    ]);
+    // What the vault rename listener records for a two-file swap.
+    const res = reconcileWorkflowChecklist(readme, [
+      { from: '002_WD010_A.labnote.md', to: '001_WD010_A_staging0.labnote.md' },
+      { from: '001_WD020_B.labnote.md', to: '002_WD020_B_staging1.labnote.md' },
+      { from: '001_WD010_A_staging0.labnote.md', to: '001_WD010_A.labnote.md' },
+      { from: '002_WD020_B_staging1.labnote.md', to: '002_WD020_B.labnote.md' },
+    ]);
+    const order = parseWorkflowChecklistFromReadme(res.content).map(i => i.fileName);
+    expect(order).toEqual(['001_WD010_A.labnote.md', '002_WD020_B.labnote.md']);
   });
 });
 

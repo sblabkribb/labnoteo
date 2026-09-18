@@ -1,32 +1,55 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
-import { insertUnitOperationAtCursor } from '../commands/insertUnitOperation';
+import { insertUnitOperation } from '../commands/insertUnitOperation';
 import { MemFileSystem } from '../fs/memFileSystem';
 import type { EditTarget, LabnoteHost, NotifyKind } from '../host';
 
-/** Minimal test host: records notifications and captures inserted text. */
+/** A workflow note as `createWorkflowContent` scaffolds it, minus front matter. */
+const EMPTY_WORKFLOW = [
+  '## [WD010 Design]',
+  '',
+  '> desc',
+  '',
+  '## Related Unit Operations',
+  '',
+  '> Unit operations are appended here automatically.',
+  '',
+  '## Conclusions and Discussion',
+  '',
+  '',
+].join('\n');
+
+/**
+ * Minimal test host: records notifications and applies range edits to an
+ * in-memory document, so assertions can check *where* the block landed.
+ */
 function makeHost(opts: {
   targetPath?: string;
   fs?: MemFileSystem;
+  doc?: string;
 }): {
   host: LabnoteHost;
   notes: Array<{ kind: NotifyKind; message: string }>;
   inserted: string[];
+  doc: () => string;
 } {
   const notes: Array<{ kind: NotifyKind; message: string }> = [];
   const inserted: string[] = [];
+  let doc = opts.doc ?? '';
+
   const fs = opts.fs ?? new MemFileSystem();
 
   const target: EditTarget | undefined = opts.targetPath
     ? {
         path: opts.targetPath,
         async getText() {
-          return '';
+          return doc;
         },
-        async insertAtCursor(text: string) {
+        async insertAtCursor() {
+          throw new Error('unit operations must not be inserted at the cursor');
+        },
+        async replaceRange(start: number, end: number, text: string) {
           inserted.push(text);
-        },
-        async replaceRange() {
-          /* not used here */
+          doc = doc.slice(0, start) + text + doc.slice(end);
         },
       }
     : undefined;
@@ -63,16 +86,19 @@ function makeHost(opts: {
     },
   };
 
-  return { host, notes, inserted };
+  return { host, notes, inserted, doc: () => doc };
 }
 
 const VALID_WORKFLOW = '/vault/labnote/001_Exp/002_WD010_Design.labnote.md';
 
-describe('insertUnitOperationAtCursor', () => {
-  it('inserts a HW template at the cursor for a valid workflow path', async () => {
-    const { host, inserted, notes } = makeHost({ targetPath: VALID_WORKFLOW });
+describe('insertUnitOperation', () => {
+  it('inserts a HW template for a valid workflow path', async () => {
+    const { host, inserted, notes } = makeHost({
+      targetPath: VALID_WORKFLOW,
+      doc: EMPTY_WORKFLOW,
+    });
 
-    const ok = await insertUnitOperationAtCursor(host, {
+    const ok = await insertUnitOperation(host, {
       opId: 'UHW010',
       opName: 'Centrifugation',
       opDescription: 'spin down',
@@ -90,15 +116,59 @@ describe('insertUnitOperationAtCursor', () => {
     });
   });
 
+  it('places the block at the end of the unit-operations section', async () => {
+    const { host, doc } = makeHost({ targetPath: VALID_WORKFLOW, doc: EMPTY_WORKFLOW });
+
+    await insertUnitOperation(host, { opId: 'UHW010', opName: 'Spin', opType: 'hw' });
+
+    const text = doc();
+    expect(text.indexOf('### [UHW010 Spin]')).toBeGreaterThan(
+      text.indexOf('## Related Unit Operations')
+    );
+    expect(text.indexOf('### [UHW010 Spin]')).toBeLessThan(
+      text.indexOf('## Conclusions and Discussion')
+    );
+  });
+
+  it('appends after an existing block instead of at the cursor', async () => {
+    const { host, doc } = makeHost({ targetPath: VALID_WORKFLOW, doc: EMPTY_WORKFLOW });
+
+    await insertUnitOperation(host, { opId: 'UHW010', opName: 'First', opType: 'hw' });
+    await insertUnitOperation(host, { opId: 'UHW020', opName: 'Second', opType: 'hw' });
+
+    const text = doc();
+    expect(text.indexOf('### [UHW010 First]')).toBeLessThan(text.indexOf('### [UHW020 Second]'));
+    expect(text.indexOf('### [UHW020 Second]')).toBeLessThan(
+      text.indexOf('## Conclusions and Discussion')
+    );
+  });
+
+  it('falls back to the end of the document when the section is absent', async () => {
+    const { host, doc } = makeHost({ targetPath: VALID_WORKFLOW, doc: '# Freeform note\n' });
+
+    const ok = await insertUnitOperation(host, {
+      opId: 'UHW010',
+      opName: 'Spin',
+      opType: 'hw',
+    });
+
+    expect(ok).toBe(true);
+    expect(doc().indexOf('### [UHW010 Spin]')).toBeGreaterThan(doc().indexOf('# Freeform note'));
+  });
+
   it('reads the experimenter from the sibling README front matter', async () => {
     const fs = new MemFileSystem();
     await fs.write(
       '/vault/labnote/001_Exp/README.labnote.md',
       '---\nauthor: Dr. Kim\n---\n# Notes\n'
     );
-    const { host, inserted } = makeHost({ targetPath: VALID_WORKFLOW, fs });
+    const { host, inserted } = makeHost({
+      targetPath: VALID_WORKFLOW,
+      fs,
+      doc: EMPTY_WORKFLOW,
+    });
 
-    await insertUnitOperationAtCursor(host, {
+    await insertUnitOperation(host, {
       opId: 'USW010',
       opName: 'Alignment',
       opType: 'sw',
@@ -112,7 +182,7 @@ describe('insertUnitOperationAtCursor', () => {
   it('bails and warns when there is no active edit target', async () => {
     const { host, inserted, notes } = makeHost({});
 
-    const ok = await insertUnitOperationAtCursor(host, {
+    const ok = await insertUnitOperation(host, {
       opId: 'UHW010',
       opName: 'X',
       opType: 'hw',
@@ -128,7 +198,7 @@ describe('insertUnitOperationAtCursor', () => {
       targetPath: '/vault/labnote/001_Exp/README.labnote.md',
     });
 
-    const ok = await insertUnitOperationAtCursor(host, {
+    const ok = await insertUnitOperation(host, {
       opId: 'UHW010',
       opName: 'X',
       opType: 'hw',
@@ -142,7 +212,7 @@ describe('insertUnitOperationAtCursor', () => {
   it('errors when required op info is missing', async () => {
     const { host, inserted, notes } = makeHost({ targetPath: VALID_WORKFLOW });
 
-    const ok = await insertUnitOperationAtCursor(host, {
+    const ok = await insertUnitOperation(host, {
       opId: '',
       opName: '',
       opType: 'hw',

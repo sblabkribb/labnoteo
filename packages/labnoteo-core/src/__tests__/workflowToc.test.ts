@@ -3,6 +3,7 @@ import {
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
+  findUnitOpInsertOffset,
 } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
 
@@ -23,6 +24,44 @@ describe('buildUnitOpTocLine', () => {
     expect(buildUnitOpTocLine('UHW020', 'PCR (95C)')).toBe(
       '- [UHW020 PCR (95C)](#uhw020-pcr-95c)'
     );
+  });
+});
+
+describe('findUnitOpInsertOffset', () => {
+  const fresh = createWorkflowContent(
+    { id: 'WD010', name: 'Design', description: 'desc' },
+    'Dr. Kim'
+  );
+
+  it('points just before the heading that closes the section', () => {
+    const offset = findUnitOpInsertOffset(fresh);
+    expect(fresh.slice(offset)).toMatch(/^## Conclusions and Discussion/);
+  });
+
+  it('stays after existing blocks rather than stopping at their --- break', () => {
+    const withBlock = fresh.replace(
+      '## Conclusions and Discussion',
+      ['---', '', '### [UHW010 Spin]', '', '> first', '', '## Conclusions and Discussion'].join('\n')
+    );
+    const offset = findUnitOpInsertOffset(withBlock);
+    expect(offset).toBeGreaterThan(withBlock.indexOf('### [UHW010 Spin]'));
+    expect(withBlock.slice(offset)).toMatch(/^## Conclusions and Discussion/);
+  });
+
+  it('falls back to the end of the document when the section is missing', () => {
+    const md = '# Freeform note\n\nbody\n';
+    expect(findUnitOpInsertOffset(md)).toBe(md.length);
+  });
+
+  it('falls back to the end when the section is the last one', () => {
+    const md = '## Related Unit Operations\n\n> hint\n';
+    expect(findUnitOpInsertOffset(md)).toBe(md.length);
+  });
+
+  it('handles CRLF documents', () => {
+    const crlf = fresh.replace(/\n/g, '\r\n');
+    const offset = findUnitOpInsertOffset(crlf);
+    expect(crlf.slice(offset)).toMatch(/^## Conclusions and Discussion/);
   });
 });
 

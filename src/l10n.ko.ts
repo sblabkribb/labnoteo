@@ -13,6 +13,7 @@ const obsidianKo: Record<string, string> = {
   'Insert issue marker': '논의 이슈 마커 삽입',
   'Setup research automation': '연구노트 자동화 설정',
   'Create workflow': '워크플로 생성',
+  'Renumber workflows': '워크플로 번호 다시 매기기',
   'Insert workflow': '워크플로 삽입',
   'Insert unit operation': '유닛 오퍼레이션 삽입',
   'Insert date': '날짜 삽입',
@@ -53,6 +54,9 @@ const obsidianKo: Record<string, string> = {
 
   // Notices / results
   'Experiment created: {0}': '실험이 생성되었습니다: {0}',
+  'Workflow numbering is already sequential.': '워크플로 번호가 이미 순서대로입니다.',
+  'Renumber {0} workflow file(s) in {1}?': '{1}의 워크플로 파일 {0}개의 번호를 다시 매길까요?',
+  'Renumbered {0} workflow file(s).': '워크플로 파일 {0}개의 번호를 다시 매겼습니다.',
   'Experiment status changed: {0}': '실험 상태가 변경되었습니다: {0}',
   'Flagged for discussion. An issue opens on the next push.':
     '논의 표시를 설정했습니다. 다음 push 때 이슈가 생성됩니다.',

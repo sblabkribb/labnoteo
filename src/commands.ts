@@ -19,9 +19,10 @@ import type {
   InsertUnitOperationInput,
 } from '@labnoteo/core';
 import {
-  insertUnitOperationAtCursor,
+  insertUnitOperation,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
+  findUnitOpInsertOffset,
   EXPERIMENT_STATUSES,
   generateIssueMarkerId,
   isDiscussFlagged,
@@ -48,6 +49,8 @@ import {
   updateReadmeWorkflowSection,
   parseExperimenterFromReadme,
   reconcileWorkflowChecklist,
+  planWorkflowRenumber,
+  buildRenumberStagingName,
   type WorkflowRename,
 } from '@labnoteo/core/lib/workflowStructure';
 import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
@@ -395,22 +398,23 @@ export async function insertWorkflowLinkCommand(
 }
 
 /**
- * Insert a unit-operation block at the cursor, then rebuild the
- * `## Related Unit Operations` TOC so its entries follow the document order of
- * the actual `### [..]` headings. Finally, move the cursor/focus to the
- * just-inserted heading. Shared by the command and the workflow sidebar's
+ * Insert a unit-operation block at the end of the `## Related Unit Operations`
+ * section, then rebuild that section's TOC so its entries follow the document
+ * order of the actual `### [..]` headings. Finally, move the cursor/focus to
+ * the just-inserted heading. Shared by the command and the workflow sidebar's
  * context menu.
  */
 export async function insertUnitOpAndUpdateToc(
   host: LabnoteHost,
   input: InsertUnitOperationInput
 ): Promise<boolean> {
-  // Capture the cursor BEFORE inserting: the inserted block lands here, which
-  // lets us relocate the new heading after the whole-doc TOC rewrite.
+  // Resolve the insertion point BEFORE inserting: the block lands here, which
+  // lets us relocate the new heading after the whole-doc TOC rewrite. The same
+  // pure helper drives the insert itself, so both agree on the offset.
   const before = host.editTarget();
-  const cursorBefore = before?.getCursorOffset ? await before.getCursorOffset() : -1;
+  const insertOffset = before ? findUnitOpInsertOffset(await before.getText()) : -1;
 
-  const ok = await insertUnitOperationAtCursor(host, input);
+  const ok = await insertUnitOperation(host, input);
   if (!ok) return false;
 
   const target = host.editTarget();
@@ -422,8 +426,8 @@ export async function insertUnitOpAndUpdateToc(
     }
     // Whole-doc replaceRange resets the cursor, so explicitly move focus to the
     // inserted unit-operation heading in the final (rebuilt) text.
-    if (target.revealOffset && cursorBefore >= 0) {
-      const off = locateInsertedUnitOpHeading(md, cursorBefore, updated);
+    if (target.revealOffset && insertOffset >= 0) {
+      const off = locateInsertedUnitOpHeading(md, insertOffset, updated);
       if (off >= 0) await target.revealOffset(off);
     }
   }
@@ -468,11 +472,70 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
   });
 }
 
+/**
+ * Renumber an experiment's workflow files to a gap-free `001, 002, ...`
+ * sequence, in their current order.
+ *
+ * Ordering and the target names come from `planWorkflowRenumber`; this wiring
+ * only performs the renames. Files are moved in two passes — every file first
+ * to a staging name, then to its target — because two files may trade numbers
+ * and a direct rename would collide with a file that has not moved yet.
+ *
+ * The README checklist is intentionally NOT rewritten here: `renameFile` fires
+ * the vault 'rename' event that `registerWorkflowReadmeSync` already listens
+ * for, and its debounced flush reorders and relinks the checklist from the new
+ * `NNN` order. Both hops of each file are recorded, and
+ * `reconcileWorkflowChecklist` collapses them, so the link lands on the final
+ * name rather than the staging one.
+ */
+export async function renumberWorkflowsCommand(app: App, host: LabnoteHost): Promise<void> {
+  const labnoteDir = await resolveLabnoteDir(app, host);
+  if (!labnoteDir) return;
+
+  const renames = planWorkflowRenumber(await host.fs.list(labnoteDir));
+  if (renames.length === 0) {
+    host.notify('info', host.t('Workflow numbering is already sequential.'));
+    return;
+  }
+
+  const confirmed = await host.confirm(
+    host.t(
+      'Renumber {0} workflow file(s) in {1}?',
+      String(renames.length),
+      posix.basename(labnoteDir)
+    )
+  );
+  if (!confirmed) return;
+
+  const staged: WorkflowRename[] = renames.map((rename, index) => ({
+    from: buildRenumberStagingName(rename, index),
+    to: rename.to,
+  }));
+
+  const move = async (from: string, to: string): Promise<void> => {
+    const file = app.vault.getFileByPath(posix.join(labnoteDir, from));
+    if (file instanceof TFile) {
+      await app.fileManager.renameFile(file, posix.join(labnoteDir, to));
+    }
+  };
+
+  for (const [index, rename] of renames.entries()) {
+    await move(rename.from, staged[index].from);
+  }
+  for (const rename of staged) {
+    await move(rename.from, rename.to);
+  }
+
+  host.notify('info', host.t('Renumbered {0} workflow file(s).', String(renames.length)));
+}
+
 // === README auto-sync on native rename / delete ==============================
 //
-// Instead of custom rename/renumber/delete commands, we react to Obsidian's own
-// file-explorer rename/delete events (wired in main.ts) and keep the README
-// "Related Workflows" checklist — and, on delete, the sample tree — in sync.
+// Rather than mirror the file explorer with custom rename/delete commands, we
+// react to Obsidian's own rename/delete events (wired in main.ts) and keep the
+// README "Related Workflows" checklist — and, on delete, the sample tree — in
+// sync. `renumberWorkflowsCommand` rides on the same listeners: it only moves
+// files and lets the flush below reorder the checklist.
 // The pure domain logic lives in `@labnoteo/core`
 // (reconcileWorkflowChecklist / removeWorkflowFromReadme / removeSourcesForDocument);
 // these helpers sequence the Obsidian-side reads/writes.

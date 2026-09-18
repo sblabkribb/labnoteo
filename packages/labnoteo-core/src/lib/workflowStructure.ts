@@ -123,7 +123,7 @@ ${frontMatter}
 ## Related Unit Operations
 
 > Unit operations are appended here automatically.
-> Use F1 → "Labnote: Add Unit Operation" to add one.
+> Press Ctrl+P (Cmd+P on macOS) and run "Insert unit operation" to add one.
 
 ## Conclusions and Discussion
 
@@ -309,6 +309,93 @@ export interface ReconcileChecklistResult {
 }
 
 /**
+ * Collapse a sequence of renames into one hop per original name.
+ *
+ * Renames arrive as an ordered log (`a->b`, then `b->c`), because one user
+ * action can move a file more than once before the README sync flushes — the
+ * renumber command does exactly that, staging every file under a temporary
+ * name so two files can swap numbers without colliding. A naive
+ * `Map<from,to>` would then rewrite a README link to the intermediate name
+ * (`b`), so each hop is chained onto the entry that produced it, yielding
+ * `a->c`. Renames that cycle back to the original name drop out entirely.
+ */
+export function collapseWorkflowRenames(renames: readonly WorkflowRename[]): WorkflowRename[] {
+  // origin-of-current-name -> current name, so a later `b->c` can find that `b`
+  // originally came from `a`.
+  const originOf = new Map<string, string>();
+  const finalName = new Map<string, string>();
+
+  for (const { from, to } of renames) {
+    if (!from || !to) continue;
+    const origin = originOf.get(from) ?? from;
+    originOf.delete(from);
+    originOf.set(to, origin);
+    finalName.set(origin, to);
+  }
+
+  const collapsed: WorkflowRename[] = [];
+  for (const [from, to] of finalName) {
+    if (from !== to) collapsed.push({ from, to });
+  }
+  return collapsed;
+}
+
+/**
+ * Plan a gap-free renumbering of an experiment folder's workflow files.
+ *
+ * Files are ordered exactly like {@link reconcileWorkflowChecklist} sorts the
+ * README checklist (numeric `NNN`, ties broken by name) and then handed the
+ * sequence numbers `001, 002, ...` with no gaps. The `id` and name parts are
+ * carried over verbatim rather than rebuilt through
+ * {@link createWorkflowFileName}: the on-disk name is already sanitized, and
+ * re-sanitizing could alter a name this operation is supposed to leave alone.
+ *
+ * Entries that {@link parseWorkflowFileName} cannot decode (README, notes,
+ * manually named files) are ignored, and files that already carry their target
+ * number are omitted, so an already-sequential folder plans to no renames.
+ */
+export function planWorkflowRenumber(fileNames: readonly string[]): WorkflowRename[] {
+  const parsed = fileNames
+    .map(fileName => ({ fileName, parts: parseWorkflowFileName(fileName) }))
+    .filter((e): e is { fileName: string; parts: ParsedWorkflowFileName } => e.parts !== null);
+
+  parsed.sort((a, b) => {
+    const seqA = parseInt(a.parts.sequence, 10);
+    const seqB = parseInt(b.parts.sequence, 10);
+    if (seqA !== seqB) return seqA - seqB;
+    if (a.fileName !== b.fileName) return a.fileName < b.fileName ? -1 : 1;
+    return 0;
+  });
+
+  const renames: WorkflowRename[] = [];
+  parsed.forEach((entry, index) => {
+    const sequence = String(index + 1).padStart(3, '0');
+    if (sequence === entry.parts.sequence) return;
+    renames.push({
+      from: entry.fileName,
+      to: `${sequence}_${entry.parts.id}_${entry.parts.safeName}.labnote.md`,
+    });
+  });
+  return renames;
+}
+
+/**
+ * Build the intermediate name a file is parked under during a renumber.
+ *
+ * Two files can trade numbers (`001<->002`), so renaming straight to the target
+ * would collide with a file that has not moved yet. Every file is therefore
+ * staged first. The temporary name keeps the `NNN_ID_` shape so it still passes
+ * `isValidWorkflowPath` and `parseWorkflowFileName` — the vault rename listener
+ * only records events for valid workflow paths, and dropping one would break
+ * the chain {@link collapseWorkflowRenames} needs to relink the README.
+ */
+export function buildRenumberStagingName(rename: WorkflowRename, index: number): string {
+  const parts = parseWorkflowFileName(rename.to);
+  if (!parts) return rename.to;
+  return `${parts.sequence}_${parts.id}_${parts.safeName}_staging${index}.labnote.md`;
+}
+
+/**
  * Reorder the README "Related Workflows" checklist to match the on-disk `NNN`
  * order after workflow files were renamed in the file explorer.
  *
@@ -336,9 +423,11 @@ export function reconcileWorkflowChecklist(
   }
 
   // Remap each link by basename (a checklist link may carry a `./` or subpath).
+  // Chained hops are collapsed first so a file that moved twice before this
+  // flush (`a->b->c`) relinks to `c`, not to the intermediate `b`.
   const remap = new Map<string, string>();
-  for (const r of renames) {
-    if (r.from && r.to) remap.set(r.from, r.to);
+  for (const r of collapseWorkflowRenames(renames)) {
+    remap.set(r.from, r.to);
   }
   const baseName = (fileName: string): string => fileName.split('/').pop() ?? fileName;
   const remapped = items.map(item => {

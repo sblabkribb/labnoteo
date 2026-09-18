@@ -90,6 +90,47 @@ export function appendUnitOpToWorkflowToc(
 }
 
 /**
+ * Character offset at which a new unit-op block belongs: the end of the
+ * `## Related Unit Operations` section, i.e. immediately before the `## `
+ * heading that follows it (`## Conclusions and Discussion` in the template).
+ *
+ * Unlike the TOC helpers above, the scan deliberately does NOT stop at a `---`
+ * line. Every unit-op block starts with one, so the first `---` marks where the
+ * *entry list* ends and the blocks begin — stopping there would put each new
+ * block above the existing ones instead of after them.
+ *
+ * Offsets are computed against the input string and no text is rewritten, so
+ * the caller can splice the block in with a single surgical range edit that
+ * leaves the rest of the document (and its line endings) untouched. Returns
+ * `md.length` — append at the end of the document — when the section or its
+ * closing heading is missing, which also covers a not-yet-templated note.
+ */
+export function findUnitOpInsertOffset(md: string): number {
+  const lineStarts = [0];
+  for (let i = 0; i < md.length; i++) {
+    if (md[i] === '\n') lineStarts.push(i + 1);
+  }
+  const lineAt = (i: number): string => {
+    const end = i + 1 < lineStarts.length ? lineStarts[i + 1] : md.length;
+    return md.slice(lineStarts[i], end).replace(/\r?\n$/, '');
+  };
+
+  let headingIdx = -1;
+  for (let i = 0; i < lineStarts.length; i++) {
+    if (lineAt(i).trim() === '## Related Unit Operations') {
+      headingIdx = i;
+      break;
+    }
+  }
+  if (headingIdx === -1) return md.length;
+
+  for (let i = headingIdx + 1; i < lineStarts.length; i++) {
+    if (/^##\s/.test(lineAt(i))) return lineStarts[i];
+  }
+  return md.length;
+}
+
+/**
  * Regenerate the entire `## Related Unit Operations` TOC so its entries match
  * the **document order** of the `### [opId opName]` unit-op headings.
  *
