@@ -160,6 +160,12 @@ describe('.gitignore snippet', () => {
     expect(lines).toContain('!.claude/skills/');
     expect(lines).toContain('!.agents/skills/');
   });
+
+  it('excludes plugin settings, which hold the LLM API key in plain text', () => {
+    // `.obsidian` stays under version control for the shared settings, so the
+    // one file carrying a secret has to be named explicitly.
+    expect(lines).toContain('.obsidian/plugins/*/data.json');
+  });
 });
 
 describe('findStaleIgnoreLines', () => {

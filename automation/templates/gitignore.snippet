@@ -17,6 +17,9 @@ instrument-data/
 # === Obsidian: 개인 작업 상태만 제외 (공유 설정은 버전관리 유지, .obsidian 전체 제외 금지) ===
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+# 플러그인 설정에는 LLM API 키가 평문으로 들어갑니다. 공유 볼트에서 이 파일이
+# 커밋되면 키가 팀 전체와 원격 저장소로 새어 나갑니다.
+.obsidian/plugins/*/data.json
 
 # === AI 에이전트 (상태는 제외, 스킬은 팀 공유 자산이므로 버전관리) ===
 # `.agents/`처럼 폴더를 통째로 제외하면 Git이 내부로 내려가지 않아 아래 `!` 예외가
