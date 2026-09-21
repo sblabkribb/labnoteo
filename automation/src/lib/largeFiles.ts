@@ -17,9 +17,9 @@
  * with `node` — no `npm install` in the vault. The classification is a pure
  * function (`classifyFileSize`) kept separate for unit testing.
  */
-import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import * as path from 'node:path';
+import { gitPaths } from './git';
 
 /** Size thresholds in bytes. */
 export const WARN_THRESHOLD_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -63,17 +63,12 @@ interface ScannedFile {
  * `node_modules`) when Git is unavailable or this is not a repository.
  */
 function collectFiles(stagedOnly: boolean): string[] {
-  const git = (args: string[]): string[] => {
-    const out = execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    return out.split('\n').map(line => line.trim()).filter(Boolean);
-  };
-
   try {
     if (stagedOnly) {
-      return unique(git(['diff', '--cached', '--name-only', '--diff-filter=ACM']));
+      return unique(gitPaths(['diff', '--cached', '--name-only', '--diff-filter=ACM']));
     }
-    const tracked = git(['ls-files']);
-    const staged = git(['diff', '--cached', '--name-only', '--diff-filter=ACM']);
+    const tracked = gitPaths(['ls-files']);
+    const staged = gitPaths(['diff', '--cached', '--name-only', '--diff-filter=ACM']);
     return unique([...tracked, ...staged]);
   } catch {
     // Not a git repo (or git missing): walk the working tree instead.
@@ -117,7 +112,10 @@ function scan(files: string[]): ScannedFile[] {
       if (!st.isFile()) continue;
       bytes = st.size;
     } catch {
-      continue; // deleted/unreadable — nothing to guard
+      // A listed path that cannot be stat'd is skipped, but never in silence:
+      // a size guard that quietly checks nothing is worse than a noisy one.
+      console.warn(`⚠️  크기를 확인할 수 없어 건너뜁니다: ${file}`);
+      continue;
     }
     scanned.push({ file, bytes, cls: classifyFileSize(bytes) });
   }
