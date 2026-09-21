@@ -21,11 +21,14 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 ## Requirements
 
 - Obsidian `1.5.0` or later (latest version recommended).
+- For the GitHub automation: [git](https://git-scm.com/downloads) and a GitHub account. (Not needed if you only take notes.)
 - Node.js `22+` for development.
 
 ## Installation
 
-Follow these steps top to bottom. Steps 1–5 are enough to start taking notes; steps 6–7 are only needed for the GitHub automation.
+Follow these steps top to bottom. Steps 1–5 are enough to start taking notes; steps 6–8 are only needed for the GitHub automation.
+
+**Prerequisites (for automation)** — install **git** and create a **GitHub account** first. On Windows, install [Git for Windows](https://git-scm.com/download/win); it also enables Claude Code's Bash tool. Verify with `git --version`.
 
 1. **Install Obsidian** from [obsidian.md/download](https://obsidian.md/download) (Windows/macOS/Linux).
 2. **Create a vault** — a single folder is your vault. This folder later becomes your Git repository, so put it somewhere you control.
@@ -37,17 +40,26 @@ Follow these steps top to bottom. Steps 1–5 are enough to start taking notes; 
    4. If needed, refresh Settings → Community plugins and confirm **Labnote Assistant** is enabled.
 5. **Verify** — run **`Create experiment`** from the command palette; a note opens. That is all you need for note-taking.
 6. **(Automation) Run `Setup research automation`** — it writes `.labnoteo/`, `.github/`, `.gitignore`, `AGENTS.md`, `CLAUDE.md`, `QUICKSTART.md`, and `wiki-staging/` into the vault.
-7. **(Automation) Connect Git and push** — after step 6 so `.gitignore` exists first:
+7. **(Automation) Connect an AI agent (Copilot)** — after step 6 so `AGENTS.md` exists. The simplest path on Windows is opencode, which Copilot downloads and manages for you. Do this before step 8 to let the agent make the first commit. See the **[Copilot agents guide](docs/COPILOT.md)** (Korean). Skip it if you only use manual git.
+8. **(Automation) Create the repository and push** — after step 6 so `.gitignore` exists first:
+   1. Create an **empty private** repository at [github.com/new](https://github.com/new) — do **not** add a README, `.gitignore`, or license, or the first push will be rejected. Copy its HTTPS URL.
+   2. **Path A (recommended):** tell the connected agent, e.g. *"Initialize this folder as a git repo, set the hook, then commit everything and push to `<URL>`."* It follows `AGENTS.md` (sets `core.hooksPath`, no `--no-verify`).
+   3. **Path B (manual git):**
 
-   ```sh
-   git init
-   git config core.hooksPath .labnoteo/hooks   # enable the pre-commit hook BEFORE the first push
-   # macOS/Linux only: chmod +x .labnoteo/hooks/pre-commit
-   ```
+      ```sh
+      git init
+      git config core.hooksPath .labnoteo/hooks   # enable the pre-commit hook BEFORE the first commit
+      # macOS/Linux only: chmod +x .labnoteo/hooks/pre-commit
+      git add .
+      git commit -m "chore: initial vault"
+      git remote add origin https://github.com/<user>/<repo>.git
+      git branch -M main
+      git push -u origin main
+      ```
 
-   Then connect a **private** GitHub repository and push. Keep it private because it holds research data.
+   Both paths may pop up a GitHub sign-in (Git Credential Manager) on the first push — that is normal.
 
-**Why this order** — `.gitignore` (step 6) must precede the first push (step 7): once oversized raw data lands in Git history, nothing short of a history rewrite takes it back. The hook must be enabled before the first push for the same reason.
+**Why this order** — `.gitignore` (step 6) must precede the first push (step 8): once oversized raw data lands in Git history, nothing short of a history rewrite takes it back. The hook must be enabled before the first commit for the same reason, and the agent (step 7) connects after `AGENTS.md` exists but before the first commit so it can make that commit.
 
 <details>
 <summary><b>Manual install</b> (no auto-update)</summary>
@@ -58,8 +70,6 @@ Follow these steps top to bottom. Steps 1–5 are enough to start taking notes; 
 
 Obsidian reads the release's `versions.json` from the repository, so there is no need to copy it into a vault.
 </details>
-
-To let an AI agent handle commits, Issue signals, and Wiki drafts, connect Copilot's agent mode — the simplest path on Windows is opencode, which Copilot downloads and manages for you. See the **[Copilot agents guide](docs/COPILOT.md)** (Korean).
 
 ## Commands
 

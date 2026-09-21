@@ -27,16 +27,18 @@
 ## 요구 사항
 
 - Obsidian `1.5.0` 이상 (최신 버전 권장).
+- GitHub 자동화를 쓸 때: [git](https://git-scm.com/downloads)과 GitHub 계정. (노트만 쓸 거라면 불필요.)
 - 개발 시 Node.js `22+`.
 
 ## 설치
 
-Obsidian 설치부터 커뮤니티 플러그인·자동화·첫 push까지 단계별 안내는
-**[설치 가이드(docs/INSTALL.md)](docs/INSTALL.md)** 에 있습니다. 요약하면:
+Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·자동화·첫 push까지 단계별
+안내는 **[설치 가이드(docs/INSTALL.md)](docs/INSTALL.md)** 에 있습니다. 요약하면:
 
-1. Obsidian 설치 → 보관함 만들기 → 커뮤니티 플러그인 켜기.
-2. **BRAT**로 이 플러그인(`sblabkribb/labnoteo`)을 설치·활성화.
-3. (자동화를 쓸 때만) *연구노트 자동화 설정* 실행 → git 훅 활성화 → private GitHub 저장소에 첫 push.
+1. (자동화용) git 설치 + GitHub 계정 준비.
+2. Obsidian 설치 → 보관함 만들기 → 커뮤니티 플러그인 켜기.
+3. **BRAT**로 이 플러그인(`sblabkribb/labnoteo`)을 설치·활성화.
+4. (자동화를 쓸 때만) *연구노트 자동화 설정* 실행 → (선택) Copilot 에이전트 연결 → 빈 private GitHub 저장소를 만들고 첫 커밋·push(Copilot에게 맡기거나 수동 git).
 
 ## 주요 명령어
 

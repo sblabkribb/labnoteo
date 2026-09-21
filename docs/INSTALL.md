@@ -8,13 +8,33 @@ Obsidian을 처음 깔 때부터 첫 push까지 **위에서 아래로 한 번만
 필요합니다.
 
 > **왜 이 순서인가** — 세 가지 이유가 순서를 강제합니다.
-> - **`.gitignore`(6단계)가 첫 push(7단계)보다 앞**: 대용량 원시데이터가 Git 이력에
+> - **`.gitignore`(6단계)가 첫 push(8단계)보다 앞**: 대용량 원시데이터가 Git 이력에
 >   한 번 박히면 이력 rewrite 말고는 되돌릴 방법이 없습니다. `.gitignore`는 *연구노트
 >   자동화 설정*이 만들므로 git 연결을 그 뒤에 둡니다.
-> - **훅 활성화가 첫 push보다 앞**(7단계 안에서): 훅 없이 첫 커밋을 만들면 같은 사고가
->   납니다.
-> - **AI 에이전트 연결(8단계)이 자동화 설정(6단계)보다 뒤**: Agent Chat이 보관함 루트
->   `AGENTS.md`를 지시문으로 읽으므로, 규칙 파일이 생긴 뒤에 연결해야 처음부터 적용됩니다.
+> - **훅 활성화가 첫 push(8단계)보다 앞**: 훅 없이 첫 커밋을 만들면 같은 사고가 납니다.
+> - **AI 에이전트 연결(7단계)이 자동화 설정(6단계)보다 뒤·첫 push(8단계)보다 앞**: Agent
+>   Chat이 보관함 루트 `AGENTS.md`를 지시문으로 읽으므로 규칙 파일이 생긴 뒤에 연결하고,
+>   그래야 첫 커밋부터 에이전트에게 맡길 수 있습니다.
+
+---
+
+## 사전 준비
+
+Obsidian 외에 **git**과 **GitHub 계정**이 필요합니다. GitHub 자동화(6단계 이후)를 쓰지
+않고 노트만 쓸 거라면 건너뛰어도 됩니다.
+
+- **git 설치** — 커밋·push의 기반이고, AI 에이전트도 이 git으로 커밋합니다.
+  - Windows: [git-scm.com/download/win](https://git-scm.com/download/win)에서 **Git for
+    Windows**를 설치합니다. 이것이 있어야 Claude Code의 Bash 툴도 동작합니다(없으면
+    Claude Code는 PowerShell로 대체).
+  - macOS: 터미널에서 `git --version`을 실행하면 미설치 시 설치를 안내합니다(또는
+    Homebrew `brew install git`).
+  - Linux: 배포판 패키지 매니저(`apt install git`, `dnf install git` 등).
+- **GitHub 계정** — [github.com](https://github.com)에서 가입합니다. 저장소는 8단계에서
+  만듭니다.
+
+**✅ 확인** — 터미널(Windows는 PowerShell 또는 Git Bash)에서 `git --version`이 버전
+번호를 출력합니다.
 
 ---
 
@@ -116,15 +136,51 @@ GitHub 자동화가 필요 없다면 [QUICKSTART](https://github.com/sblabkribb/
 `QUICKSTART.md`가 생겨 있습니다. (`.`으로 시작하는 폴더는 Obsidian 탐색기에는
 보이지 않습니다.)
 
-## 7. Git 연결과 첫 push
+## 7. AI 에이전트 연결 (Copilot)
+
+커밋·이슈·Wiki 초안을 말로 시키려면 Copilot 플러그인과 코딩 에이전트를 연결합니다.
+**8단계에서 첫 커밋부터 에이전트에게 맡기려면 여기서 먼저 연결**해 두세요(수동 git만
+쓸 거라면 건너뛰어도 됩니다). Windows에서 가장 간단한 경로는 Copilot이 직접 내려받아
+관리하는 **opencode**입니다. 6단계에서 만든 `AGENTS.md`가 있어야 규칙이 처음부터
+적용되므로 자동화 설정 뒤에 연결합니다.
+
+전체 절차와 Claude Code·Codex 연결, 모델 설정은 [Copilot 에이전트 가이드](./COPILOT.md)를
+보세요.
+
+**✅ 확인** — Copilot 설정 → `Basic → Agents`에서 에이전트 상태가 **Ready**이고,
+`Default backend`가 지정돼 있습니다.
+
+## 8. GitHub 저장소 개설 + 첫 커밋·push
 
 **반드시 6번을 먼저** 끝내세요. `.gitignore`가 있어야 대용량 데이터가 이력에 박히지
-않습니다. 보관함 루트에서 순서대로 실행합니다.
+않습니다.
+
+### 8-1. 빈 private 저장소 만들기
+
+1. [github.com/new](https://github.com/new)에서 저장소를 만듭니다. 연구 데이터가 있으므로
+   반드시 **Private**를 고르세요(공개는 fork PR을 통한 워크플로 악용 위험도 있습니다).
+2. **"Add a README file", ".gitignore", "license"는 모두 체크하지 마세요.** 원격에 커밋이
+   생기면 첫 push가 거부되어 pull/rebase가 필요해집니다 — 빈 저장소여야 합니다.
+3. 만들어진 저장소의 **HTTPS URL**(`https://github.com/<계정>/<저장소>.git`)을 복사합니다.
+
+### 8-2. 경로 A — Copilot에게 맡기기 (권장)
+
+7단계에서 에이전트를 연결했다면, Agent Chat에 이렇게 말하면 됩니다:
+
+> "이 폴더를 git 저장소로 초기화하고 훅을 설정한 뒤, 전부 커밋하고
+> `https://github.com/<계정>/<저장소>.git` 에 올려줘."
+
+에이전트는 보관함의 `AGENTS.md` 규칙에 따라 `git config core.hooksPath .labnoteo/hooks`를
+먼저 실행하고, 대용량 파일 검사를 통과한 뒤 `--no-verify` 없이 커밋·push합니다.
+
+### 8-3. 경로 B — 수동 git
+
+보관함 루트에서 순서대로 실행합니다. **훅 활성화가 첫 커밋보다 앞**입니다.
 
 ```powershell
 # PowerShell / bash 공통
 git init
-git config core.hooksPath .labnoteo/hooks   # ← push 전에 반드시. 대용량 파일 커밋 차단 훅
+git config core.hooksPath .labnoteo/hooks   # ← 커밋 전에 반드시. 대용량 파일 차단 훅
 ```
 
 macOS/Linux는 훅에 실행 권한을 한 번 부여합니다(Windows는 불필요):
@@ -132,9 +188,6 @@ macOS/Linux는 훅에 실행 권한을 한 번 부여합니다(Windows는 불필
 ```bash
 chmod +x .labnoteo/hooks/pre-commit
 ```
-
-그다음 **private** GitHub 저장소를 만들어 연결하고 push합니다. 연구 데이터가 있으므로
-공개 저장소는 피하세요(공개는 fork PR을 통한 워크플로 악용 위험도 있습니다).
 
 ```powershell
 git add .
@@ -144,21 +197,17 @@ git branch -M main
 git push -u origin main
 ```
 
+> 두 경로 모두 **첫 push에서 GitHub 로그인 창**(Git Credential Manager 팝업)이 한 번 뜰 수
+> 있습니다 — 정상이며, 로그인하면 이후에는 다시 묻지 않습니다.
+
 **✅ 확인** — GitHub 저장소에 파일이 올라가고, **Actions 탭**에 `validate` 실행 기록이
 보입니다(`labnote/` 아래 파일이 포함된 push여야 워크플로가 돕니다).
-
-## 8. (선택) AI 에이전트 연결
-
-커밋·이슈·Wiki 초안을 말로 시키려면 Copilot 플러그인과 코딩 에이전트를 연결합니다.
-Windows에서 가장 간단한 경로는 Copilot이 직접 내려받아 관리하는 **opencode**입니다.
-전체 절차와 Claude Code·Codex 연결, 모델 설정은 [Copilot 에이전트 가이드](./COPILOT.md)를
-보세요.
 
 ## 9. (선택) LLM 제공자 설정
 
 Obsidian *안에서* 방법 초안·결과 요약을 하려면 설정 → **Labnote Assistant** →
 **AI 프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI 호환`을 고르고 엔드포인트·모델명을
-채웁니다. 기본값 `Disabled`에서는 AI 명령이 동작하지 않습니다. 이 층은 8번의 Copilot
+채웁니다. 기본값 `Disabled`에서는 AI 명령이 동작하지 않습니다. 이 층은 7번의 Copilot
 에이전트와 별개입니다 — 층 구분은 [Copilot 가이드의 모델 설정](./COPILOT.md#copilot-llm-설정)을
 참고하세요.
 
