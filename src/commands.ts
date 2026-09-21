@@ -126,10 +126,9 @@ export async function changeExperimentStatusCommand(app: App, host: LabnoteHost)
     return;
   }
 
-  // `parseFrontMatterYaml` requires LF-normalised text (a bare `\n` after the
-  // opening `---`); normalise CRLF so Windows-authored notes parse correctly.
-  const original = (await host.fs.read(readmePath)).replace(/\r\n/g, '\n');
-  const { frontMatter, body } = parseFrontMatterYaml(original);
+  const parsed = await readNoteForFrontMatterEdit(host, readmePath);
+  if (!parsed) return;
+  const { frontMatter, body } = parsed;
 
   const current = typeof frontMatter.status === 'string' ? frontMatter.status : undefined;
   const chosen = await host.pick(
@@ -178,6 +177,40 @@ export function insertIssueMarkerCommand(editor: Editor): void {
   editor.replaceSelection(renderIssueMarker({ id, title }));
 }
 
+/**
+ * Read an experiment README for a front-matter edit, refusing to continue when
+ * the YAML cannot be parsed.
+ *
+ * Both callers re-serialize the parsed front matter through {@link renderNote}.
+ * A failed parse yields an empty object, so writing it back replaced the whole
+ * block with the single field the command sets and erased `title`, `author`,
+ * `created_date` and everything else. One unquoted colon in a value
+ * (`title: EXP: 3rd try`) is enough to break the parse, which makes this a
+ * realistic way to lose the metadata of the note that is the single source of
+ * truth. Leave the note alone and say which line to fix instead.
+ */
+async function readNoteForFrontMatterEdit(
+  host: LabnoteHost,
+  readmePath: string
+): Promise<{ frontMatter: Record<string, unknown>; body: string } | undefined> {
+  // `parseFrontMatterYaml` requires LF-normalised text (a bare `\n` after the
+  // opening `---`); normalise CRLF so Windows-authored notes parse correctly.
+  const original = (await host.fs.read(readmePath)).replace(/\r\n/g, '\n');
+  const { frontMatter, body, parseError } = parseFrontMatterYaml(original);
+  if (parseError) {
+    host.notify(
+      'warn',
+      host.t(
+        'Front matter of this note could not be read, so it was left unchanged. ' +
+          'Fix the YAML and try again: {0}',
+        parseError
+      )
+    );
+    return undefined;
+  }
+  return { frontMatter, body };
+}
+
 /** Re-emit a note from front matter plus an untouched body. */
 function renderNote(frontMatter: Record<string, unknown>, body: string): string {
   const fmBlock = Object.entries(frontMatter)
@@ -205,9 +238,9 @@ export async function toggleDiscussionFlagCommand(app: App, host: LabnoteHost): 
     return;
   }
 
-  // As in the status command: `parseFrontMatterYaml` needs LF-normalised text.
-  const original = (await host.fs.read(readmePath)).replace(/\r\n/g, '\n');
-  const { frontMatter, body } = parseFrontMatterYaml(original);
+  const parsed = await readNoteForFrontMatterEdit(host, readmePath);
+  if (!parsed) return;
+  const { frontMatter, body } = parsed;
 
   const next = !isDiscussFlagged(frontMatter);
   await writeNoteThroughVault(

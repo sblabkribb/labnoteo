@@ -39,6 +39,44 @@ describe('parseFrontMatterYaml', () => {
     expect(frontMatter).toEqual({});
     expect(body).toContain('a: 1');
   });
+
+  // `parseError` exists because an empty `frontMatter` is ambiguous: it means
+  // both "this note has no fields" and "this block is broken". Callers that
+  // re-serialize the result were erasing every field in the note for the
+  // second case, so the two have to be distinguishable.
+  describe('parseError', () => {
+    it('reports an unquoted colon, which is the realistic way to break a block', () => {
+      const { frontMatter, parseError } = parseFrontMatterYaml(
+        '---\ntitle: EXP: 3rd try\nauthor: Kim\n---\nbody\n'
+      );
+      expect(parseError).toBeTruthy();
+      expect(frontMatter).toEqual({});
+    });
+
+    it('reports a block that parses but is not a mapping', () => {
+      // Valid YAML, no fields to read — re-serializing would drop the text.
+      expect(parseFrontMatterYaml('---\njust a string\n---\nbody\n').parseError).toBeTruthy();
+      expect(parseFrontMatterYaml('---\n- a\n- b\n---\nbody\n').parseError).toBeTruthy();
+    });
+
+    it('stays unset for a note with no front matter at all', () => {
+      // Not an error: most notes in a vault legitimately have no block.
+      expect(parseFrontMatterYaml('# Just a heading\n').parseError).toBeUndefined();
+    });
+
+    it('stays unset for an empty block', () => {
+      expect(parseFrontMatterYaml('---\n---\nbody\n').parseError).toBeUndefined();
+    });
+
+    it('stays unset for a block that parses cleanly', () => {
+      expect(parseFrontMatterYaml('---\ntitle: X\n---\nbody\n').parseError).toBeUndefined();
+    });
+
+    it('still returns the body so the note can be rendered', () => {
+      const { body } = parseFrontMatterYaml('---\ntitle: EXP: 3rd try\n---\nbody text\n');
+      expect(body).toBe('body text\n');
+    });
+  });
 });
 
 describe('serializeFrontMatterEntry', () => {

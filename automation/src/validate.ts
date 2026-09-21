@@ -40,6 +40,8 @@ export interface ValidatedNote {
    * marker can never pass validation yet be ignored by the sync, or vice versa.
    */
   sources: MarkerSource[];
+  /** Why the front matter could not be read, when it could not be. */
+  parseError?: string;
 }
 
 /**
@@ -60,6 +62,20 @@ export function validateExperiments(notes: ValidatedNote[]): string[] {
   const idOwners = new Map<string, string[]>();
 
   for (const note of notes) {
+    // Check this BEFORE the `experiment_type` filter. A broken block parses as
+    // "no fields", so the filter below used to drop the note from validation
+    // entirely: an invalid `status` right next to a stray colon went green,
+    // and the researcher got a passing check on a note nothing had inspected.
+    // Markers still get checked — they live in the body, not the block.
+    if (note.parseError) {
+      errors.push(
+        `${note.path}: front matter could not be parsed, so no field could be ` +
+          `checked (${note.parseError}).`
+      );
+      errors.push(...validateMarkers(note));
+      continue;
+    }
+
     if (readStringField(note.frontMatter, 'experiment_type') !== 'labnote') continue;
 
     const status = readStringField(note.frontMatter, 'status');
@@ -136,14 +152,15 @@ function validateMarkers(note: ValidatedNote): string[] {
 function loadNotes(): ValidatedNote[] {
   return findExperimentReadmes().map(path => {
     let frontMatter: Record<string, unknown> = {};
+    let parseError: string | undefined;
     try {
       const raw = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-      frontMatter = parseFrontMatterYaml(raw).frontMatter;
-    } catch {
-      // Unreadable file: surfaced as a missing-status error downstream.
+      ({ frontMatter, parseError } = parseFrontMatterYaml(raw));
+    } catch (err) {
+      parseError = err instanceof Error ? err.message : String(err);
     }
     const dir = path.slice(0, -(README_NAME.length + 1));
-    return { path, frontMatter, sources: readMarkerSources(dir) };
+    return { path, frontMatter, sources: readMarkerSources(dir), parseError };
   });
 }
 

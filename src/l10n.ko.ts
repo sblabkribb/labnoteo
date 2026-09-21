@@ -62,6 +62,8 @@ const obsidianKo: Record<string, string> = {
     '논의 표시를 설정했습니다. 다음 push 때 이슈가 생성됩니다.',
   'Discussion flag cleared. Any issue already opened stays open.':
     '논의 표시를 해제했습니다. 이미 생성된 이슈는 닫히지 않습니다.',
+  'Front matter of this note could not be read, so it was left unchanged. Fix the YAML and try again: {0}':
+    '이 노트의 front matter를 읽을 수 없어 변경하지 않았습니다. YAML을 고친 뒤 다시 시도하세요: {0}',
   'Overwrite {0}?': '{0} 파일을 덮어쓰시겠습니까?',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run `git config core.hooksPath {6}`).':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 `git config core.hooksPath {6}`을 실행하세요.',

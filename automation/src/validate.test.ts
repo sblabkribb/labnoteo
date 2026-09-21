@@ -35,6 +35,37 @@ describe('validateExperiments', () => {
     expect(errors[0]).toContain('invalid `status: done`');
   });
 
+  // A broken front-matter block parses as "no fields", so it used to slip
+  // through the `experiment_type: labnote` filter and leave the note
+  // uninspected — the check went green on a note nothing had validated.
+  describe('unparseable front matter', () => {
+    const broken = (path: string, body = ''): ValidatedNote => ({
+      path,
+      frontMatter: {},
+      sources: [{ path, body, bodyLineOffset: 0 }],
+      parseError: 'bad indentation of a mapping entry',
+    });
+
+    it('reports the note instead of silently skipping it', () => {
+      const errors = validateExperiments([broken('labnote/001_A/README.labnote.md')]);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('front matter could not be parsed');
+      expect(errors[0]).toContain('labnote/001_A/README.labnote.md');
+      expect(errors[0]).toContain('bad indentation of a mapping entry');
+    });
+
+    it('does not also report a missing status, which would be misleading', () => {
+      // The status may well be there; it just could not be read.
+      const errors = validateExperiments([broken('a')]);
+      expect(errors.some(e => e.includes('missing required `status`'))).toBe(false);
+    });
+
+    it('still validates markers, which live in the body not the block', () => {
+      const errors = validateExperiments([broken('a', '@issue;;no id here\n')]);
+      expect(errors.some(e => e.includes('malformed `@issue` marker'))).toBe(true);
+    });
+  });
+
   it('detects duplicate ids across notes', () => {
     const errors = validateExperiments([
       note('a', { status: 'completed', id: 'EXP-001' }),
