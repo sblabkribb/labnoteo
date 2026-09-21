@@ -69,11 +69,39 @@ describe('parseIssueMarkers', () => {
     ]);
   });
 
-  it('reports a bare keyword and an ID with no topic sentence', () => {
-    expect(parseIssueMarkers('@issue').malformed[0].reason).toBe('missing-id');
+  it('reports an ID with no topic sentence', () => {
     expect(parseIssueMarkers('@issue;ISS-a1;').malformed[0].reason).toBe('missing-title');
     expect(parseIssueMarkers('@issue;ISS-a1;   ').malformed[0].reason).toBe('missing-title');
     expect(parseIssueMarkers('@issue;ISS-a1').malformed[0].reason).toBe('missing-title');
+  });
+
+  // A delimiter after the keyword is what makes a line a marker candidate.
+  // Without that rule the keyword alone counted as a malformed marker, and
+  // since `validate` fails the push on malformed markers, writing about the
+  // feature in a note was enough to turn CI red. `AGENTS.md` documents the
+  // syntax, so researchers do write the word.
+  describe('the keyword in prose', () => {
+    it('ignores a bare keyword used as a word', () => {
+      const scan = parseIssueMarkers('다음 단계는 @issue 마커 문법을 참고하세요.');
+      expect(scan.markers).toEqual([]);
+      expect(scan.malformed).toEqual([]);
+    });
+
+    it('ignores a keyword at end of line', () => {
+      expect(parseIssueMarkers('@issue')).toEqual({ markers: [], malformed: [] });
+    });
+
+    it('still reports a delimited marker whose ID is missing', () => {
+      // The delimiter shows intent, so this stays a typo worth failing on.
+      expect(parseIssueMarkers('@issue;수율이 재현되지 않음').malformed[0].reason).toBe(
+        'missing-id'
+      );
+    });
+
+    it('finds a real marker later on a line that mentions the keyword first', () => {
+      const { markers } = parseIssueMarkers('@issue 문법 참고. @issue;ISS-a1;진짜 논의');
+      expect(markers).toEqual([{ id: 'ISS-a1', title: '진짜 논의', line: 1 }]);
+    });
   });
 
   it('returns nothing for a note with no markers', () => {

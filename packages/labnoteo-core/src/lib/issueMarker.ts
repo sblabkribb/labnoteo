@@ -61,6 +61,23 @@ export interface IssueMarkerScan {
  */
 const MARKER_RE = /^@issue[;:]([A-Za-z0-9-]+)(?:[;:](.*))?$/i;
 
+/**
+ * Start of a marker CANDIDATE: the keyword immediately followed by a delimiter.
+ *
+ * The delimiter is what separates a marker from prose. Matching the bare
+ * keyword meant an ordinary sentence — "자세한 건 @issue 마커 문법을 참고하세요"
+ * — was read as a marker with a missing ID, and `validate` treats malformed
+ * markers as a hard error, so merely mentioning the feature in a note turned
+ * the push red. `AGENTS.md` documents the syntax, which makes that a likely
+ * thing for a researcher to write.
+ *
+ * Requiring the delimiter costs nothing real: every marker the insert command
+ * writes has one (see {@link renderIssueMarker}), and a genuine typo like
+ * `@issue;주제만 쓴 경우` still has one and is still reported. The lookahead
+ * also subsumes the old `\b`, since `@issues` is not followed by a delimiter.
+ */
+const MARKER_START_RE = /@issue(?=[;:])/i;
+
 /** Opening/closing fence of a code block (up to 3 leading spaces, per CommonMark). */
 const FENCE_RE = /^ {0,3}(?:`{3,}|~{3,})/;
 
@@ -86,9 +103,8 @@ export function parseIssueMarkers(md: string): IssueMarkerScan {
     }
     if (inFence) continue;
 
-    // `\b` after the keyword keeps `@issues` from matching. Only the FIRST
-    // occurrence matters: the marker owns the rest of the line.
-    const at = line.search(/@issue\b/i);
+    // Only the FIRST candidate matters: the marker owns the rest of the line.
+    const at = line.search(MARKER_START_RE);
     if (at === -1) continue;
 
     const text = line.slice(at);
@@ -131,7 +147,7 @@ export function findIssueMarkerRanges(text: string): IssueMarkerRange[] {
   const ranges: IssueMarkerRange[] = [];
   let offset = 0;
   for (const line of text.split('\n')) {
-    const at = line.search(/@issue\b/i);
+    const at = line.search(MARKER_START_RE);
     if (at !== -1) {
       const m = line.slice(at).match(MARKER_RE);
       if (m && (m[2] ?? '').trim()) {
