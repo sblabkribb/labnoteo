@@ -10,7 +10,7 @@
 
 **전제** — 커뮤니티 플러그인 설치와 *연구노트 자동화 설정* 실행은 이미 끝난 상태입니다
 (그래서 이 문서가 보관함에 있습니다). 보관함 생성부터 Copilot 설정까지의 전체 순서는
-저장소 README의 [처음 설정 순서](https://github.com/sblabkribb/labnoteo#처음-설정-순서)를
+저장소의 [설치 가이드](https://github.com/sblabkribb/labnoteo/blob/main/docs/INSTALL.md)를
 보세요.
 
 순서대로 진행하세요. 특히 **push보다 훅 활성화가 먼저**입니다 — 훅 없이 첫 커밋을 만들면

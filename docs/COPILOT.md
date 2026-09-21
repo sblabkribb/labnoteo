@@ -1,0 +1,184 @@
+# Copilot 에이전트 · MCP 가이드
+
+[← README로 돌아가기](../README.md) · [설치 가이드](./INSTALL.md)
+
+Copilot의 **에이전트 모드(Agent Chat)**는 이 컴퓨터에 설치된 코딩 에이전트
+(**opencode** / **Claude Code** / **Codex**)를 그대로 실행해, git 커밋·이슈 신호·Wiki
+초안 작성을 말로 시킬 수 있게 합니다. 인증은 **BYOK API 키가 아니라 각 에이전트에
+로그인된 계정**을 씁니다.
+
+labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안에서* 초안·요약을
+담당하고(설정 → Labnote Assistant → AI 프로바이더), 이 외부 에이전트는 git·이슈·Wiki를
+담당합니다. 층 구분은 아래 [Copilot LLM 설정](#copilot-llm-설정)을 보세요.
+[연구노트 자동화](../README.md#연구노트-자동화)를 설정했다면 생성된 `AGENTS.md`/`CLAUDE.md`를
+같은 에이전트가 터미널에서든 Copilot 에이전트 모드에서든 자동으로 읽습니다.
+
+> **먼저 [설치 가이드](./INSTALL.md)의 3~6단계**(Obsidian → 커뮤니티 플러그인 → 자동화
+> 설정)를 마쳤다고 가정합니다. `AGENTS.md`가 생긴 뒤에 에이전트를 연결해야 규칙이
+> 처음부터 적용됩니다.
+
+## Copilot 플러그인 설치
+
+1. 설정 → **커뮤니티 플러그인 → 찾아보기**에서 `Copilot`(제작자 logancyang)을
+   설치·활성화합니다.
+2. 활성화하면 왼쪽 리본에 Agent Chat 아이콘이 생깁니다.
+
+## 에이전트 연결
+
+Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 것을 쓸지 아직 정하지
+않았다면 opencode**가 가장 간단합니다 — Copilot이 실행 파일을 직접 내려받아 관리하므로
+따로 설치할 것이 없습니다. 이미 Claude Code나 Codex를 쓰고 있다면 그쪽을 연결하세요.
+
+### opencode (권장 · 기본)
+
+1. 설정 → Copilot → **Basic → Agents**에서 **opencode** 탭을 엽니다.
+2. **Configure → Managed by Copilot → Download & install**을 누릅니다. Copilot이
+   보관함 밖에 실행 파일을 내려받아 관리합니다.
+3. 상태가 **Ready**가 되면 쓸 모델을 고르고 **Default model**을 지정합니다.
+   - Copilot-hosted 모델은 Basic 탭의 **Copilot License**에, 직접 키를 쓸 모델은
+     **BYOK**에 등록하면 목록에 나타납니다.
+4. **Default backend**를 opencode로 둡니다.
+
+### Claude Code (이미 쓰고 있다면)
+
+Copilot의 Claude 백엔드는 이 컴퓨터의 Claude Code 설치와 Anthropic 로그인을 그대로
+씁니다. **Claude Code는 유료 플랜 전용**입니다(Pro/Max/Team/Enterprise/Console — 무료
+Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Claude Code 2.1.206 이상**이
+필요합니다.
+
+1. Claude Code를 공식 경로로 설치합니다.
+
+   ```powershell
+   # Windows PowerShell
+   irm https://claude.ai/install.ps1 | iex
+   ```
+
+   ```powershell
+   # 또는 WinGet (자동 업데이트 안 됨 — winget upgrade Anthropic.ClaudeCode 로 갱신)
+   winget install Anthropic.ClaudeCode
+   ```
+
+   ```bash
+   # macOS / Linux / WSL
+   curl -fsSL https://claude.ai/install.sh | bash
+   ```
+
+2. 터미널에서 `claude`를 실행하고 브라우저 로그인을 마칩니다. `/status`로 인증 상태를
+   확인할 수 있습니다.
+3. 설정 → Copilot → **Basic → Agents → Claude → Configure**에서 **Auto-detect**를
+   누릅니다. 못 찾으면 `claude` 실행 파일의 절대 경로를 입력하고 **Apply**.
+4. 대화창이 **Sign in**을 요구하면 눌러 로그인합니다.
+
+> - 환경변수 `ANTHROPIC_API_KEY`가 있으면 구독 로그인보다 **우선 적용**되어 그 키로
+>   과금됩니다. 구독으로 쓰려면 비워 두세요.
+> - Copilot은 Claude Code의 로그인만 봅니다 — 이 대화창에 API 키를 넣지 마세요.
+>   "installed version is unsupported"가 뜨면 Claude Code를 업데이트하고 다시
+>   Auto-detect 하세요.
+> - Windows 상세 절차는 [Copilot 공식 Windows 설정 문서](https://docs.obsidiancopilot.com/agent-mode-windows-setup/)를
+>   참고하세요.
+
+### Codex (이미 쓰고 있다면)
+
+Codex 백엔드는 Codex CLI와 네이티브 `codex-acp` 어댑터가 모두 필요합니다.
+
+1. 설정 → Copilot → **Basic → Agents → Codex → Configure**의 안내 명령을 실행하면
+   Codex CLI 설치·로그인·어댑터 다운로드가 함께 진행됩니다.
+2. **Auto-detect**로 잡거나, 안 되면 **`codex-acp.exe`**의 절대 경로를 입력합니다
+   (`codex.exe`나 `.cmd` 런처가 아니라 `codex-acp.exe`여야 합니다).
+
+> 수동 설치 시 `@agentclientprotocol/codex-acp` **0.0.45 이상**이 필요합니다. 구
+> `@zed-industries/codex-acp` 패키지는 지원되지 않습니다. Codex는 CLI 로그인을 쓰므로
+> Copilot에 키를 넣지 않습니다.
+
+### 연결 마무리
+
+1. **Default backend**로 기본 에이전트를 지정합니다.
+2. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행해 대화창을 엽니다.
+3. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성
+   노트를 대화에 추가할 수 있습니다.
+
+> Claude/opencode의 **Auto mode permissions**(`Auto` / `Accept edits` /
+> `Bypass permissions` 등)는 에이전트가 보관함을 고치는 권한입니다.
+> `Bypass permissions`는 권장하지 않습니다.
+
+## AGENTS.md 공유 규칙
+
+Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.md`를 직접
+편집**합니다. 그 파일이 Agent Chat(그리고 기본값으로 Quick Chat)의 지시문이므로,
+[연구노트 자동화 설정](./INSTALL.md#6-연구노트-자동화-설정)이 설치한 규칙이 Copilot에도
+자동 적용됩니다.
+
+- 그 칸에서 편집할 때는 labnoteo 관리 마커 블록을 건드리지 않도록 **사용자 규칙을
+  마커 바깥에** 쓰세요.
+- *연구노트 자동화 설정*을 다시 실행해 `AGENTS.md`가 갱신되면 **새 Agent Chat을
+  시작**해야 반영됩니다.
+- Copilot이 에이전트에 심는 **Skills**는 설정 → Copilot → **Skills**에서 에이전트별로
+  켜고 끌 수 있습니다.
+
+## Copilot LLM 설정
+
+모델 설정이 헷갈리는 이유는 **층이 3개**인데 층마다 보는 자격증명이 다르기 때문입니다.
+
+| 층 | 모델·인증 | 설정 위치 | 쓰임 |
+| --- | --- | --- | --- |
+| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더** — [README 설정](../README.md#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안` 등) |
+| **Copilot Agent Chat** (opencode / Claude / Codex) | **에이전트 로그인** — BYOK 키는 쓰지 않습니다(Claude/Codex). opencode는 Copilot 라이선스 또는 BYOK | `Basic → Agents`의 각 에이전트 탭 | git 커밋·이슈 신호·Wiki 초안 |
+| **Copilot Quick Chat** | Copilot-hosted 또는 **BYOK** 모델. Agent Chat 모델과 **별개 목록**입니다 | `Settings → Copilot → BYOK` + `Basic → Agents → Quick Chat` | Copilot 채팅창에서의 짧은 질의 |
+
+**Quick Chat용 모델 설정**
+
+1. `Settings → Copilot → BYOK → Add provider`. 로컬 모델은 `Self Host` 템플릿(Ollama
+   기본 `http://localhost:11434/v1`, LM Studio `http://localhost:1234/v1`)을, 클라우드는
+   해당 제공자를 고르고 키를 입력합니다. 커스텀 OpenAI 호환 엔드포인트는 `Base URL`이
+   필수입니다.
+2. `Basic → Agents → Quick Chat`에서 쓸 모델을 켜고 `Default model`을 지정합니다.
+
+## (선택) Labnote 툴 연결 — MCP
+
+MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `create_sample`,
+`get_unit_operation`, `update_section`, `create_workflow`)을 Claude Desktop 같은 외부
+MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 전용**입니다.
+
+- **엔드포인트**: `http://127.0.0.1:3987` — 루프백 전용이며 라우팅 가능한 인터페이스에는
+  바인딩하지 않습니다.
+- **인증**: 세션마다 무작위로 생성되는 베어러 토큰. 서버가 실행 중일 때 설정 →
+  **MCP 토큰**에서 복사하세요. 서버를 재시작할 때마다 바뀝니다.
+- **쓰기는 확인을 거칩니다**: 보관함을 수정하는 툴은 실행 전에 대상 경로와 함께 확인을
+  요청합니다. 경로를 고르는 것은 모델이기 때문입니다.
+
+서버는 MCP `2025-06-18` 개정의 **무상태(stateless)** 구현입니다(`initialize`,
+`tools/list`, `tools/call`). DNS 리바인딩 방어를 위해 `Origin` 헤더를 검증하며, 인증이
+OAuth가 아니라 베어러 토큰이므로 클라이언트가 커스텀 `Authorization` 헤더를 설정할 수
+있어야 합니다.
+
+**Claude Code에 등록하기**
+
+1. 명령 팔레트에서 **Toggle MCP server**를 실행하고, 설정 → **MCP 토큰**에서 토큰을
+   복사합니다(서버를 껐다 켤 때마다 새로 발급).
+2. 복사한 토큰으로 등록합니다:
+
+   ```bash
+   claude mcp add --transport http labnoteo http://127.0.0.1:3987 \
+     --header "Authorization: Bearer <복사한-토큰>"
+   ```
+
+3. `claude mcp list`로 연결을 확인합니다. 이후 자연어로 지시하면 됩니다 — 예:
+   "list_samples로 이 보관함의 DNA 샘플을 보여줘".
+
+> - **토큰 갱신**: 서버를 껐다 켜면 토큰이 바뀝니다. `claude mcp remove labnoteo` 후
+>   새 토큰으로 다시 `add`하세요.
+> - **쓰기 확인**: 보관함을 수정하는 툴은 실행 전에 Obsidian이 대상 경로와 함께
+>   확인창을 띄웁니다.
+> - **헤더 이슈**: 일부 Claude Code 버전(특히 Windows)이 `Authorization` 헤더를 누락해
+>   `401`이 납니다. 반복되면 최신 버전으로 업데이트하세요.
+
+## 막히는 지점
+
+- **`missing key` 라벨이 뜨거나 `Select Model`만 보입니다** — Quick Chat 기본 모델에
+  키가 없어서입니다. BYOK에서 제공자를 먼저 추가한 뒤 `Default model`을 바꾸세요.
+- **Agent Chat이 안 되는데 BYOK 키를 넣고 있습니다** — 층을 혼동한 것입니다.
+  Claude/Codex는 **에이전트 로그인**만 봅니다(위 에이전트 연결 참고).
+- **Copilot `Reset Settings` 후 에이전트 모델이 비어 있습니다** — 키는 보존되지만
+  백엔드 모델 활성화가 초기화되므로 `Basic → Agents`에서 다시 켜세요.
+- **에이전트를 고를 수 없거나 말해도 반응이 없습니다** — 에이전트가 설치·로그인되어
+  있는지, `Default backend`가 지정됐는지 확인하세요.

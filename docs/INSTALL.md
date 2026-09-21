@@ -1,0 +1,168 @@
+# 설치 가이드
+
+[← README로 돌아가기](../README.md) · [English](../README.en.md)
+
+Obsidian을 처음 깔 때부터 첫 push까지 **위에서 아래로 한 번만** 따라가면 됩니다.
+각 단계 끝의 **✅ 확인**으로 제대로 됐는지 스스로 점검할 수 있습니다. 5번까지만
+해도 노트 작성은 시작할 수 있고, 6번부터는 GitHub 자동화(검증·이슈·Wiki)를 쓸 때만
+필요합니다.
+
+> **왜 이 순서인가** — 세 가지 이유가 순서를 강제합니다.
+> - **`.gitignore`(6단계)가 첫 push(7단계)보다 앞**: 대용량 원시데이터가 Git 이력에
+>   한 번 박히면 이력 rewrite 말고는 되돌릴 방법이 없습니다. `.gitignore`는 *연구노트
+>   자동화 설정*이 만들므로 git 연결을 그 뒤에 둡니다.
+> - **훅 활성화가 첫 push보다 앞**(7단계 안에서): 훅 없이 첫 커밋을 만들면 같은 사고가
+>   납니다.
+> - **AI 에이전트 연결(8단계)이 자동화 설정(6단계)보다 뒤**: Agent Chat이 보관함 루트
+>   `AGENTS.md`를 지시문으로 읽으므로, 규칙 파일이 생긴 뒤에 연결해야 처음부터 적용됩니다.
+
+---
+
+## 1. Obsidian 설치
+
+[obsidian.md/download](https://obsidian.md/download)에서 운영체제에 맞는 설치본을
+받아 설치합니다. Windows·macOS·Linux를 모두 지원합니다. 이 플러그인은 Obsidian
+`1.5.0` 이상에서 동작하며, 최신 버전(현재 1.13.x) 사용을 권장합니다.
+
+**✅ 확인** — Obsidian이 실행되고 시작 화면이 보입니다.
+
+## 2. 보관함(vault) 만들기
+
+Obsidian에서 노트를 담는 **폴더 하나**가 곧 보관함입니다. 시작 화면에서
+**Create new vault**(새 보관함 만들기)를 눌러 이름과 위치를 정하거나, 이미 쓰던
+폴더가 있으면 **Open folder as vault**(폴더를 보관함으로 열기)로 엽니다.
+
+> 이 보관함 폴더가 나중에 그대로 Git 저장소가 됩니다(7단계). 연구 데이터를 담을
+> 것이므로 **개인/팀이 통제하는 위치**에 두세요.
+
+**✅ 확인** — 왼쪽에 파일 탐색기가 있는 빈 보관함이 열립니다.
+
+## 3. 커뮤니티 플러그인 켜기
+
+외부 플러그인을 설치하려면 먼저 **제한 모드(Restricted Mode)**를 꺼야 합니다.
+
+1. **설정**(Settings, 왼쪽 아래 톱니바퀴)을 엽니다.
+2. 왼쪽 메뉴에서 **커뮤니티 플러그인**(Community plugins)을 고릅니다.
+   - 설정 검색창(1.13+)에 `community`를 쳐서 바로 갈 수도 있습니다.
+3. **커뮤니티 플러그인 켜기**(Turn on community plugins)를 누릅니다. 이것이 제한
+   모드를 해제하는 동작입니다.
+
+> 커뮤니티 플러그인은 파일·네트워크에 접근할 수 있습니다. 신뢰하는 제작자의
+> 플러그인만 설치하세요.
+
+**✅ 확인** — **찾아보기**(Browse) 버튼과 **설치된 플러그인** 목록이 나타납니다.
+
+## 4. Labnote Assistant 설치
+
+아직 Obsidian 공식 커뮤니티 목록에 없으므로 **BRAT**라는 설치 도우미 플러그인으로
+GitHub 릴리스에서 받습니다. 보관함마다 한 번씩 해야 합니다(플러그인은
+`.obsidian/plugins/`에 보관함 단위로 저장됩니다).
+
+### 4-1. BRAT 설치
+
+1. **커뮤니티 플러그인 → 찾아보기**에서 `BRAT`를 검색합니다.
+2. **Obsidian42 - BRAT**(제작자 TfTHacker)를 골라 **설치**(Install) → **활성화**(Enable).
+
+### 4-2. BRAT로 Labnote Assistant 추가
+
+1. 명령 팔레트(`Ctrl/Cmd + P`)에서
+   **`BRAT: Plugins: Add a beta plugin for testing`**을 실행합니다.
+   (BRAT 버전에 따라 `BRAT: Add a beta plugin for testing`로 보일 수도 있습니다.)
+2. 저장소 칸에 `sblabkribb/labnoteo`(또는 전체 URL
+   `https://github.com/sblabkribb/labnoteo`, 끝에 `/` 없이)를 입력합니다.
+3. 버전은 **Latest version**으로 두고, **Enable after installing the plugin**
+   (설치 후 활성화)이 체크된 채로 **Add Plugin**을 누릅니다.
+4. 잠시 뒤 BRAT가 설치 완료를 알립니다. 필요하면 **설정 → 커뮤니티 플러그인**에서
+   목록을 새로고침하고 **Labnote Assistant**가 켜져 있는지 확인합니다.
+
+> BRAT는 이후 앱을 켤 때 자동으로 업데이트를 확인합니다(설정에서 끌 수 있음).
+> 수동 갱신은 `Check for updates to all beta plugins and UPDATE` 명령으로 합니다.
+
+<details>
+<summary><b>BRAT 없이 수동 설치</b>(자동 업데이트 없음)</summary>
+
+1. [릴리스](https://github.com/sblabkribb/labnoteo/releases)에서 `main.js`,
+   `manifest.json`, `styles.css` 세 파일을 내려받습니다.
+2. 보관함 안에 `.obsidian/plugins/labnoteo/` 폴더를 만들고 세 파일을 복사합니다.
+3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+
+릴리스의 `versions.json`은 Obsidian이 **저장소에서** 읽으므로 보관함에 복사할
+필요가 없습니다. 보관함이 여러 개면 각 `.obsidian/plugins/labnoteo`를 하나의
+사본으로 심볼릭 링크해 두면 복사를 반복하지 않아도 됩니다.
+</details>
+
+**✅ 확인** — 왼쪽 사이드바(리본)에 상자·시험관 아이콘 두 개가 생깁니다.
+
+## 5. 동작 확인
+
+명령 팔레트(`Ctrl/Cmd + P`)에서 **`Create experiment`**(실험 생성)를 실행하고
+이름을 입력합니다. `labnote/001_이름/README.labnote.md`가 만들어지고 바로 열립니다.
+
+**✅ 확인** — 실험 노트가 열립니다. 여기까지가 **노트 작성에 필요한 전부**입니다.
+GitHub 자동화가 필요 없다면 [QUICKSTART](https://github.com/sblabkribb/labnoteo/blob/main/automation/templates/QUICKSTART.md)로
+일상 사용법을 익히면 됩니다. 자동화를 쓰려면 6번으로 이어집니다.
+
+## 6. 연구노트 자동화 설정
+
+명령 팔레트에서 **`Setup research automation`**(연구노트 자동화 설정)을 실행합니다.
+`.labnoteo/`(스크립트·훅), `.github/`(워크플로), `.gitignore`, `AGENTS.md`,
+`CLAUDE.md`, `QUICKSTART.md`, `wiki-staging/`를 현재 보관함에 씁니다. 덮어쓰기 전에는
+확인을 받고, 기존 `.gitignore`에는 누락된 줄만 추가합니다.
+
+자세한 내용은 [연구노트 자동화](../README.md#연구노트-자동화)와 설치 후 보관함에
+생기는 관리자 문서 `.labnoteo/SETUP.md`를 참고하세요.
+
+**✅ 확인** — 파일 관리자로 보면 보관함에 `.labnoteo/`, `.github/`, `AGENTS.md`,
+`QUICKSTART.md`가 생겨 있습니다. (`.`으로 시작하는 폴더는 Obsidian 탐색기에는
+보이지 않습니다.)
+
+## 7. Git 연결과 첫 push
+
+**반드시 6번을 먼저** 끝내세요. `.gitignore`가 있어야 대용량 데이터가 이력에 박히지
+않습니다. 보관함 루트에서 순서대로 실행합니다.
+
+```powershell
+# PowerShell / bash 공통
+git init
+git config core.hooksPath .labnoteo/hooks   # ← push 전에 반드시. 대용량 파일 커밋 차단 훅
+```
+
+macOS/Linux는 훅에 실행 권한을 한 번 부여합니다(Windows는 불필요):
+
+```bash
+chmod +x .labnoteo/hooks/pre-commit
+```
+
+그다음 **private** GitHub 저장소를 만들어 연결하고 push합니다. 연구 데이터가 있으므로
+공개 저장소는 피하세요(공개는 fork PR을 통한 워크플로 악용 위험도 있습니다).
+
+```powershell
+git add .
+git commit -m "chore: 초기 보관함"
+git remote add origin https://github.com/<계정>/<저장소>.git
+git branch -M main
+git push -u origin main
+```
+
+**✅ 확인** — GitHub 저장소에 파일이 올라가고, **Actions 탭**에 `validate` 실행 기록이
+보입니다(`labnote/` 아래 파일이 포함된 push여야 워크플로가 돕니다).
+
+## 8. (선택) AI 에이전트 연결
+
+커밋·이슈·Wiki 초안을 말로 시키려면 Copilot 플러그인과 코딩 에이전트를 연결합니다.
+Windows에서 가장 간단한 경로는 Copilot이 직접 내려받아 관리하는 **opencode**입니다.
+전체 절차와 Claude Code·Codex 연결, 모델 설정은 [Copilot 에이전트 가이드](./COPILOT.md)를
+보세요.
+
+## 9. (선택) LLM 제공자 설정
+
+Obsidian *안에서* 방법 초안·결과 요약을 하려면 설정 → **Labnote Assistant** →
+**AI 프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI 호환`을 고르고 엔드포인트·모델명을
+채웁니다. 기본값 `Disabled`에서는 AI 명령이 동작하지 않습니다. 이 층은 8번의 Copilot
+에이전트와 별개입니다 — 층 구분은 [Copilot 가이드의 모델 설정](./COPILOT.md#copilot-llm-설정)을
+참고하세요.
+
+---
+
+설치가 끝나면 일상 사용법은 보관함에 생성된 `QUICKSTART.md`(연구원용)를, 저장소
+관리는 `.labnoteo/SETUP.md`(관리자용)를 참고하세요.
