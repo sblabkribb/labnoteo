@@ -149,6 +149,44 @@ export function createWorkflowFileName(
 }
 
 /**
+ * A "Related Workflows" checklist entry: optional `-` marker, checkbox, link
+ * title, and a `.labnote.md` target.
+ *
+ * Deliberately ONE regex shared by the parser and the section rewriter. While
+ * the two disagreed the difference was deleted in silence: the rewriter
+ * consumed every `[ ]`/`- [x]` line in the section, but only lines matching
+ * this pattern were parsed back out and regenerated. A researcher's own
+ * `- [ ] ask Dr. Kim about the annealing temp` therefore disappeared the next
+ * time anything touched the checklist.
+ *
+ * The link part stays permissive (optional `./`, any characters up to the
+ * suffix) so manually created links with non-ASCII file names are recognised —
+ * the same reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the
+ * object is safe to share.
+ */
+const CHECKLIST_ENTRY_RE =
+  /^(?:-\s+)?\[([ x])\]\s*\[([^\]]+)\]\((?:\.\/)?([^)]+\.labnote\.md)\)/i;
+
+/** Whether `line` is a workflow checklist entry this module owns. */
+function isWorkflowChecklistLine(line: string): boolean {
+  return CHECKLIST_ENTRY_RE.test(line.trim());
+}
+
+/**
+ * Find the `## Related Workflows` header and the line the section ends on (the
+ * next `## ` heading, or end of document). `header` is -1 when absent.
+ */
+function findWorkflowSection(lines: string[]): { header: number; end: number } {
+  const header = lines.findIndex(line => /^##\s.*Related Workflows/i.test(line.trim()));
+  if (header === -1) return { header: -1, end: lines.length };
+
+  for (let i = header + 1; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('## ')) return { header, end: i };
+  }
+  return { header, end: lines.length };
+}
+
+/**
  * Parse workflow checklist from README content
  * Looks for items in the "Related Workflows" section
  */
@@ -171,12 +209,8 @@ export function parseWorkflowChecklistFromReadme(readmeContent: string): Workflo
       break;
     }
     
-    // Link pattern is permissive (optional `./`, any characters up to the
-    // `.labnote.md` suffix) so it interprets a README the same way the Section
-    // Editor parser does — including manually created links with non-ASCII file
-    // names. Downstream commands still validate each name via
-    // `parseWorkflowFileName`.
-    const checkboxMatch = line.match(/^(?:-\s+)?\[([ x])\]\s*\[([^\]]+)\]\((?:\.\/)?([^)]+\.labnote\.md)\)/i);
+    // Downstream commands still validate each name via `parseWorkflowFileName`.
+    const checkboxMatch = line.match(CHECKLIST_ENTRY_RE);
     if (checkboxMatch) {
       items.push({
         done: checkboxMatch[1].toLowerCase() === 'x',
@@ -219,55 +253,47 @@ export function updateReadmeWorkflowSection(
   newChecklistContent: string
 ): string {
   const lines = readmeContent.split('\n');
-  const headerIndex = lines.findIndex(line => /^##\s.*Related Workflows/i.test(line.trim()));
-  
-  if (headerIndex === -1) {
+  const { header, end } = findWorkflowSection(lines);
+  if (header === -1) {
     return readmeContent;
   }
-  
-  // Find the section boundaries
-  let insertStart = headerIndex + 1;
-  
-  // Skip empty lines after header
-  while (insertStart < lines.length && lines[insertStart].trim() === '') {
-    insertStart++;
-  }
-  
-  // Skip blockquote lines (instructions)
-  while (insertStart < lines.length && lines[insertStart].trim().startsWith('>')) {
-    insertStart++;
-  }
-  
-  // Skip empty lines after blockquote
-  while (insertStart < lines.length && lines[insertStart].trim() === '') {
-    insertStart++;
-  }
-  
-  // Find end of checkbox section
-  let blockEnd = insertStart;
-  while (blockEnd < lines.length) {
-    const trimmed = lines[blockEnd].trim();
-    if (trimmed.startsWith('## ')) {
-      break;
-    }
-    // Consume both legacy (`[ ]`/`[x]`) and standard (`- [ ]`/`- [x]`) checklist
-    // lines plus blank lines so the whole existing block is replaced. Missing
-    // the `- [ ]` form here would leave the old block above the new one,
-    // duplicating README entries.
-    if (/^(?:-\s+)?\[[ x]\]/i.test(trimmed) || trimmed === '') {
-      blockEnd++;
+
+  const newEntries = newChecklistContent === '' ? [] : newChecklistContent.split('\n');
+
+  // Replace ONLY the lines this module owns (see CHECKLIST_ENTRY_RE) and leave
+  // every other line in the section byte-for-byte intact: the researcher's own
+  // checkboxes, prose, and the instruction blockquote all live here too. The
+  // regenerated block lands where the first entry was, so entries stay
+  // together even when notes were interleaved between them.
+  const out: string[] = [];
+  let replaced = false;
+  for (let i = 0; i < lines.length; i++) {
+    const insideSection = i > header && i < end;
+    if (insideSection && isWorkflowChecklistLine(lines[i])) {
+      if (!replaced) {
+        out.push(...newEntries);
+        replaced = true;
+      }
       continue;
     }
-    break;
+    out.push(lines[i]);
   }
-  
-  // Build new content
-  const before = lines.slice(0, insertStart);
-  const after = lines.slice(blockEnd);
-  
-  const newLines = newChecklistContent ? [newChecklistContent, '', ''] : [''];
-  
-  return [...before, ...newLines, ...after].join('\n');
+  if (replaced || newEntries.length === 0) {
+    return out.join('\n');
+  }
+
+  // No entry to anchor to: insert after the header, past the blank lines and
+  // the instruction blockquote. `out` still mirrors `lines` here, so the
+  // indices line up.
+  let at = header + 1;
+  while (at < end && lines[at].trim() === '') at++;
+  while (at < end && lines[at].trim().startsWith('>')) at++;
+  while (at < end && lines[at].trim() === '') at++;
+
+  // Keep a blank line between the new block and whatever follows it.
+  const separator = at < lines.length && lines[at].trim() !== '' ? [''] : [];
+  out.splice(at, 0, ...newEntries, ...separator);
+  return out.join('\n');
 }
 
 /**

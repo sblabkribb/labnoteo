@@ -3,6 +3,8 @@ import {
   parseExperimenterFromReadme,
   reconcileWorkflowChecklist,
   parseWorkflowChecklistFromReadme,
+  updateReadmeWorkflowSection,
+  generateWorkflowChecklist,
   sanitizeWorkflowName,
   planWorkflowRenumber,
   buildRenumberStagingName,
@@ -95,6 +97,122 @@ describe('reconcileWorkflowChecklist', () => {
     ]);
     expect(res.changed).toBe(false);
     expect(res.content).toBe(md);
+  });
+});
+
+// The section rewriter used to consume every `[ ]`/`- [x]` line it found, but
+// only `.labnote.md` links were parsed back out and regenerated. Everything in
+// between was deleted with no message — and this section is exactly where a
+// researcher keeps loose to-dos, so the loss was routine rather than exotic.
+describe('updateReadmeWorkflowSection preserves lines it does not own', () => {
+  const entry = (n: string, title: string) => `- [ ] [${title}](./${n}.labnote.md)`;
+
+  it("keeps the researcher's own checkbox lines", () => {
+    const readme = readmeWith([
+      entry('001_WD010_Design', 'Design'),
+      '- [ ] 김박사님께 annealing 온도 문의',
+      '- [x] 시약 재주문',
+    ]);
+
+    const updated = updateReadmeWorkflowSection(
+      readme,
+      generateWorkflowChecklist([
+        { done: false, title: 'Design', fileName: '001_WD010_Design.labnote.md' },
+        { done: false, title: 'Assay', fileName: '002_WS010_Assay.labnote.md' },
+      ])
+    );
+
+    expect(updated).toContain('- [ ] 김박사님께 annealing 온도 문의');
+    expect(updated).toContain('- [x] 시약 재주문');
+    expect(updated).toContain('002_WS010_Assay.labnote.md');
+  });
+
+  it('keeps a checkbox link that points somewhere other than a workflow note', () => {
+    const readme = readmeWith([entry('001_WD010_Design', 'Design'), '- [x] [protocol](./protocol.md)']);
+
+    const updated = updateReadmeWorkflowSection(
+      readme,
+      generateWorkflowChecklist([
+        { done: false, title: 'Design', fileName: '001_WD010_Design.labnote.md' },
+      ])
+    );
+
+    expect(updated).toContain('- [x] [protocol](./protocol.md)');
+  });
+
+  it('keeps prose and the instruction blockquote', () => {
+    const readme = readmeWith([
+      '> 워크플로를 추가하려면 명령 팔레트를 사용하세요.',
+      '',
+      entry('001_WD010_Design', 'Design'),
+      '',
+      '재현성 관련 메모는 아래 Notes 절에 적었습니다.',
+    ]);
+
+    const updated = updateReadmeWorkflowSection(
+      readme,
+      generateWorkflowChecklist([
+        { done: false, title: 'Design', fileName: '001_WD010_Design.labnote.md' },
+      ])
+    );
+
+    expect(updated).toContain('> 워크플로를 추가하려면 명령 팔레트를 사용하세요.');
+    expect(updated).toContain('재현성 관련 메모는 아래 Notes 절에 적었습니다.');
+  });
+
+  it('groups regenerated entries where the first one was', () => {
+    // Entries interleaved with a note must not end up split across it.
+    const readme = readmeWith([
+      entry('002_WD010_Second', 'Second'),
+      '- [ ] 손으로 적은 할 일',
+      entry('001_WD010_First', 'First'),
+    ]);
+
+    const { content } = reconcileWorkflowChecklist(readme, []);
+    const lines = content.split('\n');
+    const first = lines.findIndex(l => l.includes('001_WD010_First'));
+    const second = lines.findIndex(l => l.includes('002_WD010_Second'));
+
+    expect(second).toBe(first + 1);
+    expect(content).toContain('- [ ] 손으로 적은 할 일');
+  });
+
+  it('does not touch a checkbox line in a later section', () => {
+    const readme = [
+      '## Related Workflows',
+      '',
+      entry('001_WD010_Design', 'Design'),
+      '',
+      '## Notes',
+      '',
+      '- [ ] [Other](./999_WD999_Other.labnote.md)',
+    ].join('\n');
+
+    const updated = updateReadmeWorkflowSection(
+      readme,
+      generateWorkflowChecklist([
+        { done: false, title: 'Design', fileName: '001_WD010_Design.labnote.md' },
+      ])
+    );
+
+    expect(updated).toContain('- [ ] [Other](./999_WD999_Other.labnote.md)');
+  });
+
+  it('inserts after the blockquote when the section has no entries yet', () => {
+    const readme = readmeWith(['> 지침 문구']);
+
+    const updated = updateReadmeWorkflowSection(
+      readme,
+      generateWorkflowChecklist([
+        { done: false, title: 'Design', fileName: '001_WD010_Design.labnote.md' },
+      ])
+    );
+
+    const lines = updated.split('\n');
+    const quote = lines.findIndex(l => l.startsWith('> '));
+    const inserted = lines.findIndex(l => l.includes('001_WD010_Design'));
+    expect(inserted).toBeGreaterThan(quote);
+    expect(lines[inserted - 1].trim()).toBe('');
   });
 });
 
