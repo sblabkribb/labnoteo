@@ -28,16 +28,38 @@
 
 ## 설치
 
+### 처음 설정 순서
+
+보관함 → CLI 에이전트 → 선행 플러그인 → Labnote Assistant → 자동화 → git/GitHub → Copilot 설정 순서입니다. **BRAT는 Labnote Assistant를 설치하는 수단**이므로 반드시 앞에 옵니다.
+
+1. Obsidian 보관함(vault)을 만들거나 엽니다.
+2. **CLI 에이전트 설치 & 로그인** (Claude Code / Codex) — Copilot보다 먼저 합니다. [Copilot 에이전트](#copilot-에이전트) 참고.
+3. **커뮤니티 플러그인 설치·활성화** — **BRAT**(Labnote Assistant 설치 수단) + **Copilot** + (선택) Data Files Editor. [설치할 플러그인](#설치할-플러그인) 참고.
+4. **Labnote Assistant 설치·활성화** — 3단계에서 설치한 BRAT로 `sblabkribb/labnoteo`를 추가합니다(또는 수동 설치). [Labnote Assistant 설치](#labnote-assistant-설치) 참고.
+5. *연구노트 자동화 설정*을 실행해 `.labnoteo/`, `.gitignore`, `AGENTS.md`, `QUICKSTART.md`를 생성합니다. [연구노트 자동화](#연구노트-자동화) 참고.
+6. `git init` 후 pre-commit 훅을 활성화합니다 — `git config core.hooksPath .labnoteo/hooks`.
+7. **private** GitHub 저장소를 연결하고 첫 push를 합니다.
+8. **Copilot 설정** — `Basic → Agents`에서 에이전트를 `Auto-detect`하고, 필요하면 Quick Chat용 BYOK 모델을 지정합니다. [Copilot 에이전트](#copilot-에이전트)와 [Copilot LLM 설정](#3-copilot-llm-설정) 참고.
+9. (선택) MCP로 Labnote 툴을 에이전트에 연결합니다. [MCP 서버](#mcp-서버-데스크톱-전용) 참고.
+
+- **`.gitignore`가 첫 push보다 앞(5 → 7)**: 대용량 원시데이터가 한 번 Git 이력에 박히면 이력 rewrite 말고는 되돌릴 방법이 없습니다. `.gitignore`는 *연구노트 자동화 설정*이 만들므로 git 연결을 그 뒤에 둡니다.
+- **Copilot 설정이 자동화 설정보다 뒤(5 → 8)**: 플러그인 *설치*는 3단계에서 끝내되 에이전트 *연결*은 `AGENTS.md`가 생긴 뒤에 합니다. Agent Chat이 보관함 루트 `AGENTS.md`를 지시문으로 읽으므로 규칙이 처음부터 적용됩니다.
+
 ### 설치할 플러그인
 
-| 플러그인 | 구분 | 설치 방법 |
-| --- | --- | --- |
-| **Labnote Assistant** (이 플러그인) | 필수 | BRAT 또는 수동 — 아래 참고 |
-| **Copilot** (제작자 logancyang) | 필수 | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
-| **Obsidian42 - BRAT** | BRAT로 설치할 때만 | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
-| **Data Files Editor** | 선택 | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
+CLI 에이전트(Claude Code / Codex)는 Obsidian 플러그인이 아니라 **시스템 CLI**라서 이 표에 없습니다 — Copilot의 `Auto-detect`가 곧바로 잡도록 Copilot보다 먼저 설치하세요.
 
-- **Copilot**: 에이전트 모드로 로컬 Claude Code CLI를 구동해 git 커밋·이슈 신호·Wiki 초안을 담당합니다. 설정은 [Copilot + Claude Code](#copilot--claude-code) 참고.
+| 순서 | 플러그인 | 구분 | 설치 방법 |
+| --- | --- | --- | --- |
+| 1 | **Obsidian42 - BRAT** | 필수(Labnote Assistant 설치 수단) | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
+| 1 | **Copilot** (제작자 logancyang) | 필수 | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
+| 1 | **Data Files Editor** | 선택 | 설정 → 커뮤니티 플러그인 → **탐색(Browse)** |
+| 2 | **Labnote Assistant** (이 플러그인) | 필수 | BRAT 또는 수동 — [아래 참고](#labnote-assistant-설치) |
+
+`순서`가 같은 행끼리는 설치 순서가 상관없고, `2`는 `1`을 모두 설치한 다음입니다.
+
+- **Obsidian42 - BRAT**: Labnote Assistant가 아직 커뮤니티 플러그인 목록에 없어 이 플러그인으로 설치합니다. 수동 설치를 택했다면 생략해도 됩니다.
+- **Copilot**: 에이전트 모드로 로컬 Claude Code / Codex CLI를 구동해 git 커밋·이슈 신호·Wiki 초안을 담당합니다. **CLI 에이전트를 먼저 설치해야 `Auto-detect`로 한 번에 잡힙니다.** 설정은 [Copilot 에이전트](#copilot-에이전트) 참고.
 - **Data Files Editor**: 샘플 정의가 저장되는 `resources/labsamples/*.json`을 Obsidian 안에서 직접 편집할 때 씁니다.
 
 ### Labnote Assistant 설치
@@ -46,9 +68,10 @@
 
 **BRAT 사용 (권장, 자동 업데이트)**
 
-1. **Obsidian42 - BRAT**를 설치합니다.
-2. *BRAT: Add a beta plugin for testing* 명령을 실행하고 `sblabkribb/labnoteo`를 입력합니다.
-3. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
+[처음 설정 순서](#처음-설정-순서) 3단계에서 설치한 BRAT로 진행합니다.
+
+1. *BRAT: Add a beta plugin for testing* 명령을 실행하고 `sblabkribb/labnoteo`를 입력합니다.
+2. 설정 → 커뮤니티 플러그인에서 **Labnote Assistant**를 활성화합니다.
 
 **수동 설치**
 
@@ -107,6 +130,7 @@
 
 - 어떤 Actions든 동작하려면 보관함이 GitHub 저장소여야 합니다(먼저 push). 연구 데이터가 있으면 **private**로 유지하세요.
 - 서버측 자동화는 전부 **결정적**이라 GitHub-hosted 러너만으로 동작합니다 — self-hosted 러너나 서버측 LLM이 필요 없습니다. AI 판단(이 노트에 논의가 필요한가? 어떤 사실이 Wiki에 들어가야 하는가?)은 **로컬 AI 에이전트**가 `AGENTS.md` 규칙에 따라 수행합니다. 에이전트는 `discuss: true` 신호를 설정하거나 `wiki-staging/`에 초안만 작성하고, 이슈 생성/Wiki 발행은 `issue-sync`/`wiki-sync`가 단독 담당하므로 중복이 없습니다. Wiki는 별도 저장소이므로 `wiki-sync.yml`은 PAT(`GH_WIKI_TOKEN`)가 추가로 필요할 수 있습니다.
+- `AGENTS.md`는 **Copilot과도 공유됩니다**: Copilot 설정의 *Custom vault instructions* 칸이 보관함 루트 `AGENTS.md`를 직접 편집하고, 그 파일이 Agent Chat과 기본값 Quick Chat의 지시문이 됩니다 — 이 명령으로 설치한 규칙이 Copilot에도 자동 적용됩니다. 그 칸에서 편집할 때는 labnoteo 관리 마커 블록을 건드리지 않도록 **사용자 규칙을 마커 바깥에** 쓰고, 이 명령을 다시 실행해 `AGENTS.md`가 갱신되면 **새 Agent Chat을 시작**해야 반영됩니다. [Copilot 에이전트](#copilot-에이전트) 참고.
 - 자동화는 **노트를 절대 되쓰지 않습니다** — Issue를 열고 검토된 Wiki 초안을 발행만 하며, 과학적 판단과 `status` 변경은 사람의 몫입니다.
 - 플러그인 업데이트 후에는 명령을 다시 실행해 스크립트를 갱신하고, 커밋 전에 diff를 검토하세요.
 
@@ -141,15 +165,19 @@ MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `create_sample
 
 서버는 MCP `2025-06-18` 개정의 **무상태(stateless)** 구현입니다(`initialize`, `tools/list`, `tools/call`). DNS 리바인딩 방어를 위해 `Origin` 헤더를 검증하며, 인증이 OAuth가 아니라 베어러 토큰이므로 클라이언트가 커스텀 `Authorization` 헤더를 설정할 수 있어야 합니다.
 
-## Copilot + Claude Code
+## Copilot 에이전트
 
-Copilot의 **에이전트 모드**는 이 컴퓨터에 설치된 CLI 에이전트(OpenCode / **Claude Code** / Codex)를 그대로 실행합니다. "Claude"를 고르면 로컬 `claude` CLI를 구동하며, 인증은 **API 키가 아니라 CLI에 로그인된 Claude 구독 계정**(Pro/Max/Team/Enterprise)을 사용합니다.
+Copilot의 **에이전트 모드**는 이 컴퓨터에 설치된 CLI 에이전트(**Claude Code** / **Codex** / opencode)를 그대로 실행합니다. 인증은 **BYOK API 키가 아니라 CLI에 로그인된 계정**을 사용합니다 — "Claude"를 고르면 로컬 `claude` CLI와 그 CLI에 로그인된 Claude 구독(Pro/Max/Team/Enterprise)을, "Codex"를 고르면 `codex-acp` 어댑터와 Codex CLI 로그인을 씁니다.
 
-labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안에서* 초안·요약을 담당하고, 이 외부 에이전트는 git·이슈 신호·Wiki 초안을 담당합니다. [연구노트 자동화](#연구노트-자동화)를 설정했다면 생성된 `AGENTS.md`/`CLAUDE.md`를 같은 `claude` CLI가 터미널에서든 Copilot 에이전트 모드에서든 자동으로 읽습니다.
+labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안에서* 초안·요약을 담당하고, 이 외부 에이전트는 git·이슈 신호·Wiki 초안을 담당합니다. 층 구분은 [Copilot LLM 설정](#3-copilot-llm-설정) 참고. [연구노트 자동화](#연구노트-자동화)를 설정했다면 생성된 `AGENTS.md`/`CLAUDE.md`를 같은 CLI가 터미널에서든 Copilot 에이전트 모드에서든 자동으로 읽습니다.
 
-### 1) Claude Code 설치 & 로그인
+> Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.md`를 직접 편집**합니다. 그 파일이 Agent Chat(그리고 기본값으로 Quick Chat)의 지시문이므로 labnoteo가 설치한 규칙이 Copilot에도 자동 적용됩니다. 대신 그 칸에서 편집하면 labnoteo 관리 마커 블록을 건드릴 수 있으니 **사용자 규칙은 마커 바깥에** 쓰세요. *연구노트 자동화 설정*을 다시 실행해 `AGENTS.md`가 갱신되면 **새 Agent Chat을 시작**해야 반영됩니다.
 
-1. Copilot 설정 → **Basic → Agents → Claude → Configure**의 *Install Claude Code*에 표시된 설치 명령을 실행합니다. Windows PowerShell 예시:
+### 1) CLI 에이전트 설치 & 로그인 (Copilot보다 먼저)
+
+**Claude Code** — Copilot 설정의 *Install Claude Code*는 Copilot 밖에서 실행할 설치 명령을 보여 줄 뿐이고, 바이너리는 2)의 `Auto-detect`가 일반 설치 위치에서 찾습니다. 그래서 CLI를 먼저 깔아 두는 쪽이 확실합니다.
+
+1. 공식 설치 경로로 Claude Code를 설치합니다. Windows PowerShell 예시:
    ```powershell
    irm https://gist.githubusercontent.com/logancyang/7a87eb38d91015eac567521f8cc9c729/raw/install-claude-agent-mode-windows.ps1 | iex
    ```
@@ -158,13 +186,43 @@ labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안�
 
 > 환경변수 `ANTHROPIC_API_KEY`가 있으면 구독 로그인보다 **우선 적용**되어 그 키로 과금됩니다. 구독으로 쓰려면 비워 두세요.
 
-### 2) Copilot에서 Claude 에이전트 연결
+**Codex** — Codex CLI를 설치하고 로그인합니다. 어댑터(`codex-acp`)는 기본값이 `Managed by Copilot`이라 Node/npm 없이 Copilot이 직접 설치하고 `Sign in`도 Copilot 안에서 되므로, Claude와 달리 **선설치가 필수는 아닙니다.** 먼저 설치해 두는 이점은 터미널과 로그인·설정을 공유하는 것입니다 — labnoteo는 터미널에서의 작업도 `AGENTS.md`로 규율하므로 의미가 있습니다.
 
-1. 설정 → Copilot → **Basic → Agents → Claude → Configure → Auto-detect**를 누릅니다. 못 찾으면 `claude` 실행 파일 경로를 바이너리 경로 칸에 붙여넣고 저장합니다. ("not in your PATH" 경고는 무시해도 됩니다.)
-2. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행하고 **Claude**를 선택합니다.
-3. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성 노트를 대화에 추가할 수 있습니다.
+**opencode** — Copilot이 직접 설치·관리하므로 CLI를 미리 준비할 필요가 없습니다.
 
-### 3) (선택) Labnote 툴을 Claude에 연결 — MCP
+### 2) Copilot에서 에이전트 연결
+
+Copilot 플러그인 *설치*는 [처음 설정 순서](#처음-설정-순서) 3단계에서 끝난 것으로 보고, 여기서는 연결만 다룹니다.
+
+1. 설정 → Copilot → **Basic → Agents**에서 **Claude** 또는 **Codex** → **Configure** → **Auto-detect**를 누릅니다. 1)에서 CLI를 먼저 깔았으므로 바로 잡힙니다. 못 찾을 때만 실행 파일의 절대 경로를 **My own binary**에 입력하세요. ("not in your PATH" 경고는 무시해도 됩니다.)
+2. **Default backend**로 기본 에이전트를 지정합니다.
+3. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행해 대화창을 엽니다.
+4. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성 노트를 대화에 추가할 수 있습니다.
+
+> Claude의 **Auto mode permissions**(`Auto` / `Accept edits` / `Bypass permissions`)는 에이전트가 보관함을 고치는 권한입니다. `Bypass permissions`는 권장하지 않습니다.
+
+### 3) Copilot LLM 설정
+
+모델 설정이 헷갈리는 이유는 **층이 3개**인데 층마다 보는 자격증명이 다르기 때문입니다.
+
+| 층 | 모델·인증 | 설정 위치 | 쓰임 |
+| --- | --- | --- | --- |
+| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더**(`프로바이더`, `Ollama 엔드포인트` / `OpenAI 엔드포인트`, `모델`, `API 키`) — [설정](#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안` 등) |
+| **Copilot Agent Chat** (Claude / Codex / opencode) | **CLI 로그인** — BYOK 키는 쓰지 않습니다 | `Basic → Agents`의 각 에이전트 탭. `Agent default`로 두면 에이전트가 모델을 결정 | git 커밋·이슈 신호·Wiki 초안 |
+| **Copilot Quick Chat** | Copilot-hosted 또는 **BYOK** 모델이 필요. Agent Chat에서 고른 모델과 **별개 목록**입니다 | `Settings → Copilot → BYOK` + `Basic → Agents → Quick Chat` | Copilot 채팅창에서의 짧은 질의 |
+
+**Quick Chat용 모델 설정**
+
+1. `Settings → Copilot → BYOK → Add provider`. 로컬 모델은 `Self Host` 템플릿(Ollama 기본 `http://localhost:11434/v1`, LM Studio `http://localhost:1234/v1`)을, 클라우드는 해당 제공자를 고르고 키를 입력합니다. 커스텀 OpenAI 호환 엔드포인트는 `Base URL`이 필수입니다.
+2. `Basic → Agents → Quick Chat`에서 쓸 모델을 켜고 `Default model`을 지정합니다.
+
+**막히는 지점**
+
+- **`missing key` 라벨이 뜨거나 `Select Model`만 보입니다** — 기본 모델이 OpenRouter의 Gemini 2.5 Flash라 키가 없으면 막힙니다. 다른 제공자를 쓰려면 BYOK에서 먼저 추가한 뒤 `Default model`을 바꾸세요.
+- **Agent Chat이 안 되는데 BYOK 키를 넣고 있습니다** — 층을 혼동한 것입니다. Claude/Codex는 **CLI 로그인**만 봅니다(1)절).
+- **Copilot `Reset Settings` 후 에이전트 모델이 비어 있습니다** — 키는 보존되지만 백엔드 모델 활성화가 초기화되므로 `Basic → Agents`에서 다시 켜세요.
+
+### 4) (선택) Labnote 툴 연결 — MCP
 
 Claude Code에 labnoteo의 MCP 서버를 등록하면 터미널과 Copilot 에이전트 모드 양쪽에서 같은 `claude` 바이너리가 Labnote 툴을 직접 호출합니다. **데스크톱 전용**입니다.
 

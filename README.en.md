@@ -28,16 +28,38 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 
 ## Installation
 
+### First-time setup order
+
+The order is vault → CLI agent → prerequisite plugins → Labnote Assistant → automation → git/GitHub → Copilot setup. **BRAT is how you install Labnote Assistant**, so it necessarily comes first.
+
+1. Create or open an Obsidian vault.
+2. **Install a CLI agent & sign in** (Claude Code / Codex) — before Copilot. See [Copilot agents](#copilot-agents).
+3. **Install & enable the community plugins** — **BRAT** (how you install Labnote Assistant) + **Copilot** + (optional) Data Files Editor. See [Plugins to install](#plugins-to-install).
+4. **Install & enable Labnote Assistant** — add `sblabkribb/labnoteo` with the BRAT from step 3 (or install manually). See [Installing Labnote Assistant](#installing-labnote-assistant).
+5. Run *Setup research automation* to generate `.labnoteo/`, `.gitignore`, `AGENTS.md`, and `QUICKSTART.md`. See [Research automation](#research-automation).
+6. `git init`, then enable the pre-commit hook — `git config core.hooksPath .labnoteo/hooks`.
+7. Connect a **private** GitHub repository and make the first push.
+8. **Configure Copilot** — `Auto-detect` the agent under `Basic → Agents`, and pick a BYOK model for Quick Chat if you need one. See [Copilot agents](#copilot-agents) and [Copilot LLM setup](#3-copilot-llm-setup).
+9. (Optional) Wire Labnote's tools into the agent over MCP. See [MCP server](#mcp-server-desktop-only).
+
+- **`.gitignore` comes before the first push (5 → 7)**: once oversized raw data lands in Git history, nothing short of a history rewrite takes it back. `.gitignore` is written by *Setup research automation*, so connect git after that.
+- **Copilot setup comes after the automation setup (5 → 8)**: *installing* the plugin is done in step 3, but *connecting* the agent waits until `AGENTS.md` exists. Agent Chat reads the vault-root `AGENTS.md` as its instructions, so your rules apply from the very first session.
+
 ### Plugins to install
 
-| Plugin | Role | How to install |
-| --- | --- | --- |
-| **Labnote Assistant** (this plugin) | Required | BRAT or manual — see below |
-| **Copilot** (by logancyang) | Required | Settings → Community plugins → **Browse** |
-| **Obsidian42 - BRAT** | Only for the BRAT route | Settings → Community plugins → **Browse** |
-| **Data Files Editor** | Optional | Settings → Community plugins → **Browse** |
+CLI agents (Claude Code / Codex) are **system CLIs**, not Obsidian plugins, so they are not in this table — install them before Copilot so its `Auto-detect` picks them up right away.
 
-- **Copilot**: its agent mode drives your local Claude Code CLI, which handles git commits, Issue signals, and Wiki drafts. See [Copilot + Claude Code](#copilot--claude-code).
+| Order | Plugin | Role | How to install |
+| --- | --- | --- | --- |
+| 1 | **Obsidian42 - BRAT** | Required (how you install Labnote Assistant) | Settings → Community plugins → **Browse** |
+| 1 | **Copilot** (by logancyang) | Required | Settings → Community plugins → **Browse** |
+| 1 | **Data Files Editor** | Optional | Settings → Community plugins → **Browse** |
+| 2 | **Labnote Assistant** (this plugin) | Required | BRAT or manual — [see below](#installing-labnote-assistant) |
+
+Rows sharing an `Order` can be installed in any sequence; `2` comes after all of `1`.
+
+- **Obsidian42 - BRAT**: Labnote Assistant is not in the community plugin directory yet, so this is what installs it. Skip it only if you chose the manual route.
+- **Copilot**: its agent mode drives your local Claude Code / Codex CLI, which handles git commits, Issue signals, and Wiki drafts. **Install the CLI agent first and `Auto-detect` finds it in one go.** See [Copilot agents](#copilot-agents) for setup.
 - **Data Files Editor**: edits the sample stores at `resources/labsamples/*.json` directly inside Obsidian.
 
 ### Installing Labnote Assistant
@@ -46,9 +68,10 @@ The plugin is not in the community directory yet, so install it from a release. 
 
 **Via BRAT (recommended; updates itself)**
 
-1. Install **Obsidian42 - BRAT**.
-2. Run *BRAT: Add a beta plugin for testing* and enter `sblabkribb/labnoteo`.
-3. Enable **Labnote Assistant** in Settings → Community plugins.
+Use the BRAT you installed in step 3 of [First-time setup order](#first-time-setup-order).
+
+1. Run *BRAT: Add a beta plugin for testing* and enter `sblabkribb/labnoteo`.
+2. Enable **Labnote Assistant** in Settings → Community plugins.
 
 **Manually**
 
@@ -105,6 +128,7 @@ The bundled scripts are **zero-dependency** Node ESM: they reuse labnoteo's own 
 
 - The vault must be a GitHub repository (push it first) for any Actions to run. Keep it **private** if it holds research data.
 - All server-side automation is **deterministic** and runs on GitHub-hosted runners — no self-hosted runner or server-side LLM is needed. The AI judgments (does this note need discussion? which facts belong in the Wiki?) are done by your **local AI agent** following `AGENTS.md`; the agent only sets the `discuss: true` signal or drafts into `wiki-staging/`, while `issue-sync` / `wiki-sync` remain the sole creators/publishers, so nothing is duplicated. `wiki-sync.yml` may need a PAT (`GH_WIKI_TOKEN`) because the Wiki is a separate repository.
+- `AGENTS.md` is **shared with Copilot**: Copilot's *Custom vault instructions* field edits the vault-root `AGENTS.md` directly, and that file becomes the instruction set for Agent Chat and, by default, Quick Chat — so the rules this command installs apply to Copilot automatically. When you edit from that field, **keep your own rules outside** labnoteo's managed marker block so you don't disturb it, and once a re-run of this command has refreshed `AGENTS.md`, **start a new Agent Chat** for it to take effect. See [Copilot agents](#copilot-agents).
 - Automation **never rewrites your notes** — it only opens Issues and publishes reviewed Wiki drafts. Scientific judgment and `status` changes stay with you.
 - After a plugin update, re-run the command to refresh the scripts, then review the diff before committing.
 
@@ -139,15 +163,19 @@ Enabling the MCP server exposes Labnote's tools (`get_sample`, `list_samples`, `
 
 The server is a *stateless* implementation of the `2025-06-18` MCP revision (`initialize`, `tools/list`, `tools/call`). It validates the `Origin` header to defend against DNS rebinding, and because authentication is a bearer token rather than the spec's OAuth flow, your client must be able to set a custom `Authorization` header.
 
-## Copilot + Claude Code
+## Copilot agents
 
-Copilot's **agent mode** runs a CLI agent installed on this machine (OpenCode / **Claude Code** / Codex). Pick "Claude" and it drives your local `claude` CLI, authenticating with **the Claude subscription account signed in to that CLI (Pro/Max/Team/Enterprise), not an API key**.
+Copilot's **agent mode** runs a CLI agent installed on this machine (**Claude Code** / **Codex** / opencode) as-is. It authenticates with **the account signed in to that CLI, not a BYOK API key** — pick "Claude" and it drives your local `claude` CLI and the Claude subscription (Pro/Max/Team/Enterprise) signed in to it; pick "Codex" and it uses the `codex-acp` adapter and your Codex CLI login.
 
-This is a different layer from labnoteo's built-in AI commands: those draft and summarize *inside* Obsidian, while the external agent handles git, Issue signals, and Wiki drafts. If you set up [Research automation](#research-automation), the same `claude` CLI picks up the generated `AGENTS.md` / `CLAUDE.md` automatically, in the terminal and in Copilot's agent mode alike.
+This is a different layer from labnoteo's built-in AI commands: those draft and summarize *inside* Obsidian, while the external agent handles git, Issue signals, and Wiki drafts. See [Copilot LLM setup](#3-copilot-llm-setup) for how the layers differ. If you set up [Research automation](#research-automation), the same CLI picks up the generated `AGENTS.md` / `CLAUDE.md` automatically, in the terminal and in Copilot's agent mode alike.
 
-### 1) Install & sign in to Claude Code
+> Copilot's *Custom vault instructions* field **edits the vault-root `AGENTS.md` directly**. That file is the instruction set for Agent Chat (and, by default, Quick Chat), so the rules labnoteo installs apply to Copilot too. Editing from that field can disturb labnoteo's managed marker block, though, so **keep your own rules outside the markers**. Once a re-run of *Setup research automation* has refreshed `AGENTS.md`, **start a new Agent Chat** for it to take effect.
 
-1. Run the install command shown in Copilot's Settings → **Basic → Agents → Claude → Configure**, under *Install Claude Code*. On Windows PowerShell, for example:
+### 1) Install & sign in to a CLI agent (before Copilot)
+
+**Claude Code** — Copilot's *Install Claude Code* only shows you an install command to run outside Copilot; the binary itself is what the `Auto-detect` in 2) looks for in the usual install locations. Installing the CLI first is the surer path.
+
+1. Install Claude Code through the official route. On Windows PowerShell, for example:
    ```powershell
    irm https://gist.githubusercontent.com/logancyang/7a87eb38d91015eac567521f8cc9c729/raw/install-claude-agent-mode-windows.ps1 | iex
    ```
@@ -156,13 +184,43 @@ This is a different layer from labnoteo's built-in AI commands: those draft and 
 
 > If `ANTHROPIC_API_KEY` is set in your environment, it **takes precedence** over the subscription login and bills against that key. Leave it unset to use your subscription.
 
-### 2) Connect the Claude agent in Copilot
+**Codex** — Install the Codex CLI and sign in. The adapter (`codex-acp`) defaults to `Managed by Copilot`, so Copilot installs it for you without Node/npm and `Sign in` works inside Copilot as well — unlike Claude, **pre-installing is not mandatory.** The benefit of doing it first is sharing the login and configuration with your terminal, which matters because labnoteo governs terminal work through `AGENTS.md` too.
 
-1. Go to Settings → Copilot → **Basic → Agents → Claude → Configure → Auto-detect**. If it isn't found, paste the `claude` binary path into the binary-path field and save. (A "not in your PATH" warning is fine.)
-2. Run **Open Copilot Agent Chat Window** from the command palette and pick **Claude**.
-3. Select text in a note, then use agent mode's context controls to add the selection or the active note to the chat.
+**opencode** — Copilot installs and manages it directly, so there is no CLI to prepare.
 
-### 3) (Optional) Wire Labnote tools into Claude — MCP
+### 2) Connect the agent in Copilot
+
+*Installing* the Copilot plugin is already done in step 3 of [First-time setup order](#first-time-setup-order); this section only covers connecting.
+
+1. Go to Settings → Copilot → **Basic → Agents**, pick **Claude** or **Codex** → **Configure** → **Auto-detect**. Since you installed the CLI in 1), it is found right away. Only if it isn't, paste the binary's absolute path into **My own binary**. (A "not in your PATH" warning is fine.)
+2. Set your default agent with **Default backend**.
+3. Run **Open Copilot Agent Chat Window** from the command palette to open the chat.
+4. Select text in a note, then use agent mode's context controls to add the selection or the active note to the chat.
+
+> Claude's **Auto mode permissions** (`Auto` / `Accept edits` / `Bypass permissions`) govern how freely the agent edits your vault. `Bypass permissions` is not recommended.
+
+### 3) Copilot LLM setup
+
+Model setup is confusing because there are **three layers**, and each looks at different credentials.
+
+| Layer | Model & auth | Where to configure | Used for |
+| --- | --- | --- | --- |
+| **labnoteo's own AI** | Ollama or an OpenAI-compatible endpoint + its own `API key` | Settings → Labnote Assistant → **AI provider** (`Provider`, `Ollama endpoint` / `OpenAI endpoint`, `Model`, `API key`) — see [Settings](#settings) | Drafting and summarizing inside a note (`AI: Draft Method section`, …) |
+| **Copilot Agent Chat** (Claude / Codex / opencode) | **The CLI login** — BYOK keys are not used | Each agent's tab under `Basic → Agents`. Left at `Agent default`, the agent picks the model | git commits, Issue signals, Wiki drafts |
+| **Copilot Quick Chat** | Needs a Copilot-hosted or **BYOK** model. A **separate list** from the models you pick for Agent Chat | `Settings → Copilot → BYOK` + `Basic → Agents → Quick Chat` | Short questions in the Copilot chat pane |
+
+**Setting up a model for Quick Chat**
+
+1. `Settings → Copilot → BYOK → Add provider`. For a local model use the `Self Host` template (Ollama defaults to `http://localhost:11434/v1`, LM Studio to `http://localhost:1234/v1`); for a cloud model pick the provider and enter its key. A custom OpenAI-compatible endpoint requires a `Base URL`.
+2. Under `Basic → Agents → Quick Chat`, enable the models you want and set the `Default model`.
+
+**Where people get stuck**
+
+- **A `missing key` label appears, or you only see `Select Model`** — the default model is OpenRouter's Gemini 2.5 Flash, so it is blocked without a key. To use another provider, add it under BYOK first, then change the `Default model`.
+- **Agent Chat won't work and you are entering BYOK keys** — that is mixing up the layers. Claude/Codex only look at **the CLI login** (see 1)).
+- **Agent models are empty after Copilot's `Reset Settings`** — your keys are preserved, but backend model activation is reset, so re-enable them under `Basic → Agents`.
+
+### 4) (Optional) Connect Labnote tools — MCP
 
 Register labnoteo's MCP server with Claude Code and the same `claude` binary can call Labnote's tools directly, from a terminal or from Copilot's agent mode. **Desktop only.**
 

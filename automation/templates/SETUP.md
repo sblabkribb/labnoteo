@@ -8,12 +8,17 @@
 
 ## 최초 설정 체크리스트 (한 번만)
 
-순서대로 진행하세요.
+**전제** — 커뮤니티 플러그인 설치와 *연구노트 자동화 설정* 실행은 이미 끝난 상태입니다
+(그래서 이 문서가 보관함에 있습니다). 보관함 생성부터 Copilot 설정까지의 전체 순서는
+저장소 README의 [처음 설정 순서](https://github.com/sblabkribb/labnoteo#처음-설정-순서)를
+보세요.
+
+순서대로 진행하세요. 특히 **push보다 훅 활성화가 먼저**입니다 — 훅 없이 첫 커밋을 만들면
+대용량 파일이 Git 이력에 박히고, 그 뒤에는 history rewrite 말고 되돌릴 방법이 없습니다(⑤ 참고).
 
 - [ ] **① 비공개(PRIVATE) GitHub 저장소 확인** — 연구 정보 보호의 전제입니다.
       공개 저장소는 fork PR을 통한 워크플로우 악용 위험도 있습니다.
-- [ ] **② GitHub로 push** — 보관함이 GitHub 저장소여야 Actions(검증/이슈/Wiki)가 동작합니다.
-- [ ] **③ pre-commit 훅 활성화** — 보관함 루트에서 한 번 실행:
+- [ ] **② pre-commit 훅 활성화** — 보관함 루트에서 한 번 실행:
 
   ```sh
   git config core.hooksPath .labnoteo/hooks
@@ -25,6 +30,7 @@
   chmod +x .labnoteo/hooks/pre-commit
   ```
 
+- [ ] **③ GitHub로 push** — 보관함이 GitHub 저장소여야 Actions(검증/이슈/Wiki)가 동작합니다.
 - [ ] **④ (Wiki 사용 시) Wiki 초기화 + 토큰** — GitHub Wiki는 별도 저장소입니다.
       저장소 Wiki 탭에서 첫 페이지를 한 번 만들어 초기화하고, 기본 `GITHUB_TOKEN`으로
       Wiki push가 안 되는 구성이라면 Wiki push 권한이 있는 PAT를 시크릿
