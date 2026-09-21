@@ -107,4 +107,91 @@ describe('replaceSectionBody', () => {
     expect(out.ok).toBe(false);
     expect(out.md).toBe(md);
   });
+
+  // Fence tracking used to be a boolean toggle that ignored which character
+  // opened the block. A ``` nested inside a ~~~ example flipped it, the real
+  // closing ~~~ flipped it back, and from there every heading looked fenced —
+  // so the body ran to EOF and replacing it deleted the following sections.
+  describe('mismatched fence characters', () => {
+    it('does not treat ``` inside a ~~~ block as closing it', () => {
+      const md = [
+        '## Method',
+        '',
+        'a',
+        '~~~',
+        '```',
+        '~~~',
+        'b',
+        '',
+        '## Results',
+        '',
+        'keep me',
+        '',
+      ].join('\n');
+
+      const out = replaceSectionBody(md, 'Method', 'NEW');
+
+      expect(out.ok).toBe(true);
+      expect(out.md).toContain('## Results');
+      expect(out.md).toContain('keep me');
+    });
+
+    it('does not treat ~~~ inside a ``` block as closing it', () => {
+      const md = ['## Method', '', '```', '~~~', '```', '', '## Results', '', 'keep me', ''].join(
+        '\n'
+      );
+
+      const out = replaceSectionBody(md, 'Method', 'NEW');
+
+      expect(out.ok).toBe(true);
+      expect(out.md).toContain('## Results');
+      expect(out.md).toContain('keep me');
+    });
+
+    it('requires the closing run to be at least as long as the opener', () => {
+      // ```` opens, so the inner ``` is content and only the final ```` closes.
+      const md = [
+        '## Method',
+        '',
+        '````',
+        '```',
+        'nested',
+        '```',
+        '````',
+        '',
+        '## Results',
+        '',
+        'keep me',
+        '',
+      ].join('\n');
+
+      const out = replaceSectionBody(md, 'Method', 'NEW');
+
+      expect(out.ok).toBe(true);
+      expect(out.md).toContain('## Results');
+      expect(out.md).toContain('keep me');
+    });
+
+    it('still finds a heading that follows a block with a nested fence', () => {
+      const md = ['# Doc', '', '~~~', '```', '~~~', '', '## Method', '', 'body', ''].join('\n');
+
+      const out = replaceSectionBody(md, 'Method', 'NEW');
+
+      expect(out.ok).toBe(true);
+      expect(out.md).toContain('## Method\n\nNEW\n');
+    });
+
+    it('treats an info string as an opener, not a close', () => {
+      // `~~~yaml` opens; the later bare `~~~` closes it.
+      const md = ['## Method', '', '~~~yaml', 'a: 1', '~~~', '', '## Results', '', 'keep me', ''].join(
+        '\n'
+      );
+
+      const out = replaceSectionBody(md, 'Method', 'NEW');
+
+      expect(out.ok).toBe(true);
+      expect(out.md).toContain('## Results');
+      expect(out.md).toContain('keep me');
+    });
+  });
 });
