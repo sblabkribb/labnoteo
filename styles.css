@@ -105,10 +105,15 @@ body > input.labnote-datetime-picker {
 
 /* --- Pickers / suggestions ---------------------------------------------- */
 .labnote-pick-desc,
+.labnote-pick-detail,
 .labnote-suggest-detail {
   display: block;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
+}
+.labnote-pick-detail {
+  margin-top: 2px;
+  white-space: normal; /* 긴 설명 전문을 줄바꿈으로 표시 */
 }
 
 /* --- Prompt modal ------------------------------------------------------- */

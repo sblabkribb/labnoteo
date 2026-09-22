@@ -44,6 +44,9 @@ class PickModal<T> extends SuggestModal<PickItem<T>> {
     if (item.description) {
       el.createEl('small', { text: item.description, cls: 'labnote-pick-desc' });
     }
+    if (item.detail) {
+      el.createEl('small', { text: item.detail, cls: 'labnote-pick-detail' });
+    }
   }
 
   /** Resolve exactly once; later calls are no-ops. */
