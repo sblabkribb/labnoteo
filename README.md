@@ -4,7 +4,7 @@
 
 [English](README.en.md)
 
-생물학·생명정보학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
+바이오파운드리기반 합성생물학 실험을 위한 Obsidian용 Markdown 기반 실험 노트입니다. 샘플 추적, 워크플로 체크리스트, 유닛 오퍼레이션, 선택적 LLM 보조 기능을 제공합니다.
 
 이 저장소는 Labnote Assistant의 Obsidian 포팅 버전입니다. 파싱·도메인 로직은 동반 VS Code 확장과 개념을 공유하지만, 이 저장소 안에서 완전히 자립적으로 동작합니다.
 
@@ -24,11 +24,15 @@
 - **LLM 보조(선택)**: Ollama 또는 OpenAI로 방법 초안·결과 요약·샘플 추출. *어시스턴트에게 요청* 명령은 모델이 Labnote 툴을 직접 호출해 목표를 달성하며, 보관함 수정 전 매번 확인합니다. 같은 툴을 외부 MCP 클라이언트에도 노출할 수 있습니다.
 - **연구노트 자동화(선택)**: 명령 한 번으로 GitHub Actions·무의존성 스크립트·AI 에이전트 규칙(`AGENTS.md`)을 보관함에 설치해 노트 검증·Experiment ↔ Issue 연결·Living-Manuscript Wiki를 자동화합니다. 모두 선택적이며 사람이 검토합니다. [아래](#연구노트-자동화) 참고.
 
+
+
 ## 요구 사항
 
 - Obsidian `1.5.0` 이상 (최신 버전 권장).
 - GitHub 자동화를 쓸 때: [git](https://git-scm.com/downloads)과 GitHub 계정. (노트만 쓸 거라면 불필요.)
 - 개발 시 Node.js `22+`.
+
+
 
 ## 설치
 
@@ -40,30 +44,36 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 3. **BRAT**로 이 플러그인(`sblabkribb/labnoteo`)을 설치·활성화.
 4. (자동화를 쓸 때만) *연구노트 자동화 설정* 실행 → (선택) Copilot 에이전트 연결 → 빈 private GitHub 저장소를 만들고 첫 커밋·push(Copilot에게 맡기거나 수동 git).
 
+
+
 ## 주요 명령어
 
 명령 팔레트에는 영문 이름으로 등록됩니다(괄호 안).
 
-| 명령어 | 설명 |
-|---|---|
-| 날짜 삽입 (`Insert date`) | 현재 날짜 삽입 |
-| 날짜 및 시간 삽입 (`Insert date and time`) | 현재 타임스탬프 삽입 |
-| 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트 생성 |
-| 실험 상태 변경 (`Change experiment status`) | 활성 실험의 `status` frontmatter를 피커로 변경 |
-| 논의 표시 전환 (`Toggle discussion flag`) | 활성 실험의 `discuss` 표시를 켜고 끔 — 다음 push 때 GitHub Issue 생성 |
-| 논의 이슈 마커 삽입 (`Insert issue marker`) | 커서 위치에 `@issue;<ID>;<주제문장>` 마커 삽입(선택 영역이 주제문장) — 마커마다 별도 Issue 생성 |
-| 워크플로 생성 (`Create workflow`) | 번호가 매겨진 워크플로 노트 생성 |
-| 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 유닛 오퍼레이션 삽입 |
-| 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 CSV로 내보내기 |
-| 연구노트 자동화 설정 (`Setup research automation`) | GitHub Actions·스크립트를 현재 보관함에 설치([연구노트 자동화](#연구노트-자동화) 참고) |
-| AI: Method 섹션 초안 (`AI: Draft Method section`) | 설정된 LLM으로 실험 방법 초안 작성 |
-| AI: 결과 요약 (`AI: Summarize results`) | 설정된 LLM으로 결과 요약 |
-| AI: 샘플 정의 추출 (`AI: Extract sample definitions`) | 설정된 LLM으로 노트에서 샘플 추출 |
-| AI: 어시스턴트에게 요청 (`AI: Ask assistant (uses tools)`) | 목표를 말하면 모델이 Labnote 툴로 수행 |
-| MCP 서버 토글 (`Toggle MCP server`) | 로컬 MCP 서버 시작/중지([Copilot 가이드](docs/COPILOT.md#선택-labnote-툴-연결--mcp) 참고) |
-| 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰 표시 |
+
+| 명령어                                                      | 설명                                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 날짜 삽입 (`Insert date`)                                    | 현재 날짜 삽입                                                                |
+| 날짜 및 시간 삽입 (`Insert date and time`)                      | 현재 타임스탬프 삽입                                                             |
+| 실험 생성 (`Create experiment`)                              | 새 `.labnote.md` 실험 노트 생성                                                |
+| 실험 상태 변경 (`Change experiment status`)                    | 활성 실험의 `status` frontmatter를 피커로 변경                                     |
+| 논의 표시 전환 (`Toggle discussion flag`)                      | 활성 실험의 `discuss` 표시를 켜고 끔 — 다음 push 때 GitHub Issue 생성                   |
+| 논의 이슈 마커 삽입 (`Insert issue marker`)                      | 커서 위치에 `@issue;<ID>;<주제문장>` 마커 삽입(선택 영역이 주제문장) — 마커마다 별도 Issue 생성       |
+| 워크플로 생성 (`Create workflow`)                              | 번호가 매겨진 워크플로 노트 생성                                                      |
+| 유닛 오퍼레이션 삽입 (`Insert unit operation`)                    | 카탈로그에서 유닛 오퍼레이션 삽입                                                      |
+| 표 CSV 내보내기 (`Export tables to CSV`)                      | 노트의 표를 CSV로 내보내기                                                        |
+| 연구노트 자동화 설정 (`Setup research automation`)                | GitHub Actions·스크립트를 현재 보관함에 설치([연구노트 자동화](#연구노트-자동화) 참고)               |
+| AI: Method 섹션 초안 (`AI: Draft Method section`)            | 설정된 LLM으로 실험 방법 초안 작성                                                   |
+| AI: 결과 요약 (`AI: Summarize results`)                      | 설정된 LLM으로 결과 요약                                                         |
+| AI: 샘플 정의 추출 (`AI: Extract sample definitions`)          | 설정된 LLM으로 노트에서 샘플 추출                                                    |
+| AI: 어시스턴트에게 요청 (`AI: Ask assistant (uses tools)`)        | 목표를 말하면 모델이 Labnote 툴로 수행                                               |
+| MCP 서버 토글 (`Toggle MCP server`)                          | 로컬 MCP 서버 시작/중지([Copilot 가이드](docs/COPILOT.md#선택-labnote-툴-연결--mcp) 참고) |
+| 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰 표시                                                               |
+
 
 > 파일 탐색기에서 워크플로 파일 이름을 바꾸면 README 체크리스트가 새 번호(NNN) 순서로 자동 재정렬되고, 삭제하면 해당 체크리스트 항목과 그 파일이 정의한 샘플이 자동으로 정리됩니다.
+
+
 
 ## 연구노트 자동화
 
