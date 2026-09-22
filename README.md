@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.88.0**
+**버전 0.88.1**
 
 [English](README.en.md)
 
@@ -96,6 +96,10 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 - **샘플 추적**: Samples 사이드바 뷰 표시 여부.
 - **사용자 정의 샘플 타입**: 내장 타입 외에 사용자 정의 타입 추가.
 - **글로벌 샘플 폴더**: 보관함 전역 샘플 저장소 폴더 (기본 `resources/labsamples`).
+
+**워크플로**
+
+- **유닛오퍼레이션 TOC 자동 정렬** (`Auto-sync unit operation TOC`): 편집 후 워크플로 노트의 `Related Unit Operations` 목록을 헤딩 순서에 맞게 자동 정렬합니다 — 유닛 오퍼레이션 블록을 옮기면 문서 맨 위 목차도 따라 재정렬됩니다. 기본 켜짐.
 
 **AI 제공자**
 

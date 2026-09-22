@@ -19,15 +19,21 @@ labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안�
 
 ## Copilot 플러그인 설치
 
-1. 설정 → **커뮤니티 플러그인 → 찾아보기**에서 `Copilot`(제작자 logancyang)을
+1. 설정 → **커뮤니티 플러그인 → 찾아보기**에서 `Copilot`(제작자 logancyang, **V4**)을
    설치·활성화합니다.
 2. 활성화하면 왼쪽 리본에 Agent Chat 아이콘이 생깁니다.
+
+> **Agent Chat은 데스크톱 전용**입니다(각 에이전트가 로컬 프로세스로 돌기 때문).
+> 모바일에서는 Quick Chat만 동작합니다.
 
 ## 에이전트 연결
 
 Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 것을 쓸지 아직 정하지
 않았다면 opencode**가 가장 간단합니다 — Copilot이 실행 파일을 직접 내려받아 관리하므로
 따로 설치할 것이 없습니다. 이미 Claude Code나 Codex를 쓰고 있다면 그쪽을 연결하세요.
+
+> **구독별 자연스러운 선택**: Claude 구독이 있으면 **Claude Code**, ChatGPT 구독이면
+> **Codex**, API 키·로컬 모델만 있으면 **opencode**.
 
 ### opencode (권장 · 기본)
 

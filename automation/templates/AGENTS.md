@@ -3,8 +3,8 @@
 > 이 블록은 labnoteo 플러그인의 "연구노트 자동화 설정" 명령이 관리합니다.
 > 재실행 시 마커 사이 내용만 갱신되므로, **사용자 규칙은 마커 바깥에** 작성하세요.
 
-이 보관함(vault)은 Obsidian 기반 연구노트 저장소입니다. AI 에이전트(Claude Code,
-Cursor 등)는 아래 규칙을 따라 작업합니다.
+이 보관함(vault)은 Obsidian 기반 연구노트 저장소입니다. AI 에이전트(opencode,
+Claude Code, Codex, Cursor 등)는 아래 규칙을 따라 작업합니다.
 
 ## Git 워크플로우 + 커밋 메시지
 

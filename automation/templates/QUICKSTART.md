@@ -140,6 +140,7 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 | 결과를 Wiki에 반영 | 에이전트에게 "사실을 wiki-staging에 정리해줘" → 검토 → `main` 머지 |
 | 대용량 원시데이터 | Git에 넣지 말고 `raw-data/` 등 별도 보관(자동 제외됨), 노트에는 경로/ID만 기록 |
 | AI로 방법 초안/결과 요약 | 명령 팔레트 → `AI: Draft Method section` / `AI: Summarize results` |
+| 플러그인 업데이트 | BRAT가 앱 시작 시 자동 확인 · 수동은 `Check for updates to all beta plugins and UPDATE` |
 
 ---
 
@@ -239,7 +240,9 @@ README frontmatter:
 
 커서 위치에 `### [UHW010 Liquid Handling]` 헤딩과 `#### Meta`(실험자·시작/종료 시각),
 그리고 Input / Method / Output 같은 빈 섹션이 들어갑니다. 삽입 후 문서 맨 위
-`## Related Unit Operations` 목차가 헤딩 순서대로 다시 만들어집니다.
+`## Related Unit Operations` 목차가 헤딩 순서대로 다시 만들어집니다. **유닛 오퍼레이션
+블록을 옮기거나 지워도** 목차가 자동으로 다시 정렬됩니다(설정 → Labnote Assistant →
+워크플로 → `유닛오퍼레이션 TOC 자동 정렬`, 기본 켜짐).
 
 `Experimenter`는 같은 폴더 README의 `author`에서 가져옵니다 — 비어 있으면 빈 값입니다.
 `Start_date`는 삽입 시각이 자동으로, `End_date`는 비어 있으니 **작업이 끝나면 값을
@@ -314,6 +317,11 @@ API 키는 OpenAI 계열에만 전송되며 Ollama로는 절대 나가지 않습
 **Actions 탭에 실행 기록 자체가 없어요**
 - 이 워크플로우들은 **`labnote/` 아래 파일이 바뀐 push에서만** 돕니다. 설정 파일이나 Wiki 초안만 고쳐 push하면 아무것도 실행되지 않습니다.
 - 지금 당장 돌리고 싶다면 **Actions 탭 → `experiment-issues` → `Run workflow`** 를 누르세요. 수동 실행은 바뀐 파일이 아니라 **모든 실험 폴더**를 훑으므로, 그동안 처리되지 않고 남아 있던 마커가 한꺼번에 이슈로 열립니다.
+
+**플러그인은 어떻게 업데이트하나요?**
+- BRAT가 앱을 켤 때 자동으로 최신 릴리스를 확인·설치합니다(설정 → `Obsidian42 - BRAT`에서 자동 갱신을 끌 수 있음).
+- 지금 바로 받으려면 명령 팔레트 → `Check for updates to all beta plugins and UPDATE`.
+- 업데이트 뒤 서버 자동화 동작까지 최신으로 맞추려면 아래 항목을 보세요.
 
 **플러그인을 업데이트했는데 서버 동작이 예전 그대로예요**
 - GitHub Actions는 **저장소에 커밋된** `.labnoteo/scripts/*.mjs`를 실행합니다. 플러그인만 업데이트해서는 바뀌지 않습니다.

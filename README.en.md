@@ -1,10 +1,10 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.88.0**
+**Version 0.88.1**
 
 [한국어](README.md)
 
-A Markdown-based lab notebook for Obsidian, with sample tracking, workflow checklists, unit operations, and optional LLM assistance for biology and bioinformatics experiments.
+A Markdown-based lab notebook for Obsidian for synthetic biology experiments on a biofoundry, with sample tracking, workflow checklists, unit operations, and optional LLM assistance.
 
 This repository is the Obsidian port of the Labnote Assistant. It shares its platform-neutral parsing and domain logic with a companion VS Code extension, but is fully self-contained here.
 
@@ -111,6 +111,8 @@ See the generated `.labnoteo/SETUP.md` (admins) for the full asset table, prereq
 ## Settings
 
 **Samples** — toggle the Samples sidebar view, add custom sample types, and set the global sample folder (default `resources/labsamples`).
+
+**Workflows** — **Auto-sync unit operation TOC** reorders a workflow note's `Related Unit Operations` list to match heading order after edits, so moving a unit-operation block re-sorts the top-of-note TOC. On by default.
 
 **AI provider** — pick `none`, `ollama`, or `openai`; set the Ollama/OpenAI endpoint (separate fields so an OpenAI key never leaks to a local Ollama address), the model id (e.g. `qwen3`, `gpt-4o-mini`), and the API key (OpenAI-compatible only, never sent to Ollama).
 
