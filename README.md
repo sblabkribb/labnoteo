@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.88.1**
+**버전 0.88.2**
 
 [English](README.en.md)
 
@@ -139,4 +139,4 @@ npm run sync:versions # 루트 버전을 패키지, manifest, README에 전파
 
 ## 라이선스
 
-MIT
+[Apache License 2.0](LICENSE) © 2026 Korea Biofoundry (KRIBB). 재배포 시 [`LICENSE`](LICENSE)와 [`NOTICE`](NOTICE) 파일을 함께 보존하세요.

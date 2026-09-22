@@ -1,10 +1,15 @@
 {
 	"name": "labnoteo",
 	"private": true,
-	"version": "0.88.1",
+	"version": "0.88.2",
 	"type": "module",
 	"description": "Markdown-based lab notebook with sample tracking, workflow checklists, and LLM assistance for biology and bioinformatics experiments.",
-	"license": "MIT",
+	"license": "Apache-2.0",
+	"author": {
+		"name": "Haseong Kim",
+		"url": "https://github.com/sblabkribb/labnoteo"
+	},
+	"homepage": "https://github.com/sblabkribb/labnoteo",
 	"workspaces": [
 		"packages/*"
 	],

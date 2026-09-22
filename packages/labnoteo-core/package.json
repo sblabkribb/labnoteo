@@ -1,10 +1,10 @@
 {
   "name": "@labnoteo/core",
-  "version": "0.88.1",
+  "version": "0.88.2",
   "private": true,
   "type": "module",
   "description": "Platform-neutral core logic for labnoteo (parsers, workflow/sample domain logic).",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

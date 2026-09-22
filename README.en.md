@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.88.1**
+**Version 0.88.2**
 
 [한국어](README.md)
 
@@ -147,4 +147,4 @@ Every `LabnoteFs` implementation must pass the shared contract in `packages/labn
 
 ## License
 
-MIT
+[Apache License 2.0](LICENSE) (c) 2026 Korea Biofoundry (KRIBB). Retain the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files when redistributing.
