@@ -197,6 +197,28 @@ export function rebuildUnitOpToc(md: string): string {
 }
 
 /**
+ * Smallest single-range edit that turns `before` into `after`, by stripping the
+ * shared prefix and suffix. Returns the character range in `before` to replace
+ * plus the replacement text, or `null` when the strings are identical.
+ *
+ * Used to apply a `rebuildUnitOpToc` result to a live editor without rewriting
+ * the whole document: editing only the changed span keeps the caret anchored to
+ * the surrounding text (a full-document replace would reset it).
+ */
+export function minimalReplacement(
+  before: string,
+  after: string
+): { start: number; end: number; text: string } | null {
+  if (before === after) return null;
+  const max = Math.min(before.length, after.length);
+  let s = 0;
+  while (s < max && before[s] === after[s]) s++;
+  let e = 0;
+  while (e < max - s && before[before.length - 1 - e] === after[after.length - 1 - e]) e++;
+  return { start: s, end: before.length - e, text: after.slice(s, after.length - e) };
+}
+
+/**
  * Given the post-insert markdown, the pre-insert cursor offset, and the
  * TOC-rebuilt markdown, return the character offset of the just-inserted
  * `### [..]` unit-op heading within the rebuilt text (or -1 if none).

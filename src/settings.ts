@@ -20,6 +20,8 @@ export interface LabnoteSettings {
   schemaVersion: number;
   /** Show the Samples sidebar view. */
   sampleTracking: boolean;
+  /** Auto-reorder a workflow note's unit-op TOC to match heading order on edit. */
+  autoSyncUnitOpToc: boolean;
   /** Extra sample types beyond the built-ins (DNA, RNA, …). */
   customSampleTypes: string[];
   /** Folder (vault-relative) that holds vault-global sample storage. */
@@ -45,6 +47,7 @@ export interface LabnoteSettings {
 export const DEFAULT_SETTINGS: LabnoteSettings = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   sampleTracking: true,
+  autoSyncUnitOpToc: true,
   customSampleTypes: [],
   globalSampleFolder: 'resources/labsamples',
   llmProvider: 'none',
@@ -69,6 +72,7 @@ export function migrateSettings(raw: unknown): LabnoteSettings {
   const out: LabnoteSettings = { ...DEFAULT_SETTINGS };
 
   if (typeof data.sampleTracking === 'boolean') out.sampleTracking = data.sampleTracking;
+  if (typeof data.autoSyncUnitOpToc === 'boolean') out.autoSyncUnitOpToc = data.autoSyncUnitOpToc;
   if (Array.isArray(data.customSampleTypes)) {
     out.customSampleTypes = data.customSampleTypes.filter(
       (x): x is string => typeof x === 'string'

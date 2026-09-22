@@ -157,6 +157,9 @@ const obsidianKo: Record<string, string> = {
   'Global sample folder': '전역 샘플 폴더',
   'Vault-relative folder for vault-global samples.':
     '볼트 전역 샘플을 저장할 볼트 기준 상대 폴더입니다.',
+  'Auto-sync unit operation TOC': '유닛오퍼레이션 TOC 자동 정렬',
+  "Reorder a workflow note's Related Unit Operations list to match heading order after edits.":
+    '편집 후 워크플로 노트의 Related Unit Operations 목록을 헤딩 순서에 맞게 자동 정렬합니다.',
   'AI provider': 'AI 프로바이더',
   'Provider': '프로바이더',
   'Disabled': '비활성화됨',

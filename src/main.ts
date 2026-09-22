@@ -9,7 +9,7 @@
  */
 import { Plugin, Notice, TFile } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
-import { findSampleReferenceAt } from '@labnoteo/core';
+import { findSampleReferenceAt, rebuildUnitOpToc, minimalReplacement } from '@labnoteo/core';
 import { getSeoulDateString, getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
 import { getSampleDisplayMeta } from '@labnoteo/core/lib/sampleUtils';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
@@ -72,6 +72,8 @@ export default class LabnotePlugin extends Plugin {
     { renames: { from: string; to: string }[]; deletes: string[] }
   >();
   private readonly readmeSyncTimers = new Map<string, number>();
+  // Pending unit-op TOC auto-sync flushes, coalesced per workflow-note path.
+  private readonly unitOpTocTimers = new Map<string, number>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -88,6 +90,7 @@ export default class LabnotePlugin extends Plugin {
     this.registerFileMenu();
     this.registerEditorMenu();
     this.registerWorkflowReadmeSync();
+    this.registerUnitOpTocAutoSync();
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
 
     if (this.settings.mcpEnabled) {
@@ -111,6 +114,11 @@ export default class LabnotePlugin extends Plugin {
     }
     this.readmeSyncTimers.clear();
     this.readmeSyncQueue.clear();
+    // Same for pending unit-op TOC auto-sync flushes.
+    for (const handle of this.unitOpTocTimers.values()) {
+      window.clearTimeout(handle);
+    }
+    this.unitOpTocTimers.clear();
     // Views/events registered via this.register*() are auto-cleaned by Obsidian.
   }
 
@@ -368,6 +376,42 @@ export default class LabnotePlugin extends Plugin {
         if (!dir) return;
         this.queueReadmeSync(dir).deletes.push(file.path);
         this.scheduleReadmeSync(dir);
+      })
+    );
+  }
+
+  /**
+   * Keep a workflow note's `## Related Unit Operations` TOC ordered to match the
+   * document order of its `### [..]` headings, so moving a unit-op block updates
+   * the TOC without re-inserting. Fires on editor edits, debounced per note.
+   *
+   * Only the changed span is rewritten (via {@link minimalReplacement}) so the
+   * caret stays put; a full-document replace would reset it. The rewrite is
+   * idempotent, so our own edit settles on the next pass without looping.
+   */
+  private registerUnitOpTocAutoSync(): void {
+    this.registerEvent(
+      this.app.workspace.on('editor-change', (editor, info) => {
+        if (!this.settings.autoSyncUnitOpToc) return;
+        const file = info.file;
+        if (!(file instanceof TFile) || !isValidWorkflowPath(file.path)) return;
+
+        const path = file.path;
+        const prev = this.unitOpTocTimers.get(path);
+        if (prev !== undefined) window.clearTimeout(prev);
+        const handle = window.setTimeout(() => {
+          this.unitOpTocTimers.delete(path);
+          const before = editor.getValue();
+          const after = rebuildUnitOpToc(before);
+          const edit = minimalReplacement(before, after);
+          if (!edit) return;
+          editor.replaceRange(
+            edit.text,
+            editor.offsetToPos(edit.start),
+            editor.offsetToPos(edit.end)
+          );
+        }, 1500);
+        this.unitOpTocTimers.set(path, handle);
       })
     );
   }

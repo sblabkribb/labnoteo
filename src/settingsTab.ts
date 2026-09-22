@@ -67,6 +67,22 @@ export class LabnoteSettingTab extends PluginSettingTab {
         });
       });
 
+    new Setting(containerEl).setName(this.plugin.t('Workflows')).setHeading();
+
+    new Setting(containerEl)
+      .setName(this.plugin.t('Auto-sync unit operation TOC'))
+      .setDesc(
+        this.plugin.t(
+          "Reorder a workflow note's Related Unit Operations list to match heading order after edits."
+        )
+      )
+      .addToggle(t =>
+        t.setValue(s.autoSyncUnitOpToc).onChange(v => {
+          s.autoSyncUnitOpToc = v;
+          save();
+        })
+      );
+
     new Setting(containerEl).setName(this.plugin.t('AI provider')).setHeading();
 
     new Setting(containerEl)

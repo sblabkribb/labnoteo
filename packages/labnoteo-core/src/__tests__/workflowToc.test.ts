@@ -4,6 +4,7 @@ import {
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
+  minimalReplacement,
 } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
 
@@ -306,5 +307,50 @@ describe('locateInsertedUnitOpHeading', () => {
   it('returns -1 when no heading exists at/after the cursor', () => {
     const md = '## Related Unit Operations\n\n> hint\n\n## Conclusions and Discussion\n';
     expect(locateInsertedUnitOpHeading(md, 0, md)).toBe(-1);
+  });
+});
+
+describe('minimalReplacement', () => {
+  it('returns null when the strings are identical', () => {
+    expect(minimalReplacement('same', 'same')).toBeNull();
+  });
+
+  it('isolates a changed middle span (shared prefix + suffix)', () => {
+    const edit = minimalReplacement('abXYZcd', 'abWcd');
+    expect(edit).toEqual({ start: 2, end: 5, text: 'W' });
+  });
+
+  it('describes a pure insertion at the end', () => {
+    const edit = minimalReplacement('aaa', 'aaaa');
+    // Applying it to the original reproduces `after`.
+    const { start, end, text } = edit!;
+    expect('aaa'.slice(0, start) + text + 'aaa'.slice(end)).toBe('aaaa');
+  });
+
+  it('describes a pure deletion', () => {
+    const edit = minimalReplacement('hello world', 'hello');
+    const { start, end, text } = edit!;
+    expect('hello world'.slice(0, start) + text + 'hello world'.slice(end)).toBe('hello');
+  });
+
+  it('applied to a real TOC reorder reproduces rebuildUnitOpToc output', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [USW020 B](#usw020-b)',
+      '',
+      '## Steps',
+      '',
+      '### [USW020 B]',
+      '',
+      '### [UHW010 A]',
+      '',
+    ].join('\n');
+    const after = rebuildUnitOpToc(md);
+    const edit = minimalReplacement(md, after);
+    expect(edit).not.toBeNull();
+    const { start, end, text } = edit!;
+    expect(md.slice(0, start) + text + md.slice(end)).toBe(after);
   });
 });
