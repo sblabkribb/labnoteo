@@ -5,8 +5,61 @@ import {
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   minimalReplacement,
+  computeUnitOpSyncEdits,
+  applyTextEdits,
+  type TextEdit,
 } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
+import { buildHwUnitOpMarkdown } from '../lib/unitOpTemplate';
+
+/** A workflow note built the way the insert command builds it (block + TOC rebuild). */
+function buildNote(ops: [string, string][]): string {
+  let md = createWorkflowContent({ id: 'WD010', name: 'Design', description: 'desc' }, 'Dr. Kim');
+  ops.forEach(([opId, name]) => {
+    const block = buildHwUnitOpMarkdown(
+      { opId, opName: name, opDescription: `${name} step` },
+      { experimenter: 'Dr. Kim', dateTime: '2026-09-29 10:00' }
+    );
+    const off = findUnitOpInsertOffset(md);
+    md = rebuildUnitOpToc(md.slice(0, off) + block + md.slice(off));
+  });
+  return md;
+}
+
+/**
+ * Obsidian Outline drag: cut the heading's section (up to the next heading of
+ * the same or higher level) and paste it before `beforeHeading` — or at the end
+ * of the Related Unit Operations section when null.
+ */
+function outlineMove(md: string, heading: string, beforeHeading: string | null): string {
+  const start = md.indexOf(heading);
+  const re = /^#{1,3}\s/gm;
+  re.lastIndex = start + 1;
+  const next = re.exec(md);
+  const end = next ? next.index : md.length;
+  const chunk = md.slice(start, end);
+  const rest = md.slice(0, start) + md.slice(end);
+  const at = rest.indexOf(beforeHeading ?? '## Conclusions and Discussion');
+  return rest.slice(0, at) + chunk + rest.slice(at);
+}
+
+const tidy = (md: string): string => applyTextEdits(md, computeUnitOpSyncEdits(md));
+const collapseBlanks = (md: string): string => md.replace(/\n{3,}/g, '\n\n');
+const tocOrder = (md: string): string[] =>
+  [...md.matchAll(/^- \[(UHW\d+) /gm)].map(m => m[1]);
+
+/** Non-blank line right before `offset`'s line. */
+function prevNonBlank(md: string, offset: number): string {
+  const lines = md.slice(0, offset).split('\n');
+  lines.pop();
+  for (let i = lines.length - 1; i >= 0; i--) if (lines[i].trim() !== '') return lines[i];
+  return '';
+}
+
+function expectTemplateShape(md: string): void {
+  for (const m of md.matchAll(/^### \[/gm)) expect(prevNonBlank(md, m.index!)).toBe('---');
+  expect(prevNonBlank(md, md.indexOf('## Conclusions and Discussion'))).not.toBe('---');
+}
 
 describe('buildUnitOpTocLine', () => {
   it('matches the serializeWorkflowMd slug/label format', () => {
@@ -248,6 +301,287 @@ describe('rebuildUnitOpToc', () => {
     // Both entries still present and in document order.
     expect(out.indexOf('- [UHW010 A]')).toBeGreaterThan(-1);
     expect(out.indexOf('- [USW020 B]')).toBeGreaterThan(out.indexOf('- [UHW010 A]'));
+  });
+});
+
+describe('computeUnitOpSyncEdits', () => {
+  const alpha: [string, string] = ['UHW010', 'Alpha'];
+  const beta: [string, string] = ['UHW020', 'Beta'];
+  const gamma: [string, string] = ['UHW030', 'Gamma'];
+  const abc = buildNote([alpha, beta, gamma]);
+  const A = '### [UHW010 Alpha]';
+  const B = '### [UHW020 Beta]';
+  const C = '### [UHW030 Gamma]';
+
+  it('tidies an Outline drag (C before A) into the template shape', () => {
+    const dragged = outlineMove(abc, C, A);
+    // The drag itself leaves A without a break and one dangling before Conclusions.
+    expect(prevNonBlank(dragged, dragged.indexOf(A))).not.toBe('---');
+    expect(prevNonBlank(dragged, dragged.indexOf('## Conclusions and Discussion'))).toBe('---');
+
+    const out = tidy(dragged);
+    expect(tocOrder(out)).toEqual(['UHW030', 'UHW010', 'UHW020']);
+    expectTemplateShape(out);
+    // Same note as inserting in C, A, B order, up to blank-line runs.
+    expect(collapseBlanks(out)).toBe(collapseBlanks(buildNote([gamma, alpha, beta])));
+    for (const name of ['Alpha', 'Beta', 'Gamma']) expect(out).toContain(`> ${name} step`);
+  });
+
+  it('matches a note built in the moved order, for every drag direction', () => {
+    const cases: [string, string | null, string[]][] = [
+      [C, A, ['UHW030', 'UHW010', 'UHW020']],
+      [A, null, ['UHW020', 'UHW030', 'UHW010']],
+      [B, A, ['UHW020', 'UHW010', 'UHW030']],
+      [A, C, ['UHW020', 'UHW010', 'UHW030']],
+    ];
+    for (const [moved, before, order] of cases) {
+      const out = tidy(outlineMove(abc, moved, before));
+      expect(tocOrder(out)).toEqual(order);
+      expectTemplateShape(out);
+      // Every block body survives intact.
+      for (const h of [A, B, C]) {
+        const body = abc.slice(abc.indexOf(h)).split('\n\n---')[0].replace(/\n+$/, '');
+        expect(out).toContain(body.split('## Conclusions')[0].replace(/\n+$/, ''));
+      }
+    }
+  });
+
+  it('returns sorted, non-overlapping edits that keep the TOC edit inside the list', () => {
+    const dragged = outlineMove(abc, C, A);
+    const edits = computeUnitOpSyncEdits(dragged);
+    expect(edits.length).toBeGreaterThan(1);
+    for (let i = 1; i < edits.length; i++) expect(edits[i].from).toBeGreaterThanOrEqual(edits[i - 1].to);
+    const firstBlock = dragged.indexOf('### [');
+    expect(edits[0].to).toBeLessThan(firstBlock);
+    expect(dragged.slice(edits[0].from, edits[0].to)).not.toMatch(/^#|^---$/m);
+  });
+
+  it('is idempotent: a tidied note yields no further edits', () => {
+    const out = tidy(outlineMove(abc, C, A));
+    expect(computeUnitOpSyncEdits(out)).toEqual([]);
+    expect(computeUnitOpSyncEdits(out, { onlyOnReorder: true })).toEqual([]);
+  });
+
+  it('leaves separators alone when the order is unchanged', () => {
+    expect(computeUnitOpSyncEdits(abc)).toEqual([]);
+    // A stray trailing break is not touched without a reorder.
+    const dangling = abc.replace('## Conclusions and Discussion', '---\n\n## Conclusions and Discussion');
+    expect(computeUnitOpSyncEdits(dangling)).toEqual([]);
+  });
+
+  it('only reorders the TOC in notes that do not use separators', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '### [UHW020 B]',
+      '',
+      'b body',
+      '',
+      '### [UHW010 A]',
+      '',
+      'a body',
+      '',
+      '## Conclusions and Discussion',
+      '',
+    ].join('\n');
+    const edits = computeUnitOpSyncEdits(md);
+    expect(edits).toHaveLength(1);
+    const out = applyTextEdits(md, edits);
+    expect(out).not.toContain('---');
+    expect(out.indexOf('- [UHW020 B]')).toBeLessThan(out.indexOf('- [UHW010 A]'));
+  });
+
+  it('keeps a user --- that is followed by other content', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '---',
+      '',
+      '### [UHW020 B]',
+      '',
+      'b body',
+      '',
+      '---',
+      '',
+      'user note after a break',
+      '',
+      '---',
+      '',
+      '### [UHW010 A]',
+      '',
+      '## Conclusions and Discussion',
+    ].join('\n');
+    const out = tidy(md);
+    expect(out).toContain('b body\n\n---\n\nuser note after a break');
+    expect(out.match(/^---$/gm)).toHaveLength(3);
+  });
+
+  it('merges back-to-back breaks and drops a dangling one', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '---',
+      '',
+      '---',
+      '',
+      '### [UHW020 B]',
+      '',
+      '---',
+      '',
+      '### [UHW010 A]',
+      '',
+      'a body',
+      '',
+      '---',
+      '',
+      '## Conclusions and Discussion',
+    ].join('\n');
+    const out = tidy(md);
+    expect(out.match(/^---$/gm)).toHaveLength(2);
+    expect(out).toContain('a body\n\n## Conclusions and Discussion');
+  });
+
+  it('does not turn text into a setext heading when inserting a break', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '---',
+      '',
+      '### [UHW020 B]',
+      'b body',
+      '### [UHW010 A]',
+      '',
+      '## Conclusions and Discussion',
+    ].join('\n');
+    expect(tidy(md)).toContain('b body\n\n---\n\n### [UHW010 A]');
+  });
+
+  it('with onlyOnReorder, ignores added, removed and renamed headings', () => {
+    const added = abc.replace('## Conclusions and Discussion', '---\n\n### [UHW040 Delta]\n\n## Conclusions and Discussion');
+    expect(computeUnitOpSyncEdits(added, { onlyOnReorder: true })).toEqual([]);
+    expect(computeUnitOpSyncEdits(added)).toHaveLength(1);
+    const renamed = abc.replace(B, '### [UHW020 Betamax]');
+    expect(computeUnitOpSyncEdits(renamed, { onlyOnReorder: true })).toEqual([]);
+    expect(computeUnitOpSyncEdits(abc, { onlyOnReorder: true })).toEqual([]);
+  });
+
+  it('detects a reorder when the same unit op appears twice', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '- [UHW010 A](#uhw010-a)',
+      '',
+      '---',
+      '',
+      '### [UHW010 A]',
+      '',
+      '---',
+      '',
+      '### [UHW010 A]',
+      '',
+      '---',
+      '',
+      '### [UHW020 B]',
+      '',
+      '## Conclusions and Discussion',
+    ].join('\n');
+    const out = applyTextEdits(md, computeUnitOpSyncEdits(md, { onlyOnReorder: true }));
+    expect([...out.matchAll(/^- \[(\w+) /gm)].map(m => m[1])).toEqual(['UHW010', 'UHW010', 'UHW020']);
+    // One A dropped from the TOC is an edit, not a reorder.
+    const fewer = md.replace('- [UHW010 A](#uhw010-a)\n- [UHW020 B]', '- [UHW020 B]');
+    expect(computeUnitOpSyncEdits(fewer, { onlyOnReorder: true })).toEqual([]);
+  });
+
+  it('bounds the TOC at the first heading when the leading --- is gone', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '### [UHW020 B]',
+      '',
+      '- [ ] todo item',
+      '- [protocol](protocol.md)',
+      '',
+      '### [UHW010 A]',
+      '',
+    ].join('\n');
+    const out = rebuildUnitOpToc(md);
+    expect(out).toContain('- [ ] todo item\n- [protocol](protocol.md)');
+    expect(out.indexOf('- [UHW020 B]')).toBeLessThan(out.indexOf('- [UHW010 A]'));
+  });
+
+  it('ignores headings and breaks inside code fences', () => {
+    const md = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW020 B](#uhw020-b)',
+      '',
+      '---',
+      '',
+      '### [UHW020 B]',
+      '',
+      '```md',
+      '### [UHW099 Example]',
+      '',
+      '---',
+      '```',
+      '',
+      '---',
+      '',
+      '### [UHW010 A]',
+      '',
+      '~~~',
+      '---',
+      '~~~',
+      '',
+      '## Conclusions and Discussion',
+    ].join('\n');
+    const out = tidy(md);
+    expect(out).not.toContain('- [UHW099');
+    expect(out).toContain('```md\n### [UHW099 Example]\n\n---\n```');
+    expect(out).toContain('~~~\n---\n~~~');
+    expect(out.indexOf('- [UHW020 B]')).toBeLessThan(out.indexOf('- [UHW010 A]'));
+  });
+
+  it('preserves CRLF line endings', () => {
+    const crlf = outlineMove(abc, C, A).replace(/\n/g, '\r\n');
+    const out = tidy(crlf);
+    expect(out.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(out).toBe(tidy(outlineMove(abc, C, A)).replace(/\n/g, '\r\n'));
+  });
+
+  it('applies the same TOC result as rebuildUnitOpToc', () => {
+    const inputs = [
+      abc,
+      outlineMove(abc, C, A),
+      abc.replace(B, '### [UHW020 Betamax]'),
+      buildNote([]),
+      buildNote([beta, alpha]).replace('- [UHW020 Beta](#uhw020-beta)\n', ''),
+      '## Related Unit Operations\n\n- [UHW010 A](#uhw010-a)\n> keep\n- [UHW020 B](#uhw020-b)\n\n---\n### [UHW020 B]\n---\n### [UHW010 A]\n',
+      '## Related Unit Operations\n\n> hint\n\n### [UHW010 A]\n',
+    ];
+    for (const md of inputs) {
+      const firstBlock = md.includes('### [') ? md.indexOf('### [') : md.length + 1;
+      const tocOnly = computeUnitOpSyncEdits(md).filter((e: TextEdit) => e.to < firstBlock);
+      expect(applyTextEdits(md, tocOnly)).toBe(rebuildUnitOpToc(md));
+    }
   });
 });
 

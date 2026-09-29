@@ -7,7 +7,7 @@
  * highlighting, sidebar views, the settings tab and the LLM/MCP layer are added
  * by subsequent modules that all consume the same `LabnoteHost` built here.
  */
-import { Plugin, Notice, TFile } from 'obsidian';
+import { Plugin, Notice, TFile, editorInfoField } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import { findSampleReferenceAt, rebuildUnitOpToc, minimalReplacement } from '@labnoteo/core';
 import { getSeoulDateString, getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
@@ -40,6 +40,7 @@ import {
   type HighlightState,
 } from './sampleHighlight';
 import { createMetaDatePickerExtension } from './dateFieldPicker';
+import { createUnitOpReorderFilter } from './unitOpReorderFilter';
 import { WorkflowTreeView, WORKFLOW_VIEW_TYPE } from './views/workflowView';
 import { SampleTreeView, SAMPLE_VIEW_TYPE } from './views/sampleView';
 import { exportTablesToCsv, exportActiveNoteTablesToCsv } from './exportCsv';
@@ -91,6 +92,12 @@ export default class LabnotePlugin extends Plugin {
     this.registerEditorMenu();
     this.registerWorkflowReadmeSync();
     this.registerUnitOpTocAutoSync();
+    this.registerEditorExtension(
+      createUnitOpReorderFilter({
+        isEnabled: () => this.settings.autoSyncUnitOpToc,
+        getFilePath: s => s.field(editorInfoField, false)?.file?.path ?? null,
+      })
+    );
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
 
     if (this.settings.mcpEnabled) {
@@ -382,8 +389,9 @@ export default class LabnotePlugin extends Plugin {
 
   /**
    * Keep a workflow note's `## Related Unit Operations` TOC ordered to match the
-   * document order of its `### [..]` headings, so moving a unit-op block updates
-   * the TOC without re-inserting. Fires on editor edits, debounced per note.
+   * document order of its `### [..]` headings (added, removed or renamed unit
+   * ops). Fires on editor edits, debounced per note. Block moves are tidied
+   * immediately, separators included, by `createUnitOpReorderFilter`.
    *
    * Only the changed span is rewritten (via {@link minimalReplacement}) so the
    * caret stays put; a full-document replace would reset it. The rewrite is
@@ -401,6 +409,8 @@ export default class LabnotePlugin extends Plugin {
         if (prev !== undefined) window.clearTimeout(prev);
         const handle = window.setTimeout(() => {
           this.unitOpTocTimers.delete(path);
+          // The editor may have switched to another note since the edit.
+          if (info.file?.path !== path) return;
           const before = editor.getValue();
           const after = rebuildUnitOpToc(before);
           const edit = minimalReplacement(before, after);

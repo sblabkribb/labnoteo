@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.88.2**
+**버전 0.89.0**
 
 [English](README.en.md)
 
@@ -99,7 +99,7 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 
 **워크플로**
 
-- **유닛오퍼레이션 TOC 자동 정렬** (`Auto-sync unit operation TOC`): 편집 후 워크플로 노트의 `Related Unit Operations` 목록을 헤딩 순서에 맞게 자동 정렬합니다 — 유닛 오퍼레이션 블록을 옮기면 문서 맨 위 목차도 따라 재정렬됩니다. 기본 켜짐.
+- **유닛오퍼레이션 TOC 자동 정렬** (`Auto-sync unit operation TOC`): 편집 후 워크플로 노트의 `Related Unit Operations` 목록을 헤딩 순서에 맞게 자동 정렬합니다 — 유닛 오퍼레이션 블록을 옮기면 문서 맨 위 목차도 따라 재정렬됩니다. Obsidian Outline 보기에서 드래그로 블록을 옮기면 목차와 `---` 구분선이 즉시 정리되고, Ctrl+Z 한 번으로 이동까지 되돌릴 수 있습니다. 기본 켜짐.
 
 **AI 제공자**
 
