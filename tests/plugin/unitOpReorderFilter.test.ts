@@ -77,6 +77,7 @@ describe('createUnitOpReorderFilter', () => {
 
   it.each([
     ['IME composition', { userEvent: 'input.type.compose' }],
+    ['a file reload (Outline drag)', { userEvent: 'set' }],
     ['undo', { userEvent: 'undo' }],
     ['redo', { userEvent: 'redo' }],
   ])('skips %s', (_label, extra) => {
@@ -112,5 +113,39 @@ describe('createUnitOpReorderFilter', () => {
     });
     const tr = state.update({ changes: { from: moved.length, insert: 'x' }, userEvent: 'input.type' });
     expect(tr.newDoc.toString()).toBe(moved + 'x');
+  });
+
+  it('reports every document change with whether it came from undo/redo', () => {
+    const calls: [string, boolean][] = [];
+    const make = (path: string | null, enabled = true) =>
+      EditorState.create({
+        doc: 'abc',
+        extensions: [
+          createUnitOpReorderFilter({
+            isEnabled: () => enabled,
+            getFilePath: () => path,
+            onDocChange: (p, h) => calls.push([p, h]),
+          }),
+        ],
+      });
+    const edit = { changes: { from: 0, insert: 'x' } };
+
+    make(WORKFLOW_PATH).update({ ...edit, userEvent: 'input.type' });
+    make(WORKFLOW_PATH).update({ ...edit, userEvent: 'set' });
+    make(WORKFLOW_PATH).update({ ...edit, userEvent: 'undo' });
+    make(WORKFLOW_PATH).update({ ...edit, userEvent: 'redo' });
+    make('notes/free.md').update(edit);
+    make(WORKFLOW_PATH, false).update({ ...edit, userEvent: 'undo' });
+    make(null).update(edit);
+    make(WORKFLOW_PATH).update({ selection: { anchor: 1 } });
+
+    expect(calls).toEqual([
+      [WORKFLOW_PATH, false],
+      [WORKFLOW_PATH, false],
+      [WORKFLOW_PATH, true],
+      [WORKFLOW_PATH, true],
+      ['notes/free.md', false],
+      [WORKFLOW_PATH, true],
+    ]);
   });
 });
