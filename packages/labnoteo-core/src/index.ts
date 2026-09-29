@@ -16,6 +16,9 @@ export {
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   minimalReplacement,
+  computeUnitOpSyncEdits,
+  applyTextEdits,
+  type TextEdit,
 } from './sections/workflowSectionParser';
 
 // Re-exported from the dependency-free heading module so browser consumers

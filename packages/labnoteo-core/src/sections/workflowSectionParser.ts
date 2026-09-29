@@ -131,6 +131,252 @@ export function findUnitOpInsertOffset(md: string): number {
 }
 
 /**
+ * One replacement in a markdown string: `[from, to)` becomes `insert`.
+ *
+ * Offsets refer to the string the edits were computed from. A list returned by
+ * {@link computeUnitOpSyncEdits} is sorted by `from` and never overlaps, so it
+ * can be handed to CodeMirror as one change set or applied with
+ * {@link applyTextEdits}.
+ */
+export type TextEdit = { from: number; to: number; insert: string };
+
+/** A source line: `[start, end)` excludes the line break; `fenced` = inside/on a code fence. */
+interface MdLine {
+  start: number;
+  end: number;
+  text: string;
+  fenced: boolean;
+}
+
+/** Split into lines with offsets, marking ``` / ~~~ fenced code (fence lines included). */
+function scanLines(md: string): MdLine[] {
+  const lines: MdLine[] = [];
+  let fence: { ch: string; len: number } | null = null;
+  let start = 0;
+  for (;;) {
+    const nl = md.indexOf('\n', start);
+    const end = nl === -1 ? md.length : nl > start && md[nl - 1] === '\r' ? nl - 1 : nl;
+    const text = md.slice(start, end);
+    const m = /^ {0,3}(`{3,}|~{3,})/.exec(text);
+    let fenced = fence !== null;
+    if (fence) {
+      if (m && m[1][0] === fence.ch && m[1].length >= fence.len && text.trim() === m[1]) fence = null;
+    } else if (m) {
+      fence = { ch: m[1][0], len: m[1].length };
+      fenced = true;
+    }
+    lines.push({ start, end, text, fenced });
+    if (nl === -1) break;
+    start = nl + 1;
+  }
+  return lines;
+}
+
+const isTocEntry = (line: MdLine): boolean => !line.fenced && /^\s*- \[/.test(line.text);
+
+/** Everything the TOC and separator edits need, from one pass over the document. */
+interface UnitOpTocScan {
+  lines: MdLine[];
+  newline: string;
+  headingIdx: number;
+  /** `- [..]` line indices inside the entry region. */
+  entryIdxs: number[];
+  /** TOC lines rebuilt from the `### [..]` headings, in document order. */
+  entries: string[];
+}
+
+function scanUnitOpToc(md: string): UnitOpTocScan | null {
+  const lines = scanLines(md);
+  const headingIdx = lines.findIndex(l => !l.fenced && l.text.trim() === '## Related Unit Operations');
+  if (headingIdx === -1) return null;
+
+  // The entry region ends at the first `---` break or at ANY heading, so the
+  // list stays bounded (and block bodies with `- [ ]` / `- [link](..)` lines stay
+  // out of it) even when the first block has lost its leading `---`.
+  let tocEndIdx = lines.length;
+  for (let j = headingIdx + 1; j < lines.length; j++) {
+    const l = lines[j];
+    if (!l.fenced && (/^#{1,6}\s/.test(l.text) || l.text.trim() === '---')) {
+      tocEndIdx = j;
+      break;
+    }
+  }
+
+  // Collect unit-op headings across the body, in document order. TOC lines start
+  // with `- [`, so they never match the `### [` heading pattern.
+  const entries: string[] = [];
+  for (let j = headingIdx + 1; j < lines.length; j++) {
+    if (lines[j].fenced) continue;
+    const m = lines[j].text.match(UNIT_OP_HEADING_PATTERN);
+    if (m) entries.push(buildUnitOpTocLine(m[1], m[2].trim(), m[3]?.trim() || undefined));
+  }
+
+  const entryIdxs: number[] = [];
+  for (let j = headingIdx + 1; j < tocEndIdx; j++) {
+    if (isTocEntry(lines[j])) entryIdxs.push(j);
+  }
+
+  return { lines, newline: md.includes('\r\n') ? '\r\n' : '\n', headingIdx, entryIdxs, entries };
+}
+
+/**
+ * The single edit that reorders the TOC entry lines, or `null` when they already
+ * match. We must NOT rewrite interleaved non-entry lines (comments, blockquotes,
+ * stray blanks) away: the ordered entries go where the first one began and the
+ * interleaved lines follow them, untouched.
+ */
+function tocEdit(md: string, scan: UnitOpTocScan): TextEdit | null {
+  const { lines, newline, headingIdx, entryIdxs, entries } = scan;
+
+  if (entryIdxs.length > 0) {
+    const first = entryIdxs[0];
+    const last = entryIdxs[entryIdxs.length - 1];
+    const kept: string[] = [];
+    for (let j = first; j <= last; j++) {
+      if (!isTocEntry(lines[j])) kept.push(lines[j].text);
+    }
+    const from = lines[first].start;
+    const to = lines[last].end;
+    const d = minimalReplacement(md.slice(from, to), [...entries, ...kept].join(newline));
+    return d && { from: from + d.start, to: from + d.end, insert: d.text };
+  }
+
+  if (entries.length === 0) return null;
+  let insertAt = headingIdx + 1;
+  if (lines[insertAt] !== undefined && lines[insertAt].text.trim() === '') insertAt++;
+  const target = lines[insertAt];
+  if (!target) return { from: md.length, to: md.length, insert: newline + entries.join(newline) };
+  // Keep a blank separator before following non-blank prose.
+  const gap = target.text.trim() !== '' ? newline : '';
+  return { from: target.start, to: target.start, insert: entries.join(newline) + newline + gap };
+}
+
+/**
+ * True when the TOC holds exactly the headings' entries (as a multiset, so a
+ * unit op used twice still counts) but in a different order — the signature of
+ * a moved block. Added, removed or renamed headings are not a reorder.
+ */
+function isReorder(scan: UnitOpTocScan): boolean {
+  const current = scan.entryIdxs.map(j => scan.lines[j].text.trim());
+  const { entries } = scan;
+  if (current.length !== entries.length) return false;
+  if (current.every((c, i) => c === entries[i])) return false;
+  const a = [...current].sort();
+  const b = [...entries].sort();
+  return a.every((c, i) => c === b[i]);
+}
+
+/**
+ * Restore the template's separator shape inside `## Related Unit Operations`
+ * after a block move: one `---` before every `### [..]` block and none dangling
+ * at the section end.
+ *
+ * An Outline drag moves a heading up to the next same-level heading, so each
+ * block carries the NEXT block's leading `---` at its tail. Only notes that
+ * already use separators (some `---` directly precedes a `### [`) are touched;
+ * a `---` followed by other content is the user's and is kept (runs of
+ * back-to-back breaks are merged into one).
+ */
+function separatorEdits(md: string, scan: UnitOpTocScan): TextEdit[] {
+  const { lines, newline, headingIdx } = scan;
+
+  let sectionEnd = lines.length;
+  for (let j = headingIdx + 1; j < lines.length; j++) {
+    if (!lines[j].fenced && /^#{1,2}\s/.test(lines[j].text)) {
+      sectionEnd = j;
+      break;
+    }
+  }
+
+  // A `---` right under paragraph text is a setext underline, not a break.
+  const isBreak = (j: number): boolean => {
+    if (lines[j].fenced || lines[j].text.trim() !== '---') return false;
+    const prev = lines[j - 1].text.trim();
+    return prev === '' || prev === '---' || /^#{1,6}\s/.test(lines[j - 1].text);
+  };
+
+  const items: { idx: number; kind: 'break' | 'unitOp' | 'other' }[] = [];
+  for (let j = headingIdx + 1; j < sectionEnd; j++) {
+    if (!lines[j].fenced && lines[j].text.trim() === '') continue;
+    const kind = isBreak(j)
+      ? 'break'
+      : !lines[j].fenced && UNIT_OP_HEADING_PATTERN.test(lines[j].text)
+        ? 'unitOp'
+        : 'other';
+    items.push({ idx: j, kind });
+  }
+
+  const usesSeparators = items.some((it, k) => it.kind === 'break' && items[k + 1]?.kind === 'unitOp');
+  if (!usesSeparators) return [];
+
+  const edits: TextEdit[] = [];
+  for (let k = 0; k < items.length; k++) {
+    const it = items[k];
+    if (it.kind === 'unitOp') {
+      if (items[k - 1]?.kind === 'break') continue;
+      const line = lines[it.idx];
+      // A blank line first, or the `---` would turn the text above into a heading.
+      const lead = lines[it.idx - 1].text.trim() === '' ? '' : newline;
+      edits.push({ from: line.start, to: line.start, insert: lead + '---' + newline + newline });
+    } else if (it.kind === 'break') {
+      let last = k;
+      while (items[last + 1]?.kind === 'break') last++;
+      if (last + 1 >= items.length) {
+        // Dangling at the section end: drop the break(s) and the blanks after.
+        const to = sectionEnd < lines.length ? lines[sectionEnd].start : md.length;
+        edits.push({ from: lines[it.idx].start, to, insert: '' });
+      } else if (last > k) {
+        edits.push({ from: lines[it.idx].end, to: lines[items[last].idx].end, insert: '' });
+      }
+      k = last;
+    }
+  }
+  return edits;
+}
+
+/**
+ * Edits that bring a workflow note's `## Related Unit Operations` section in
+ * line with its `### [opId opName]` blocks, as a sorted, non-overlapping list of
+ * small {@link TextEdit}s against `md`:
+ *
+ * - **TOC:** only the changed span of the entry lines (same result as
+ *   {@link rebuildUnitOpToc}, which is built on this).
+ * - **Separators:** only when the blocks were reordered (see
+ *   {@link separatorEdits}); additions, removals and renames never touch them.
+ *
+ * With `onlyOnReorder`, returns `[]` unless the change is a reorder — the live
+ * editor filter uses this and leaves other TOC updates to the debounced sync.
+ * Code fences are ignored; CRLF is preserved in inserted text. Returns `[]`
+ * when the section is absent.
+ */
+export function computeUnitOpSyncEdits(
+  md: string,
+  opts: { onlyOnReorder?: boolean } = {}
+): TextEdit[] {
+  const scan = scanUnitOpToc(md);
+  if (!scan) return [];
+  const reordered = isReorder(scan);
+  if (opts.onlyOnReorder && !reordered) return [];
+
+  const edits: TextEdit[] = [];
+  const toc = tocEdit(md, scan);
+  if (toc) edits.push(toc);
+  if (reordered) edits.push(...separatorEdits(md, scan));
+  return edits;
+}
+
+/** Apply non-overlapping edits (offsets against `md`) and return the result. */
+export function applyTextEdits(md: string, edits: readonly TextEdit[]): string {
+  const sorted = [...edits].sort((a, b) => a.from - b.from);
+  let out = md;
+  for (let k = sorted.length - 1; k >= 0; k--) {
+    const e = sorted[k];
+    out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+  }
+  return out;
+}
+
+/**
  * Regenerate the entire `## Related Unit Operations` TOC so its entries match
  * the **document order** of the `### [opId opName]` unit-op headings.
  *
@@ -140,60 +386,14 @@ export function findUnitOpInsertOffset(md: string): number {
  * cursor position, and self-heals any previously mis-ordered list.
  *
  * The edit is confined to the entry lines inside the section (heading → first
- * `## ` heading or `---`); surrounding blanks and the template hint blockquotes
- * are preserved. Returns the input unchanged when the section is absent.
- * CRLF vs LF line endings are detected and preserved.
+ * heading or `---`); surrounding blanks and the template hint blockquotes are
+ * preserved, and headings inside code fences are ignored. Returns the input
+ * unchanged when the section is absent. CRLF vs LF line endings are preserved.
  */
 export function rebuildUnitOpToc(md: string): string {
-  const newline = md.includes('\r\n') ? '\r\n' : '\n';
-  const lines = md.split(/\r?\n/);
-
-  const headingIdx = lines.findIndex(l => l.trim() === '## Related Unit Operations');
-  if (headingIdx === -1) return md;
-
-  // The entry region ends at the next `## ` heading or the first `---` break.
-  let tocEndIdx = lines.length;
-  for (let j = headingIdx + 1; j < lines.length; j++) {
-    if (/^##\s/.test(lines[j]) || lines[j].trim() === '---') {
-      tocEndIdx = j;
-      break;
-    }
-  }
-
-  // Collect unit-op headings across the body, in document order. TOC lines start
-  // with `- [`, so they never match the `### [` heading pattern.
-  const newEntries: string[] = [];
-  for (let j = headingIdx + 1; j < lines.length; j++) {
-    const m = lines[j].match(UNIT_OP_HEADING_PATTERN);
-    if (m) newEntries.push(buildUnitOpTocLine(m[1], m[2].trim(), m[3]?.trim() || undefined));
-  }
-
-  // Collect the individual entry-line indices in the section. We must NOT splice
-  // the whole first→last span, because any non-entry lines interleaved between
-  // entries (comments, blockquotes, stray blanks) would be deleted too. Instead
-  // remove only the `- [..]` lines and reinsert the ordered list where the first
-  // one began, leaving interleaved content untouched.
-  const entryIdxs: number[] = [];
-  for (let j = headingIdx + 1; j < tocEndIdx; j++) {
-    if (/^\s*- \[/.test(lines[j])) entryIdxs.push(j);
-  }
-
-  if (entryIdxs.length > 0) {
-    const firstEntry = entryIdxs[0];
-    // Remove existing entry lines bottom-up so earlier indices stay valid.
-    for (let k = entryIdxs.length - 1; k >= 0; k--) {
-      lines.splice(entryIdxs[k], 1);
-    }
-    lines.splice(firstEntry, 0, ...newEntries);
-  } else if (newEntries.length > 0) {
-    let insertAt = headingIdx + 1;
-    if (lines[insertAt] !== undefined && lines[insertAt].trim() === '') insertAt++;
-    const toInsert = [...newEntries];
-    if (lines[insertAt] !== undefined && lines[insertAt].trim() !== '') toInsert.push('');
-    lines.splice(insertAt, 0, ...toInsert);
-  }
-
-  return lines.join(newline);
+  const scan = scanUnitOpToc(md);
+  const edit = scan && tocEdit(md, scan);
+  return edit ? applyTextEdits(md, [edit]) : md;
 }
 
 /**
