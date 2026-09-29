@@ -243,7 +243,7 @@ README frontmatter:
 `## Related Unit Operations` 목차가 헤딩 순서대로 다시 만들어집니다. **유닛 오퍼레이션
 블록을 옮기거나 지워도** 목차가 자동으로 다시 정렬됩니다(설정 → Labnote Assistant →
 워크플로 → `유닛오퍼레이션 TOC 자동 정렬`, 기본 켜짐).
-순서는 Obsidian **Outline** 보기에서 헤딩을 드래그해 바꿀 수 있으며, 목차와 `---` 구분선이 자동으로 정리되고 Ctrl+Z 한 번이면 되돌아갑니다.
+순서는 Obsidian **Outline** 보기에서 헤딩을 드래그해 바꿀 수 있으며, 목차와 `---` 구분선이 자동으로 정리됩니다. 정리는 이동과 별도로 저장되므로, 이동 전으로 되돌리려면 Ctrl+Z를 두 번 눌러야 할 수 있습니다.
 
 `Experimenter`는 같은 폴더 README의 `author`에서 가져옵니다 — 비어 있으면 빈 값입니다.
 `Start_date`는 삽입 시각이 자동으로, `End_date`는 비어 있으니 **작업이 끝나면 값을

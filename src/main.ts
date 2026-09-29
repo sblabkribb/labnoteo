@@ -41,6 +41,7 @@ import {
 } from './sampleHighlight';
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
+import { createOutlineDropTidy } from './outlineDropTidy';
 import { WorkflowTreeView, WORKFLOW_VIEW_TYPE } from './views/workflowView';
 import { SampleTreeView, SAMPLE_VIEW_TYPE } from './views/sampleView';
 import { exportTablesToCsv, exportActiveNoteTablesToCsv } from './exportCsv';
@@ -75,6 +76,9 @@ export default class LabnotePlugin extends Plugin {
   private readonly readmeSyncTimers = new Map<string, number>();
   // Pending unit-op TOC auto-sync flushes, coalesced per workflow-note path.
   private readonly unitOpTocTimers = new Map<string, number>();
+  // Whether each note's latest editor change was an undo/redo, so the TOC sync
+  // does not record a fresh edit that would block undoing further back.
+  private readonly lastChangeFromHistory = new Map<string, boolean>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -92,10 +96,12 @@ export default class LabnotePlugin extends Plugin {
     this.registerEditorMenu();
     this.registerWorkflowReadmeSync();
     this.registerUnitOpTocAutoSync();
+    this.registerOutlineDropTidy();
     this.registerEditorExtension(
       createUnitOpReorderFilter({
         isEnabled: () => this.settings.autoSyncUnitOpToc,
         getFilePath: s => s.field(editorInfoField, false)?.file?.path ?? null,
+        onDocChange: (path, fromHistory) => this.lastChangeFromHistory.set(path, fromHistory),
       })
     );
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
@@ -391,7 +397,9 @@ export default class LabnotePlugin extends Plugin {
    * Keep a workflow note's `## Related Unit Operations` TOC ordered to match the
    * document order of its `### [..]` headings (added, removed or renamed unit
    * ops). Fires on editor edits, debounced per note. Block moves are tidied
-   * immediately, separators included, by `createUnitOpReorderFilter`.
+   * immediately, separators included, by `createUnitOpReorderFilter` (editor
+   * moves) and `registerOutlineDropTidy` (Outline drags). Skipped right after
+   * an undo/redo so the history can still be walked back.
    *
    * Only the changed span is rewritten (via {@link minimalReplacement}) so the
    * caret stays put; a full-document replace would reset it. The rewrite is
@@ -411,6 +419,7 @@ export default class LabnotePlugin extends Plugin {
           this.unitOpTocTimers.delete(path);
           // The editor may have switched to another note since the edit.
           if (info.file?.path !== path) return;
+          if (this.lastChangeFromHistory.get(path)) return;
           const before = editor.getValue();
           const after = rebuildUnitOpToc(before);
           const edit = minimalReplacement(before, after);
@@ -424,6 +433,41 @@ export default class LabnotePlugin extends Plugin {
         this.unitOpTocTimers.set(path, handle);
       })
     );
+  }
+
+  /**
+   * Tidy a workflow note's TOC and separators after an Outline drag. The drag
+   * rewrites the file directly, so the cleanup is written to the file too (see
+   * `outlineDropTidy`); the drop listener runs in the capture phase, before the
+   * Outline's own read-and-write, to arm the path first.
+   */
+  private registerOutlineDropTidy(): void {
+    const { vault, workspace } = this.app;
+    const tidy = createOutlineDropTidy({
+      isEnabled: () => this.settings.autoSyncUnitOpToc,
+      now: () => Date.now(),
+      process: async (path, fn) => {
+        const file = vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) await vault.process(file, fn);
+      },
+    });
+
+    this.registerDomEvent(
+      document,
+      'drop',
+      evt => {
+        const target = evt.target;
+        if (!(target instanceof Element)) return;
+        const pane = target.closest('.workspace-leaf-content[data-type="outline"]');
+        if (!pane) return;
+        const leaf = workspace.getLeavesOfType('outline').find(l => l.view.containerEl === pane);
+        const file = (leaf?.view as { file?: unknown } | undefined)?.file;
+        const path = file instanceof TFile ? file.path : workspace.getActiveFile()?.path;
+        if (path) tidy.arm(path);
+      },
+      { capture: true }
+    );
+    this.registerEvent(vault.on('modify', file => void tidy.onModify(file.path)));
   }
 
   /** Get (or create) the pending-event queue for an experiment folder. */
