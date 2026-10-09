@@ -18,8 +18,13 @@ export function escapeRegExp(input: string): string {
 
 /**
  * Normalise an arbitrary title/name into a single safe path segment: collapse
- * whitespace to `_`, drop anything that is not a Unicode letter/number/`_`, and
- * trim redundant underscores.
+ * whitespace to `_`, keep hyphens, drop anything else that is not a Unicode
+ * letter/number/`_`, and trim redundant separators.
+ *
+ * Dashes (`–`, `—`, …), the minus sign (`−`) and range tildes (`~`, `～`) become an ASCII `-`, so a
+ * range like `M1–M8` stays readable as `M1-M8` instead of collapsing to `M1M8`.
+ * A separator run containing a hyphen (`M1 – M8` → `M1_-_M8`) is reduced to a
+ * single `-`.
  *
  * Uses the Unicode property escapes (`\p{L}\p{N}`) so non-ASCII names (Korean,
  * CJK, accented Latin, …) survive intact. This is the SINGLE rule shared by both
@@ -29,8 +34,10 @@ export function escapeRegExp(input: string): string {
  */
 export function sanitizePathSegment(input: string): string {
   return input
+    .replace(/[\p{Pd}\u2212~\uFF5E]/gu, '-')
     .replace(/\s+/g, '_')
-    .replace(/[^\p{L}\p{N}_]/gu, '')
+    .replace(/[^\p{L}\p{N}_-]/gu, '')
+    .replace(/[_-]*-[_-]*/g, '-')
     .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
+    .replace(/^[_-]+|[_-]+$/g, '');
 }

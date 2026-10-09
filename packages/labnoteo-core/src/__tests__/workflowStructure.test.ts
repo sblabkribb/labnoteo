@@ -332,4 +332,23 @@ describe('shared path-segment sanitizer', () => {
   it('keeps Korean letters and digits, drops punctuation, collapses underscores', () => {
     expect(sanitizeWorkflowName('실험 A/B: 1')).toBe('실험_AB_1');
   });
+
+  // #25: ranges must stay readable in folder/file names.
+  it('keeps hyphens and maps dashes and range tildes to an ASCII hyphen', () => {
+    expect(sanitizeTitle('배지 최적화 1차 (M1–M8)')).toBe('배지_최적화_1차_M1-M8');
+    expect(sanitizeTitle('배지 최적화 2차 (M9-M12)')).toBe('배지_최적화_2차_M9-M12');
+    expect(sanitizeTitle('시료 M1~M8')).toBe('시료_M1-M8');
+    expect(sanitizeWorkflowName('Micro-scale Parallel Cell Culture')).toBe('Micro-scale_Parallel_Cell_Culture');
+  });
+
+  it('maps the minus sign to a hyphen mid-name but trims it at the start', () => {
+    expect(sanitizeTitle('보관 −80°C')).toBe('보관-80C');
+    expect(sanitizeTitle('−80°C 보관')).toBe('80C_보관');
+  });
+
+  it('reduces a separator run containing a hyphen to one hyphen and trims edges', () => {
+    expect(sanitizeTitle('M1 – M8')).toBe('M1-M8');
+    expect(sanitizeTitle('a -- b')).toBe('a-b');
+    expect(sanitizeTitle('- 제목 -')).toBe('제목');
+  });
 });
