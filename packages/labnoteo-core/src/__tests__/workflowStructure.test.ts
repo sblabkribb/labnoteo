@@ -341,9 +341,20 @@ describe('shared path-segment sanitizer', () => {
     expect(sanitizeWorkflowName('Micro-scale Parallel Cell Culture')).toBe('Micro-scale_Parallel_Cell_Culture');
   });
 
-  it('maps the minus sign to a hyphen mid-name but trims it at the start', () => {
-    expect(sanitizeTitle('보관 −80°C')).toBe('보관-80C');
-    expect(sanitizeTitle('−80°C 보관')).toBe('80C_보관');
+  // #26: a sign before a number keeps its meaning (−80 °C is not 80 °C).
+  it('keeps a minus sign before a number, with the separator before it', () => {
+    expect(sanitizeTitle('보관 −80°C')).toBe('보관_-80C');
+    expect(sanitizeTitle('−80°C 보관')).toBe('-80C_보관');
+    expect(sanitizeTitle('-80°C 보관')).toBe('-80C_보관');
+    expect(sanitizeTitle('냉동고 -20°C 시료')).toBe('냉동고_-20C_시료');
+    expect(sanitizeTitle('보관 (−80°C)')).toBe('보관_-80C');
+    expect(sanitizeWorkflowName('Storage at －20 C')).toBe('Storage_at_-20_C');
+  });
+
+  it('still reads a dash between numbers or around spaces as a range', () => {
+    expect(sanitizeTitle('시료 1–8')).toBe('시료_1-8');
+    expect(sanitizeTitle('10 - 20')).toBe('10-20');
+    expect(sanitizeTitle('M1 –M8')).toBe('M1-M8');
   });
 
   it('reduces a separator run containing a hyphen to one hyphen and trims edges', () => {

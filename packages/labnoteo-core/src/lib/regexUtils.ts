@@ -26,6 +26,10 @@ export function escapeRegExp(input: string): string {
  * A separator run containing a hyphen (`M1 – M8` → `M1_-_M8`) is reduced to a
  * single `-`.
  *
+ * A minus sign — a dash right before a digit and not after a letter or digit —
+ * is kept together with the separator before it, so `냉동고 -20°C` becomes
+ * `냉동고_-20C` and `−80°C 보관` becomes `-80C_보관` instead of reading as +80.
+ *
  * Uses the Unicode property escapes (`\p{L}\p{N}`) so non-ASCII names (Korean,
  * CJK, accented Latin, …) survive intact. This is the SINGLE rule shared by both
  * the experiment folder-name and the workflow file-name builders, which used to
@@ -33,11 +37,17 @@ export function escapeRegExp(input: string): string {
  * mismatched folder/file names for the same title in one vault.
  */
 export function sanitizePathSegment(input: string): string {
+  // Private-use placeholder that shields the sign from separator merging and
+  // edge trimming. No lookbehind: the plugin also runs on mobile WebViews.
+  const SIGN = '\uE000';
   return input
+    .replace(/\uE000/g, '')
+    .replace(/(^|[^\p{L}\p{N}])[-\u2212\u2013\uFF0D](?=\d)/gu, `$1${SIGN}`)
     .replace(/[\p{Pd}\u2212~\uFF5E]/gu, '-')
     .replace(/\s+/g, '_')
-    .replace(/[^\p{L}\p{N}_-]/gu, '')
+    .replace(/[^\p{L}\p{N}_\uE000-]/gu, '')
     .replace(/[_-]*-[_-]*/g, '-')
     .replace(/_+/g, '_')
-    .replace(/^[_-]+|[_-]+$/g, '');
+    .replace(/^[_-]+|[_-]+$/g, '')
+    .replace(/\uE000/g, '-');
 }
