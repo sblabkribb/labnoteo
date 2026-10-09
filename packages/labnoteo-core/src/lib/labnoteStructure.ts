@@ -108,8 +108,7 @@ ${frontMatter}
 
 ## 🗂️ Related Workflows
 
-> Enter the list of related workflow files between the markers below.
-> Press \`Ctrl+P\` (\`Cmd+P\` on macOS) to open the command palette, then run \`Create workflow\`; the list will be automatically added between the markers.
+> Press \`Ctrl+P\` (\`Cmd+P\` on macOS) to open the command palette, then run \`Create workflow\`; a checklist entry for the new workflow is added to this section automatically.
 > The name entered in the author: field of the YAML block above will be automatically entered as the experimenter's name when creating workflows and unit operations.
 
 

@@ -121,4 +121,11 @@ describe('generateReadmeContent', () => {
     expect(body).toContain('## 🗂️ Related Workflows');
     expect(body).toContain('## Summary and Discussion');
   });
+
+  // #23: the checklist is appended to the section itself; there are no markers.
+  it('does not tell the user to write between markers that do not exist', () => {
+    const md = generateReadmeContent('Assay');
+    expect(md).not.toMatch(/between the markers/i);
+    expect(md).toContain('added to this section automatically');
+  });
 });
