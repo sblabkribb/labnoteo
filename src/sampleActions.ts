@@ -96,12 +96,17 @@ export async function createSampleInteractive(
     title: plugin.t('Enter a description (optional)'),
     placeholder: plugin.t('e.g. Sample used in experiment 1'),
   });
+  const locationRaw = await promptModal(app, {
+    title: plugin.t('Enter a storage location (optional)'),
+    placeholder: plugin.t('e.g. Freezer-2 / Box-3 / A1'),
+  });
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
+  const location = clean(locationRaw);
 
   // `sources` is omitted so the record keeps whatever documents already
   // reference it; a tree-created sample legitimately starts with none.
-  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description });
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
   plugin.refreshSampleViews();
   new Notice(plugin.t('Sample added: {0}', id));
 
@@ -187,10 +192,17 @@ export async function editSampleInteractive(
     placeholder: plugin.t('e.g. Sample used in experiment 1'),
   });
   if (descRaw === undefined) return false;
+  const locationRaw = await promptModal(app, {
+    title: plugin.t('Enter a storage location (optional)'),
+    value: record.location ?? '',
+    placeholder: plugin.t('e.g. Freezer-2 / Box-3 / A1'),
+  });
+  if (locationRaw === undefined) return false;
 
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
-  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description });
+  const location = clean(locationRaw);
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
   plugin.refreshSampleViews();
 
   // Best-effort: keep the active note's definition in sync (single file only).

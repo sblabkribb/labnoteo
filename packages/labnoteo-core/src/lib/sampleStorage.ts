@@ -27,6 +27,13 @@ export interface SampleRecord {
   alias: string | null;
   descriptions: string[];
   sources: string[];
+  /**
+   * Physical storage location (e.g. "Freezer-2 / Box-3 / A1"). Optional and
+   * additive: records written before this field load as `null`, so no migration
+   * is needed. Authored locally today; for DNA/Plasmid/Primer it may later be
+   * populated from partbank via a {@link SampleLocationProvider}.
+   */
+  location?: string | null;
 }
 
 /**
@@ -68,6 +75,7 @@ function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord
     sources: Array.isArray(r.sources)
       ? r.sources.filter((s): s is string => typeof s === 'string')
       : [],
+    location: typeof r.location === 'string' ? r.location : null,
   };
 }
 
@@ -104,6 +112,7 @@ function mergeCaseCollidingIds(
       if (!target.sources.includes(s)) target.sources.push(s);
     }
     if (!target.alias && rec.alias) target.alias = rec.alias;
+    if (!target.location && rec.location) target.location = rec.location;
   }
 
   return { records: out, changed };
@@ -456,6 +465,7 @@ export async function saveSamplesByType(
  * `sources` semantics:
  *  - omit `sources` to preserve whatever the existing record had (sidebar edit),
  *  - pass an explicit array to set them (tool create binds the note as source).
+ * `location` follows the same preserve-when-omitted rule (pass `null` to clear).
  * `alias`/`descriptions` are overwritten from the given fields.
  */
 export async function upsertSampleRecord(
@@ -463,7 +473,12 @@ export async function upsertSampleRecord(
   labsamplesFolder: string,
   type: string,
   id: string,
-  fields: { alias: string | null; description: string | null; sources?: string[] }
+  fields: {
+    alias: string | null;
+    description: string | null;
+    sources?: string[];
+    location?: string | null;
+  }
 ): Promise<void> {
   assertSafeSampleType(type);
   const filePath = path.join(labsamplesFolder, `${type}.json`);
@@ -474,6 +489,7 @@ export async function upsertSampleRecord(
       alias: fields.alias,
       descriptions: fields.description ? [fields.description] : [],
       sources: fields.sources ?? records[id]?.sources ?? [],
+      location: fields.location !== undefined ? fields.location : (records[id]?.location ?? null),
     };
     return JSON.stringify(records, null, 2);
   });

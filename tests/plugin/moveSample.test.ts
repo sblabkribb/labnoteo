@@ -27,7 +27,7 @@ const WRONG_LOCAL = 'labnote/999_Stale/resources/labsamples';
 const TYPE = 'Reagent';
 
 function record(alias: string): SampleRecord {
-  return { type: TYPE, alias, descriptions: [], sources: [] };
+  return { type: TYPE, alias, descriptions: [], sources: [], location: null };
 }
 
 /**

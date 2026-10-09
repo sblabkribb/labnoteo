@@ -112,10 +112,18 @@ export {
   type SampleReferenceAt,
 } from './sample/sampleSuggest';
 
+// === Sample storage-location provider seam (local now; partbank-ready) ===
+export {
+  LocalSampleLocationProvider,
+  type SampleLocationProvider,
+  type SampleLocationQuery,
+} from './sample/sampleLocationProvider';
+
 // === Platform-neutral tree model (VS Code providers + Obsidian ItemViews) ===
 export {
   buildWorkflowTree,
   buildSampleTree,
+  filterSampleTree,
   type TreeNode,
   type TreeNodeKind,
   type WorkflowTreeData,

@@ -9,7 +9,7 @@
  * Local to Global.
  */
 import { ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
-import { buildSampleTree, type TreeNode } from '@labnoteo/core';
+import { buildSampleTree, filterSampleTree, type TreeNode } from '@labnoteo/core';
 import {
   getSampleDisplayMeta,
   buildSampleReferenceText,
@@ -43,6 +43,15 @@ export class SampleTreeView extends ItemView {
   private readonly expanded = new Set<string>();
   private refreshQueued = false;
   private refreshTimer?: number;
+  // Free-text filter applied over the loaded tree (id/alias/description/location).
+  private searchQuery = '';
+  private searchTimer?: number;
+  // Dedicated container the tree renders into; kept separate from the search
+  // box above it so `renderTree`'s `container.empty()` never wipes the input.
+  private treeEl?: HTMLElement;
+  // Last tree loaded from disk, re-filtered in place when the query changes so
+  // typing in the search box never re-reads every `{Type}.json`.
+  private lastNodes: TreeNode[] = [];
   // The Local folder used by the most recent render. Context-menu actions
   // (Add/Edit/Delete/Move) write here so they always target the folder the user
   // is looking at, even if the active file changed after the tree was drawn.
@@ -85,7 +94,27 @@ export class SampleTreeView extends ItemView {
         }
       })
     );
+    this.buildChrome();
     await this.refresh();
+  }
+
+  /** Build the persistent chrome (search box + tree container) once per open. */
+  private buildChrome(): void {
+    this.contentEl.empty();
+    const search = this.contentEl.createEl('input', {
+      cls: 'labnote-sample-search',
+      attr: { type: 'search', placeholder: this.plugin.t('Search samples') },
+    });
+    search.value = this.searchQuery;
+    this.registerDomEvent(search, 'input', () => {
+      this.searchQuery = search.value;
+      if (this.searchTimer !== undefined) window.clearTimeout(this.searchTimer);
+      this.searchTimer = window.setTimeout(() => {
+        this.searchTimer = undefined;
+        this.renderCurrent();
+      }, 200);
+    });
+    this.treeEl = this.contentEl.createDiv({ cls: 'labnote-sample-tree-container' });
   }
 
   /** Coalesce bursts of events into a single debounced refresh. */
@@ -106,6 +135,10 @@ export class SampleTreeView extends ItemView {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = undefined;
     }
+    if (this.searchTimer !== undefined) {
+      window.clearTimeout(this.searchTimer);
+      this.searchTimer = undefined;
+    }
     this.refreshQueued = false;
   }
 
@@ -115,13 +148,27 @@ export class SampleTreeView extends ItemView {
     this.lastRenderedLocal = local;
     const types = getSampleDisplayMeta(this.plugin.settings.customSampleTypes).types;
 
-    const nodes = await buildSampleTree(this.plugin.fs, { local, global }, types);
-    this.seedInitialExpansion(nodes);
+    this.lastNodes = await buildSampleTree(this.plugin.fs, { local, global }, types);
+    this.seedInitialExpansion(this.lastNodes);
+    this.renderCurrent();
+  }
+
+  /**
+   * Render the loaded tree through the active search filter. A non-empty query
+   * forces every surviving node open (so matches are visible without clicking),
+   * using a throwaway expanded set so the user's manual collapse state is
+   * untouched once the search is cleared.
+   */
+  private renderCurrent(): void {
+    if (!this.treeEl) return;
+    const nodes = filterSampleTree(this.lastNodes, this.searchQuery);
+    const searching = this.searchQuery.trim().length > 0;
+    const expanded = searching ? collectNodeIds(nodes) : this.expanded;
     renderTree(
-      this.contentEl,
+      this.treeEl,
       nodes,
       {
-        expanded: this.expanded,
+        expanded,
         onContext: (node, evt) => this.onContext(node, evt),
       },
       this
@@ -260,4 +307,17 @@ export class SampleTreeView extends ItemView {
 
     menu.showAtMouseEvent(evt);
   }
+}
+
+/** Collect every node id in a tree (used to force-expand search results). */
+function collectNodeIds(nodes: TreeNode[]): Set<string> {
+  const ids = new Set<string>();
+  const walk = (list: TreeNode[]): void => {
+    for (const node of list) {
+      ids.add(node.id);
+      if (node.children) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return ids;
 }

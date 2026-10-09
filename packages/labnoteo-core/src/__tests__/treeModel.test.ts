@@ -2,6 +2,7 @@
 import {
   buildWorkflowTree,
   buildSampleTree,
+  filterSampleTree,
   type WorkflowTreeData,
 } from '../tree/treeModel';
 import { MemFileSystem } from '../fs/memFileSystem';
@@ -103,5 +104,50 @@ describe('buildSampleTree', () => {
     const rnaType = local.children!.find(c => c.label.startsWith('RNA'))!;
     expect(rnaType.label).toBe('RNA [0]');
     expect(rnaType.children![0].label).toBe('No samples');
+  });
+});
+
+describe('filterSampleTree', () => {
+  async function tree() {
+    const fs = new MemFileSystem();
+    await fs.write(
+      '/local/DNA.json',
+      JSON.stringify({
+        'DNA-1': { type: 'DNA', alias: 'plasmidA', descriptions: ['promoter part'], sources: [] },
+        'DNA-2': { type: 'DNA', alias: 'vectorB', descriptions: ['backbone'], sources: [], location: 'Freezer-2 / Box-3' },
+      })
+    );
+    return buildSampleTree(fs, { local: '/local', global: '/global' }, ['DNA', 'RNA']);
+  }
+
+  it('returns the input unchanged (reference-equal) for an empty query', async () => {
+    const nodes = await tree();
+    expect(filterSampleTree(nodes, '   ')).toBe(nodes);
+  });
+
+  it('matches on id, alias, description and location', async () => {
+    const nodes = await tree();
+
+    const byAlias = filterSampleTree(nodes, 'vectorb');
+    const dnaAlias = byAlias[0].children!.find(c => c.label.startsWith('DNA'))!;
+    expect(dnaAlias.label).toBe('DNA [1]');
+    expect(dnaAlias.children!.map(s => s.label)).toEqual(['DNA-2 | vectorB']);
+
+    const byDesc = filterSampleTree(nodes, 'promoter');
+    expect(byDesc[0].children![0].children!.map(s => s.label)).toEqual(['DNA-1 | plasmidA']);
+
+    const byLocation = filterSampleTree(nodes, 'box-3');
+    expect(byLocation[0].children![0].children!.map(s => s.label)).toEqual(['DNA-2 | vectorB']);
+
+    const byId = filterSampleTree(nodes, 'dna-1');
+    expect(byId[0].children![0].children!.map(s => s.label)).toEqual(['DNA-1 | plasmidA']);
+  });
+
+  it('drops type nodes with no matches and keeps scope roots', async () => {
+    const nodes = await tree();
+    const filtered = filterSampleTree(nodes, 'nothing-matches');
+    expect(filtered).toHaveLength(2);
+    expect(filtered[0].label).toBe('Samples (Local)');
+    expect(filtered[0].children).toEqual([]);
   });
 });

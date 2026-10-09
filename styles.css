@@ -7,6 +7,12 @@
  * (`--labnote-*`), which is the Obsidian-recommended pattern for runtime values.
  */
 
+/* --- Samples sidebar search box ----------------------------------------- */
+.labnote-sample-search {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
 /* --- Tree views (workflows + samples sidebars) --------------------------- */
 .labnote-tree-row {
   display: flex;

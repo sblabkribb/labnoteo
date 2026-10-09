@@ -114,6 +114,7 @@ describe('saveSamplesFromDocument + loadSamplesByType (MemFileSystem round-trip)
       alias: 'pUC19',
       descriptions: ['my plasmid'],
       sources: ['note.labnote.md'],
+      location: null,
     });
   });
 
@@ -145,6 +146,7 @@ describe('saveSamplesFromDocument + loadSamplesByType (MemFileSystem round-trip)
       alias: 'legacy',
       descriptions: [],
       sources: [],
+      location: null,
     });
   });
 });
@@ -176,6 +178,7 @@ describe('upsertSampleRecord (Phase 3 atomic merge)', () => {
       alias: 'pUC19',
       descriptions: ['my plasmid'],
       sources: ['note.labnote.md'],
+      location: null,
     });
   });
 
@@ -266,6 +269,7 @@ describe('putSampleRecord (verbatim atomic write)', () => {
     alias: 'pUC19',
     descriptions: ['first', 'second'],
     sources: ['a.labnote.md', 'b.labnote.md'],
+    location: null,
     ...over,
   });
 

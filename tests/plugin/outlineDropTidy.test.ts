@@ -103,4 +103,35 @@ describe('createOutlineDropTidy', () => {
     await tidy.onModify(WORKFLOW_PATH);
     expect(files.get(WORKFLOW_PATH)).toBe(note);
   });
+
+  // #21-4: dragging a unit-op (H3) block in the Outline must carry its `####`
+  // subsections (Meta/Input/Output/…) with it — none may be dropped or orphaned
+  // onto the wrong block. The tidy only reorders the TOC and `---` separators,
+  // so every subsection that existed before the drag must survive it, in the
+  // same per-block sequence.
+  it('preserves every `####` subsection of a dragged block (no sub-block loss)', async () => {
+    const { tidy, files } = setup();
+    files.set(WORKFLOW_PATH, dragged());
+    tidy.arm(WORKFLOW_PATH);
+    await tidy.onModify(WORKFLOW_PATH);
+
+    const result = files.get(WORKFLOW_PATH)!;
+    const subs = [...result.matchAll(/^#### (.+)$/gm)].map(m => m[1].trim());
+    const perBlock = [
+      'Meta', 'Input', 'Reagent', 'Labware and Consumables',
+      'Equipment', 'Method', 'Output', 'Results & Discussions',
+    ];
+    // Three blocks, each with the full HW subsection sequence, in block order.
+    expect(subs).toEqual([...perBlock, ...perBlock, ...perBlock]);
+
+    // And the subsections stay grouped under their own `### [..]` heading: the
+    // first `####` after each unit-op heading is always `Meta`.
+    const headingThenSub = [...result.matchAll(/### \[(UHW\d+)[^\n]*\n[\s\S]*?\n#### (.+)/g)]
+      .map(m => [m[1], m[2].trim()]);
+    expect(headingThenSub).toEqual([
+      ['UHW030', 'Meta'],
+      ['UHW010', 'Meta'],
+      ['UHW020', 'Meta'],
+    ]);
+  });
 });

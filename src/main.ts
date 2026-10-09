@@ -11,7 +11,7 @@ import { Plugin, Notice, TFile, editorInfoField } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import { findSampleReferenceAt, rebuildUnitOpToc, minimalReplacement } from '@labnoteo/core';
 import { getSeoulDateString, getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
-import { getSampleDisplayMeta } from '@labnoteo/core/lib/sampleUtils';
+import { getSampleDisplayMeta, isCatalogSampleType } from '@labnoteo/core/lib/sampleUtils';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
 import { saveSamplesFromDocument, getLabsamplesFolder } from '@labnoteo/core/lib/sampleStorage';
 import { VaultFileSystem } from './vaultFileSystem';
@@ -34,6 +34,8 @@ import * as posix from '@labnoteo/core/posix';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { SampleEditorSuggest } from './sampleSuggest';
 import { openSampleDefinition } from './sampleDefinitionModal';
+import { pickModal } from './modals';
+import { createSampleInteractive, pickCatalogReference } from './sampleActions';
 import {
   createSampleHighlightPlugin,
   createSampleReadingHighlighter,
@@ -326,6 +328,16 @@ export default class LabnotePlugin extends Plugin {
                 )
             );
           }
+
+          // Always offer adding a sample from the editor (not just when the
+          // cursor sits on an existing reference), so a sample can be created
+          // and referenced without leaving the note for the sidebar.
+          menu.addItem(item =>
+            item
+              .setTitle(this.t('Add sample'))
+              .setIcon('plus')
+              .onClick(() => this.run(() => this.addSampleFromEditor()))
+          );
         }
 
         // Workflow-specific items depend on the file kind:
@@ -349,6 +361,51 @@ export default class LabnotePlugin extends Plugin {
         }
       })
     );
+  }
+
+  /**
+   * Editor context-menu "Add sample": pick a type, then create (authored types)
+   * or search the product catalog (Reagent/Labware/Equip), and insert the
+   * resulting reference at the cursor. Mirrors the autocomplete create flow so
+   * the two entry points behave identically.
+   */
+  private async addSampleFromEditor(): Promise<void> {
+    const target = this.host.editTarget();
+    if (!target) {
+      new Notice(this.t('Open a note to insert into.'));
+      return;
+    }
+    if (!this.hasLocalScope()) {
+      new Notice(this.t('Open a note first to add a local sample.'));
+      return;
+    }
+
+    const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
+    const type = await pickModal(
+      this.app,
+      types.map(t => ({ label: t, value: t })),
+      { title: this.t('Select sample type'), placeholder: this.t('Select sample type') }
+    );
+    if (!type) return;
+
+    // Catalog types (Reagent/Labware/Equip) are curated, not authored: search
+    // the read-only product catalog instead of generating a new id.
+    let referenceText: string | undefined;
+    if (isCatalogSampleType(type)) {
+      referenceText = await pickCatalogReference(this.app, this, {
+        type,
+        docPath: target.path,
+      });
+    } else {
+      const created = await createSampleInteractive(this.app, this, {
+        type,
+        folder: this.localSampleFolder(),
+        mode: 'generate',
+      });
+      referenceText = created?.referenceText;
+    }
+    if (!referenceText) return;
+    await target.insertAtCursor(referenceText);
   }
 
   /**

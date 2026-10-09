@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.89.1**
+**Version 0.90.0**
 
 [한국어](README.md)
 
@@ -10,7 +10,7 @@ This repository is the Obsidian port of the Labnote Assistant. It shares its pla
 
 ## Features
 
-- **Sample tracking**: A dedicated Samples sidebar view. Define, insert, edit, and search samples (DNA, RNA, Plasmid, and custom types), and move them between local (note) and global scope.
+- **Sample tracking**: A dedicated Samples sidebar view. Define, insert, and edit samples (DNA, RNA, Plasmid, and custom types) — including a sidebar search box and a **storage-location** field — and move them between local (note) and global scope. You can also **right-click in a note and choose *Add sample*** to create one and insert its reference.
 - **Workflow checklists**: A Workflows sidebar view to create and manage numbered workflow notes and keep the table of contents in sync.
 - **Unit operations**: Insert hardware/software unit operations from a bundled catalog, with automatic heading normalization and TOC updates.
 - **Sample suggestions & CSV export**: Inline suggestions and highlighting for sample references while editing, plus CSV export of note tables.

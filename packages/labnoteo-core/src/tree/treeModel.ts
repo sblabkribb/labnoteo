@@ -150,6 +150,13 @@ function sampleDetailNodes(idPrefix: string, rec: SampleRecord): TreeNode[] {
       kind: 'sampleDetail',
     });
   }
+  if (rec.location) {
+    details.push({
+      id: `${idPrefix}:location`,
+      label: `location: ${rec.location}`,
+      kind: 'sampleDetail',
+    });
+  }
   return details;
 }
 
@@ -216,4 +223,43 @@ export async function buildSampleTree(
     await buildScopeNode(fs, 'local', roots.local, types),
     await buildScopeNode(fs, 'global', roots.global, types),
   ];
+}
+
+/** True when a `sample` node matches a lower-cased free-text query. */
+function sampleMatchesQuery(node: TreeNode, lowerQuery: string): boolean {
+  const payload = node.payload as { id?: string; record?: SampleRecord } | undefined;
+  const rec = payload?.record;
+  const haystack = [
+    payload?.id ?? '',
+    rec?.alias ?? '',
+    rec?.descriptions?.[0] ?? '',
+    rec?.location ?? '',
+  ]
+    .join('\u0000')
+    .toLowerCase();
+  return haystack.includes(lowerQuery);
+}
+
+/**
+ * Filter a sample tree (from {@link buildSampleTree}) by a free-text query,
+ * matching each sample's id, alias, description and location
+ * (case-insensitive substring). Scope roots are preserved; a type node is kept
+ * only when at least one sample under it matches, and its `[count]` label is
+ * recomputed to the number of matches. An empty/whitespace query returns the
+ * input unchanged (reference-equal), so callers can skip re-rendering work.
+ */
+export function filterSampleTree(nodes: TreeNode[], query: string): TreeNode[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return nodes;
+  return nodes.map(root => {
+    const typeNodes = (root.children ?? []).flatMap(typeNode => {
+      const matches = (typeNode.children ?? []).filter(
+        child => child.kind === 'sample' && sampleMatchesQuery(child, q)
+      );
+      if (matches.length === 0) return [] as TreeNode[];
+      const type = (typeNode.payload as { type?: string } | undefined)?.type ?? typeNode.label;
+      return [{ ...typeNode, label: `${type} [${matches.length}]`, children: matches }];
+    });
+    return { ...root, children: typeNodes };
+  });
 }
