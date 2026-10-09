@@ -27,7 +27,7 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
   let written = 0;
   for (const table of tables) {
     const outPath = posix.join(dir, `${stem}_table${table.index + 1}.csv`);
-    await plugin.fs.write(outPath, tableToCsv(table.rows));
+    await plugin.fs.write(outPath, tableToCsv(table.rows, { bom: true }));
     written++;
   }
 

@@ -77,6 +77,15 @@ function escapeCsvCell(cell: string): string {
   return cell;
 }
 
-export function tableToCsv(rows: string[][]): string {
-  return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
+/** UTF-8 byte-order mark. */
+export const UTF8_BOM = '\uFEFF';
+
+/**
+ * Serialize rows as CSV. Pass `bom: true` for files a user will open in Excel:
+ * without the BOM, Excel on a Korean Windows system decodes UTF-8 as CP949,
+ * which garbles Hangul and can merge adjacent columns.
+ */
+export function tableToCsv(rows: string[][], opts: { bom?: boolean } = {}): string {
+  const body = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
+  return opts.bom ? UTF8_BOM + body : body;
 }

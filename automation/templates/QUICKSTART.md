@@ -260,6 +260,9 @@ README frontmatter:
 - **`Insert date` / `Insert date and time`**: 커서 위치에 오늘 날짜/시각.
 - **`Export tables to CSV`**: 노트 안의 모든 마크다운 표를 각각 CSV로 내보냅니다.
   노트와 **같은 폴더**에 `노트이름.labnote_table1.csv` 식으로 저장됩니다.
+  파일은 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM으로 저장됩니다. pandas·readr은 그대로
+  읽고, Python `csv` 모듈은 `encoding='utf-8-sig'`, R `read.csv`는
+  `fileEncoding='UTF-8-BOM'`으로 여세요.
 
 ## 샘플 다루기
 
