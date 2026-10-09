@@ -43,7 +43,7 @@ import {
 } from './sampleHighlight';
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
-import { createOutlineDropTidy } from './outlineDropTidy';
+import { createOutlineDropTidy, type OutlineDropSnapshot } from './outlineDropTidy';
 import { WorkflowTreeView, WORKFLOW_VIEW_TYPE } from './views/workflowView';
 import { SampleTreeView, SAMPLE_VIEW_TYPE } from './views/sampleView';
 import { exportTablesToCsv, exportActiveNoteTablesToCsv } from './exportCsv';
@@ -518,13 +518,37 @@ export default class LabnotePlugin extends Plugin {
         const pane = target.closest('.workspace-leaf-content[data-type="outline"]');
         if (!pane) return;
         const leaf = workspace.getLeavesOfType('outline').find(l => l.view.containerEl === pane);
-        const file = (leaf?.view as { file?: unknown } | undefined)?.file;
-        const path = file instanceof TFile ? file.path : workspace.getActiveFile()?.path;
-        if (path) tidy.arm(path);
+        const viewFile = (leaf?.view as { file?: unknown } | undefined)?.file;
+        const file = viewFile instanceof TFile ? viewFile : workspace.getActiveFile();
+        if (file) tidy.arm(file.path, this.snapshotOutlineDrag(file));
       },
       { capture: true }
     );
     this.registerEvent(vault.on('modify', file => void tidy.onModify(file.path)));
+  }
+
+  /**
+   * The heading being dragged in the Outline, read while the drop is still in
+   * flight. `dragManager` is not public API, so anything unexpected yields no
+   * snapshot and the drop is only tidied, as before.
+   */
+  private snapshotOutlineDrag(file: TFile): OutlineDropSnapshot | undefined {
+    const dragManager = (this.app as unknown as { dragManager?: { draggable?: unknown } }).dragManager;
+    const drag = dragManager?.draggable as
+      | { source?: unknown; type?: unknown; file?: unknown; heading?: unknown }
+      | null
+      | undefined;
+    if (!drag || drag.source !== 'outline' || drag.type !== 'heading') return undefined;
+    if (!(drag.file instanceof TFile) || drag.file.path !== file.path) return undefined;
+    const headings = this.app.metadataCache.getFileCache(file)?.headings;
+    if (!headings) return undefined;
+    const movedIdx = headings.findIndex(h => h === drag.heading);
+    if (movedIdx === -1) return undefined;
+    return {
+      before: this.app.vault.cachedRead(file),
+      headings: headings.map(h => ({ level: h.level, start: h.position.start.offset })),
+      movedIdx,
+    };
   }
 
   /** Get (or create) the pending-event queue for an experiment folder. */

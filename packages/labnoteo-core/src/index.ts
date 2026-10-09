@@ -21,6 +21,13 @@ export {
   type TextEdit,
 } from './sections/workflowSectionParser';
 
+// Obsidian Outline drag: reproduce its splice and undo the nesting it causes.
+export {
+  simulateOutlineHeadingMove,
+  fixOutlineDropNesting,
+  type OutlineHeading,
+} from './sections/outlineMove';
+
 // Re-exported from the dependency-free heading module so browser consumers
 // (webview) get the normalizer without pulling js-yaml into their bundle.
 export { normalizeWorkflowUnitSectionHeading } from './sections/unitOpHeading';

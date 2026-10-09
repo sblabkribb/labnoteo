@@ -10,8 +10,18 @@
  * Only the first `modify` after a drop on the Outline pane is handled (the path
  * is "armed" by the drop), so editor saves, git pulls, other plugins' writes
  * and the save that follows an undo are left alone.
+ *
+ * With a snapshot of the drag, the same write also undoes the Outline's nesting
+ * side effect (a block dropped onto a unit op splitting it from its `####`
+ * subsections, see `fixOutlineDropNesting`). That repair runs regardless of the
+ * TOC setting; the TOC/separator tidy still follows it.
  */
-import { applyTextEdits, computeUnitOpSyncEdits } from '@labnoteo/core';
+import {
+  applyTextEdits,
+  computeUnitOpSyncEdits,
+  fixOutlineDropNesting,
+  type OutlineHeading,
+} from '@labnoteo/core';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
 
 /** The drop handler reads and writes the file right away; this only bounds a no-op drop. */
@@ -24,8 +34,16 @@ export interface OutlineDropTidyDeps {
   process: (path: string, fn: (data: string) => string) => Promise<void>;
 }
 
+/** The dragged heading, captured at drop time before the Outline rewrites the file. */
+export interface OutlineDropSnapshot {
+  /** The file text the Outline is about to splice. */
+  before: Promise<string>;
+  headings: OutlineHeading[];
+  movedIdx: number;
+}
+
 export interface OutlineDropTidy {
-  arm(path: string): void;
+  arm(path: string, drop?: OutlineDropSnapshot): void;
   onModify(path: string): Promise<void>;
 }
 
@@ -34,17 +52,29 @@ export function tidyReorderedWorkflow(data: string): string {
 }
 
 export function createOutlineDropTidy(deps: OutlineDropTidyDeps): OutlineDropTidy {
-  const armedUntil = new Map<string, number>();
+  const armed = new Map<string, { until: number; drop?: OutlineDropSnapshot }>();
   return {
-    arm(path) {
-      armedUntil.set(path, deps.now() + OUTLINE_DROP_ARM_MS);
+    arm(path, drop) {
+      // A no-op drop never reaches `onModify`, so the read may go unobserved.
+      drop?.before.catch(() => undefined);
+      armed.set(path, { until: deps.now() + OUTLINE_DROP_ARM_MS, drop });
     },
     async onModify(path) {
-      const until = armedUntil.get(path);
-      if (until === undefined) return;
-      armedUntil.delete(path);
-      if (deps.now() > until || !deps.isEnabled() || !isValidWorkflowPath(path)) return;
-      await deps.process(path, tidyReorderedWorkflow);
+      const entry = armed.get(path);
+      if (entry === undefined) return;
+      armed.delete(path);
+      if (deps.now() > entry.until || !isValidWorkflowPath(path)) return;
+      const tidyOn = deps.isEnabled();
+      const { drop } = entry;
+      if (!drop && !tidyOn) return;
+      const before = drop ? await drop.before.catch(() => null) : null;
+      await deps.process(path, data => {
+        const moved =
+          drop && before !== null
+            ? (fixOutlineDropNesting(before, data, drop.headings, drop.movedIdx) ?? data)
+            : data;
+        return tidyOn ? tidyReorderedWorkflow(moved) : moved;
+      });
     },
   };
 }

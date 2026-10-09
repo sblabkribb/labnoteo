@@ -4,7 +4,7 @@
  * pulls, the save that follows an undo).
  */
 import { describe, it, expect } from 'vitest';
-import { findUnitOpInsertOffset, rebuildUnitOpToc } from '@labnoteo/core';
+import { findUnitOpInsertOffset, rebuildUnitOpToc, simulateOutlineHeadingMove } from '@labnoteo/core';
 import { createWorkflowContent } from '@labnoteo/core/lib/workflowStructure';
 import { buildHwUnitOpMarkdown } from '@labnoteo/core/lib/unitOpTemplate';
 import { createOutlineDropTidy, OUTLINE_DROP_ARM_MS } from '../../src/outlineDropTidy';
@@ -52,6 +52,38 @@ function setup(opts: { enabled?: boolean } = {}) {
 
 const dragged = () => outlineDrag(buildNote(['UHW010', 'UHW020', 'UHW030']), '### [UHW030', '### [UHW010');
 const normBlank = (s: string) => s.replace(/\n{3,}/g, '\n\n');
+
+/** Headings as Obsidian's metadata cache lists them (`{ level, start }`) plus the line text. */
+function headingsOf(md: string) {
+  const out: { level: number; start: number; text: string }[] = [];
+  let offset = 0;
+  for (const line of md.split('\n')) {
+    const m = line.match(/^(#{1,6})\s/);
+    if (m) out.push({ level: m[1].length, start: offset, text: line });
+    offset += line.length + 1;
+  }
+  return out;
+}
+
+/**
+ * #22: Obsidian's real drop of UHW030 "after" UHW010, which lands on UHW010's
+ * first `#### Meta`, plus the snapshot the plugin takes at drop time.
+ */
+function droppedOntoUnitOp() {
+  const before = buildNote(['UHW010', 'UHW020', 'UHW030']);
+  const headings = headingsOf(before);
+  const movedIdx = headings.findIndex(h => h.text.startsWith('### [UHW030'));
+  const target = headings.findIndex(h => h.text.startsWith('### [UHW010')) + 1;
+  const to = headings.findIndex(h => h.text.startsWith('## Conclusions'));
+  const after = simulateOutlineHeadingMove(before, headings[movedIdx].start, headings[to].start, headings[target].start);
+  const correct = simulateOutlineHeadingMove(
+    before,
+    headings[movedIdx].start,
+    headings[to].start,
+    headings.find(h => h.text.startsWith('### [UHW020'))!.start
+  );
+  return { before, after, correct, snapshot: { before: Promise.resolve(before), headings, movedIdx } };
+}
 
 describe('createOutlineDropTidy', () => {
   it('tidies the TOC and separators on the first modify after a drop', async () => {
@@ -133,5 +165,42 @@ describe('createOutlineDropTidy', () => {
       ['UHW010', 'Meta'],
       ['UHW020', 'Meta'],
     ]);
+  });
+
+  it('moves a block dropped onto a unit op behind it, then tidies', async () => {
+    const { tidy, files, processed } = setup();
+    const drop = droppedOntoUnitOp();
+    files.set(WORKFLOW_PATH, drop.after);
+    tidy.arm(WORKFLOW_PATH, drop.snapshot);
+    await tidy.onModify(WORKFLOW_PATH);
+
+    expect(processed).toEqual([WORKFLOW_PATH]);
+    expect(normBlank(files.get(WORKFLOW_PATH)!)).toBe(normBlank(buildNote(['UHW010', 'UHW030', 'UHW020'])));
+  });
+
+  it('repairs the drop even when the TOC sync is off, without tidying', async () => {
+    const { tidy, files } = setup({ enabled: false });
+    const drop = droppedOntoUnitOp();
+    files.set(WORKFLOW_PATH, drop.after);
+    tidy.arm(WORKFLOW_PATH, drop.snapshot);
+    await tidy.onModify(WORKFLOW_PATH);
+    expect(files.get(WORKFLOW_PATH)).toBe(drop.correct);
+  });
+
+  it('only tidies when the snapshot cannot explain the new text', async () => {
+    const drop = droppedOntoUnitOp();
+    const plain = setup();
+    plain.files.set(WORKFLOW_PATH, drop.after);
+    plain.tidy.arm(WORKFLOW_PATH);
+    await plain.tidy.onModify(WORKFLOW_PATH);
+
+    const reads = [() => Promise.resolve('unrelated'), () => Promise.reject(new Error('read failed'))];
+    for (const read of reads) {
+      const { tidy, files } = setup();
+      files.set(WORKFLOW_PATH, drop.after);
+      tidy.arm(WORKFLOW_PATH, { ...drop.snapshot, before: read() });
+      await tidy.onModify(WORKFLOW_PATH);
+      expect(files.get(WORKFLOW_PATH)).toBe(plain.files.get(WORKFLOW_PATH));
+    }
   });
 });

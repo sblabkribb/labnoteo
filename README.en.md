@@ -112,7 +112,7 @@ See the generated `.labnoteo/SETUP.md` (admins) for the full asset table, prereq
 
 **Samples** — toggle the Samples sidebar view, add custom sample types, and set the global sample folder (default `resources/labsamples`).
 
-**Workflows** — **Auto-sync unit operation TOC** reorders a workflow note's `Related Unit Operations` list to match heading order after edits, so moving a unit-operation block re-sorts the top-of-note TOC. Dragging a block in Obsidian's Outline view tidies the TOC and `---` separators right away. The cleanup is saved separately from the move, so undoing back to before the move may take two presses of Ctrl+Z. On by default.
+**Workflows** — **Auto-sync unit operation TOC** reorders a workflow note's `Related Unit Operations` list to match heading order after edits, so moving a unit-operation block re-sorts the top-of-note TOC. Dragging a block in Obsidian's Outline view tidies the TOC and `---` separators right away, and dropping it onto another unit operation places it after that whole unit operation instead of splitting it. The cleanup is saved separately from the move, so undoing back to before the move may take two presses of Ctrl+Z. On by default.
 
 **AI provider** — pick `none`, `ollama`, or `openai`; set the Ollama/OpenAI endpoint (separate fields so an OpenAI key never leaks to a local Ollama address), the model id (e.g. `qwen3`, `gpt-4o-mini`), and the API key (OpenAI-compatible only, never sent to Ollama).
 
