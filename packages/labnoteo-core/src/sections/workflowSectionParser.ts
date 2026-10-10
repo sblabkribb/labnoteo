@@ -12,21 +12,38 @@
 const UNIT_OP_HEADING_PATTERN = /^###\s+\[([A-Z]+\d+)\s+(.+?)\]\s*(.*)/;
 
 /**
+ * The anchor GitHub gives a heading with this text, before de-duplication:
+ * ASCII letters lowercased, everything but letters/marks/numbers/`_`/`-`/space
+ * dropped, then each space turned into `-` (runs are not collapsed). Non-ASCII
+ * letters keep their case and Korean text is kept.
+ *
+ * The TOC links target GitHub's rendering of the note; Obsidian resolves `#`
+ * links by heading text instead, so it navigates via its Outline view.
+ */
+export function githubHeadingAnchor(text: string): string {
+  return text
+    .trim()
+    .replace(/[A-Z]/g, c => c.toLowerCase())
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu, '')
+    .replace(/ /g, '-');
+}
+
+/**
  * Build a single Related-Unit-Operations TOC line for a unit op.
  *
- * The slug is a GitHub-style anchor of the `### [opId opName]` heading. This is
- * the single source of truth shared by {@link appendUnitOpToWorkflowToc} and
- * {@link rebuildUnitOpToc}.
+ * `anchor` defaults to the heading's base {@link githubHeadingAnchor}; pass the
+ * de-duplicated one (`-1`, `-2`, ...) when the note is known, as
+ * {@link rebuildUnitOpToc} does.
  */
-export function buildUnitOpTocLine(opId: string, opName: string, alias?: string): string {
+export function buildUnitOpTocLine(
+  opId: string,
+  opName: string,
+  alias?: string,
+  anchor?: string
+): string {
   const label = `${opId} ${opName}${alias ? ' | ' + alias : ''}`;
   const headingText = `[${opId} ${opName}]${alias ? ' ' + alias : ''}`;
-  const slug = headingText
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return `- [${label}](#${slug})`;
+  return `- [${label}](#${anchor ?? githubHeadingAnchor(headingText)})`;
 }
 
 /**
@@ -174,6 +191,35 @@ function scanLines(md: string): MdLine[] {
 
 const isTocEntry = (line: MdLine): boolean => !line.fenced && /^\s*- \[/.test(line.text);
 
+/**
+ * GitHub's anchor for every ATX heading line, keyed by line index. GitHub
+ * numbers a repeated base anchor `-1`, `-2`, ... across ALL headings of the
+ * document (`#### Meta` included), so the count must start at the top, not at
+ * the TOC. Front matter and fenced code hold no headings.
+ */
+function headingAnchors(lines: MdLine[]): Map<number, string> {
+  let start = 0;
+  if (lines[0]?.text.trim() === '---') {
+    const close = lines.findIndex((l, i) => i > 0 && l.text.trim() === '---');
+    if (close !== -1) start = close + 1;
+  }
+  const anchors = new Map<number, string>();
+  const seen = new Map<string, number>();
+  for (let j = start; j < lines.length; j++) {
+    if (lines[j].fenced) continue;
+    const m = /^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$/.exec(lines[j].text);
+    if (!m) continue;
+    const base = githubHeadingAnchor((m[1] ?? '').replace(/(?:^|[ \t]+)#+$/, ''));
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    anchors.set(j, n > 0 ? `${base}-${n}` : base);
+  }
+  return anchors;
+}
+
+/** A TOC line without its `(#anchor)`, so a stale anchor doesn't hide a reorder. */
+const tocLabel = (line: string): string => line.trim().replace(/\]\(#[^)]*\)$/, ']');
+
 /** Everything the TOC and separator edits need, from one pass over the document. */
 interface UnitOpTocScan {
   lines: MdLine[];
@@ -204,11 +250,12 @@ function scanUnitOpToc(md: string): UnitOpTocScan | null {
 
   // Collect unit-op headings across the body, in document order. TOC lines start
   // with `- [`, so they never match the `### [` heading pattern.
+  const anchors = headingAnchors(lines);
   const entries: string[] = [];
   for (let j = headingIdx + 1; j < lines.length; j++) {
     if (lines[j].fenced) continue;
     const m = lines[j].text.match(UNIT_OP_HEADING_PATTERN);
-    if (m) entries.push(buildUnitOpTocLine(m[1], m[2].trim(), m[3]?.trim() || undefined));
+    if (m) entries.push(buildUnitOpTocLine(m[1], m[2].trim(), m[3]?.trim() || undefined, anchors.get(j)));
   }
 
   const entryIdxs: number[] = [];
@@ -255,10 +302,14 @@ function tocEdit(md: string, scan: UnitOpTocScan): TextEdit | null {
  * True when the TOC holds exactly the headings' entries (as a multiset, so a
  * unit op used twice still counts) but in a different order — the signature of
  * a moved block. Added, removed or renamed headings are not a reorder.
+ *
+ * Entries are compared by label: a note written before the anchors were
+ * de-duplicated still reads as a reorder, while an anchor-only change is left
+ * to the regular TOC sync.
  */
 function isReorder(scan: UnitOpTocScan): boolean {
-  const current = scan.entryIdxs.map(j => scan.lines[j].text.trim());
-  const { entries } = scan;
+  const current = scan.entryIdxs.map(j => tocLabel(scan.lines[j].text));
+  const entries = scan.entries.map(tocLabel);
   if (current.length !== entries.length) return false;
   if (current.every((c, i) => c === entries[i])) return false;
   const a = [...current].sort();

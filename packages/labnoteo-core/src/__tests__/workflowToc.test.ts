@@ -1,5 +1,6 @@
 import {
   buildUnitOpTocLine,
+  githubHeadingAnchor,
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
@@ -78,6 +79,69 @@ describe('buildUnitOpTocLine', () => {
     expect(buildUnitOpTocLine('UHW020', 'PCR (95C)')).toBe(
       '- [UHW020 PCR (95C)](#uhw020-pcr-95c)'
     );
+  });
+
+  it('keeps a Korean alias in the anchor, as GitHub does', () => {
+    expect(buildUnitOpTocLine('UHW180', 'Incubation', '계대 1일차')).toBe(
+      '- [UHW180 Incubation | 계대 1일차](#uhw180-incubation-계대-1일차)'
+    );
+  });
+
+  it('uses a given (de-duplicated) anchor', () => {
+    expect(buildUnitOpTocLine('UHW180', 'Incubation', undefined, 'uhw180-incubation-1')).toBe(
+      '- [UHW180 Incubation](#uhw180-incubation-1)'
+    );
+  });
+});
+
+describe('githubHeadingAnchor', () => {
+  it('lowercases ASCII only, drops punctuation and maps each space to a hyphen', () => {
+    expect(githubHeadingAnchor('[UHW180 Incubation] 계대 1일차')).toBe('uhw180-incubation-계대-1일차');
+    expect(githubHeadingAnchor('팔레트에 없는 기능 (우클릭 · 클릭 전용)')).toBe(
+      '팔레트에-없는-기능-우클릭--클릭-전용'
+    );
+    expect(githubHeadingAnchor('Greek Θ snake_case x-y')).toBe('greek-Θ-snake_case-x-y');
+  });
+});
+
+describe('rebuildUnitOpToc anchors', () => {
+  const note = (head: string[], body: string[]): string =>
+    [...head, '## Related Unit Operations', '', ...body, '', '## Conclusions and Discussion', ''].join('\n');
+  const tocAnchors = (md: string): string[] => [...md.matchAll(/^- \[.*\]\(#(.*)\)$/gm)].map(m => m[1]);
+
+  it('numbers repeated unit ops -1, -2 across all headings', () => {
+    const md = note([], [
+      '---', '', '### [UHW180 Incubation]', '', '#### Meta', '',
+      '---', '', '### [UHW180 Incubation] 계대 1일차', '', '#### Meta', '',
+      '---', '', '### [UHW180 Incubation]', '', '#### Meta', '',
+      '---', '', '### [UHW180 Incubation]',
+    ]);
+    expect(tocAnchors(rebuildUnitOpToc(md))).toEqual([
+      'uhw180-incubation',
+      'uhw180-incubation-계대-1일차',
+      'uhw180-incubation-1',
+      'uhw180-incubation-2',
+    ]);
+  });
+
+  it('counts a non-unit-op heading with the same anchor', () => {
+    const md = note(['# UHW010 A', ''], ['---', '', '### [UHW010 A]']);
+    expect(tocAnchors(rebuildUnitOpToc(md))).toEqual(['uhw010-a-1']);
+  });
+
+  it('ignores front matter and fenced headings', () => {
+    const md = note(['---', '# UHW010 A', '---', ''], [
+      '```', '### [UHW010 A]', '```', '', '---', '', '### [UHW010 A]',
+    ]);
+    expect(tocAnchors(rebuildUnitOpToc(md))).toEqual(['uhw010-a']);
+  });
+
+  it('fixes a stale anchor in place without calling it a reorder', () => {
+    const md = note([], ['- [UHW180 Incubation | 계대 1일차](#uhw180-incubation-1)', '', '---', '', '### [UHW180 Incubation] 계대 1일차']);
+    expect(computeUnitOpSyncEdits(md, { onlyOnReorder: true })).toEqual([]);
+    const out = rebuildUnitOpToc(md);
+    expect(tocAnchors(out)).toEqual(['uhw180-incubation-계대-1일차']);
+    expect(computeUnitOpSyncEdits(out)).toEqual([]);
   });
 });
 
@@ -501,6 +565,9 @@ describe('computeUnitOpSyncEdits', () => {
     ].join('\n');
     const out = applyTextEdits(md, computeUnitOpSyncEdits(md, { onlyOnReorder: true }));
     expect([...out.matchAll(/^- \[(\w+) /gm)].map(m => m[1])).toEqual(['UHW010', 'UHW010', 'UHW020']);
+    // The pre-numbering TOC (both `#uhw010-a`) still reads as a reorder, and the second A gets `-1`.
+    expect(out).toContain('- [UHW010 A](#uhw010-a)\n- [UHW010 A](#uhw010-a-1)\n- [UHW020 B](#uhw020-b)');
+    expect(computeUnitOpSyncEdits(out)).toEqual([]);
     // One A dropped from the TOC is an edit, not a reorder.
     const fewer = md.replace('- [UHW010 A](#uhw010-a)\n- [UHW020 B]', '- [UHW020 B]');
     expect(computeUnitOpSyncEdits(fewer, { onlyOnReorder: true })).toEqual([]);
