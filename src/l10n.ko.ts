@@ -62,6 +62,11 @@ const obsidianKo: Record<string, string> = {
     '논의 표시를 설정했습니다. 다음 push 때 이슈가 생성됩니다.',
   'Discussion flag cleared. Any issue already opened stays open.':
     '논의 표시를 해제했습니다. 이미 생성된 이슈는 닫히지 않습니다.',
+  'Flagged for discussion. To open it as an issue, run "Setup research automation" first.':
+    "논의 표시를 설정했습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
+  'Discussion flag cleared.': '논의 표시를 해제했습니다.',
+  'Issue marker inserted. To open it as an issue, run "Setup research automation" first.':
+    "이슈 마커를 넣었습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
   'Issue markers cannot go inside a table. Run this on a line below the table.':
     '표 안에서는 이슈 마커를 넣을 수 없습니다. 표 아래 줄에서 실행하세요.',
   'This line already has an issue marker. A line can hold only one.':

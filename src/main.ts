@@ -21,6 +21,7 @@ import {
   createExperimentCommand,
   changeExperimentStatusCommand,
   insertIssueMarkerCommand,
+  isIssueAutomationInstalled,
   toggleDiscussionFlagCommand,
   createWorkflowCommand,
   renumberWorkflowsCommand,
@@ -69,6 +70,9 @@ export default class LabnotePlugin extends Plugin {
   // in memory so the Samples sidebar's Local scope stays pinned to that
   // experiment even when focus moves to a file outside it. Reset on reload.
   private lastExperimentDir?: string;
+  // Users who run the plugin without automation would otherwise be told on
+  // every marker that it opens no issue; once per session is enough.
+  private issueAutomationHintShown = false;
   private readonly sampleSyncTimers = new Map<string, number>();
   // Pending README auto-sync events, coalesced per experiment folder.
   private readonly readmeSyncQueue = new Map<
@@ -183,7 +187,15 @@ export default class LabnotePlugin extends Plugin {
       id: 'insert-issue-marker',
       name: this.t('Insert issue marker'),
       editorCallback: editor => {
-        insertIssueMarkerCommand(editor, this.host);
+        if (!insertIssueMarkerCommand(editor, this.host) || this.issueAutomationHintShown) return;
+        this.run(async () => {
+          if (await isIssueAutomationInstalled(this.host)) return;
+          this.issueAutomationHintShown = true;
+          this.host.notify(
+            'info',
+            this.t('Issue marker inserted. To open it as an issue, run "Setup research automation" first.')
+          );
+        });
       },
     });
 

@@ -86,6 +86,12 @@ export const SETUP_DOC_PATH = `${LABNOTEO_DIR}/SETUP.md`;
 export const QUICKSTART_DOC_PATH = 'QUICKSTART.md';
 
 /**
+ * Vault path of the workflow that opens Issues from `@issue` markers and the
+ * `discuss` flag; its presence is how the commands tell automation is set up.
+ */
+export const ISSUE_SYNC_WORKFLOW_PATH = '.github/workflows/experiment-issues.yml';
+
+/**
  * Files earlier versions scaffolded at paths we no longer use. The setup command
  * offers to delete them once, so a vault upgraded from <=0.82.0 does not keep a
  * second, stale copy of every script.
@@ -148,7 +154,7 @@ export const SCAFFOLD_ASSETS: ScaffoldAsset[] = [
 
   // Phase 4a — deterministic Experiment ↔ Issue.
   { vaultPath: `${LABNOTEO_DIR}/scripts/issue-sync.mjs`, content: issueSyncScript },
-  { vaultPath: '.github/workflows/experiment-issues.yml', content: experimentIssuesWorkflow },
+  { vaultPath: ISSUE_SYNC_WORKFLOW_PATH, content: experimentIssuesWorkflow },
   { vaultPath: '.github/ISSUE_TEMPLATE/experiment.md', content: experimentIssueTemplate },
 
   // AI agent rules — the local agent replaces the former self-hosted AI jobs:

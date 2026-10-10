@@ -32,6 +32,7 @@ import {
   serializeFrontMatterEntry,
   setDiscussFlag,
 } from '@labnoteo/core';
+import { ISSUE_SYNC_WORKFLOW_PATH } from './scaffold/assets';
 import * as posix from '@labnoteo/core/posix';
 import { workflowAliasModal } from './modals';
 import { createLabnoteStructure, getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
@@ -199,6 +200,16 @@ export function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost): boo
 }
 
 /**
+ * Whether this vault has the workflow that turns `@issue` markers and the
+ * `discuss` flag into GitHub Issues. Without it both are inert, which the
+ * commands must say instead of promising an issue on the next push. Whether
+ * the vault is pushed with Actions enabled is beyond what the plugin can see.
+ */
+export async function isIssueAutomationInstalled(host: LabnoteHost): Promise<boolean> {
+  return host.fs.exists(ISSUE_SYNC_WORKFLOW_PATH);
+}
+
+/**
  * Read an experiment README for a front-matter edit, refusing to continue when
  * the YAML cannot be parsed.
  *
@@ -271,12 +282,18 @@ export async function toggleDiscussionFlagCommand(app: App, host: LabnoteHost): 
     renderNote(setDiscussFlag(frontMatter, next), body)
   );
 
-  host.notify(
-    'info',
-    next
+  const automated = await isIssueAutomationInstalled(host);
+  let message: string;
+  if (next) {
+    message = automated
       ? host.t('Flagged for discussion. An issue opens on the next push.')
-      : host.t('Discussion flag cleared. Any issue already opened stays open.')
-  );
+      : host.t('Flagged for discussion. To open it as an issue, run "Setup research automation" first.');
+  } else {
+    message = automated
+      ? host.t('Discussion flag cleared. Any issue already opened stays open.')
+      : host.t('Discussion flag cleared.');
+  }
+  host.notify('info', message);
 }
 
 /**
