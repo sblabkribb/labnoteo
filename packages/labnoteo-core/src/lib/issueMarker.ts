@@ -195,6 +195,85 @@ export function renderIssueMarker(marker: { id: string; title: string }): string
 }
 
 /**
+ * Where the insert command puts a marker: one edit plus the caret offset, or
+ * the reason it refuses.
+ */
+export type IssueMarkerInsertion =
+  | { edit: { from: number; to: number; insert: string }; cursor: number }
+  | { reason: 'conflict' | 'table' };
+
+const isHeadingLine = (line: string): boolean => /^ {0,3}#{1,6}(?:\s|$)/.test(line);
+const isTableRow = (line: string): boolean => /^\s*\|/.test(line);
+
+/**
+ * Plan inserting a marker for the selection `[from, to)` of `doc` (`from ===
+ * to` for a bare caret). The selected text becomes the topic.
+ *
+ * A marker owns everything up to the end of its line, so replacing a selection
+ * in place is only safe when nothing but whitespace follows it. Otherwise the
+ * rest of the sentence would leak into the Issue title, so the line is left
+ * intact and the marker goes at its end. The note is somebody's record; the
+ * command must not reword it.
+ *
+ * - Heading line: the marker goes on a new line below. Text appended to
+ *   `### [UHW..]` would change the unit op's alias, and with it the TOC entry
+ *   and the section name the Issue reports.
+ * - Table row: refused (`table`). Appended text is an excess cell GitHub hides,
+ *   and a line below would cut the table in two.
+ * - A line that would end up with two markers is refused (`conflict`): only
+ *   the first is read, so the second would merge into its title.
+ */
+export function planIssueMarkerInsertion(
+  doc: string,
+  from: number,
+  to: number,
+  id: string
+): IssueMarkerInsertion {
+  if (from > to) [from, to] = [to, from];
+  // A selection that swallowed its line break (triple-click) ends on that line.
+  while (to > from && doc[to - 1] === '\n') to--;
+
+  const title = doc.slice(from, to).trim().replace(/\s*\n\s*/g, ' ');
+  const marker = renderIssueMarker({ id, title });
+  const lineStartOf = (i: number): number => (i === 0 ? 0 : doc.lastIndexOf('\n', i - 1) + 1);
+  const lineEndOf = (i: number): number => {
+    const nl = doc.indexOf('\n', i);
+    return nl === -1 ? doc.length : nl;
+  };
+  const pad = (i: number, lineStart: number): string =>
+    i > lineStart && !/\s/.test(doc[i - 1]) ? ' ' : '';
+
+  const toLineEnd = lineEndOf(to);
+  const appendAtEnd = doc.slice(to, toLineEnd).trim() !== '';
+  const anchor = appendAtEnd ? to : from;
+  const lineStart = lineStartOf(anchor);
+  const lineEnd = lineEndOf(anchor);
+  const line = doc.slice(lineStart, lineEnd);
+
+  if (isTableRow(line)) return { reason: 'table' };
+
+  let edit: { from: number; to: number; insert: string };
+  let resultLine: string;
+  if (isHeadingLine(line)) {
+    edit = { from: lineEnd, to: lineEnd, insert: '\n' + marker };
+    resultLine = marker;
+  } else if (appendAtEnd) {
+    const insert = pad(lineEnd, lineStart) + marker;
+    edit = { from: lineEnd, to: lineEnd, insert };
+    resultLine = line + insert;
+  } else {
+    const lead = /^[ \t]*/.exec(doc.slice(from, to))![0];
+    const insert = (lead || pad(from, lineStart)) + marker;
+    edit = { from, to, insert };
+    resultLine = doc.slice(lineStart, from) + insert + doc.slice(to, toLineEnd);
+  }
+
+  const candidates = resultLine.match(new RegExp(MARKER_START_RE.source, 'gi')) ?? [];
+  if (candidates.length > 1) return { reason: 'conflict' };
+  return { edit, cursor: edit.from + edit.insert.length };
+}
+
+/**
  * Text of the nearest Markdown heading at or above `line` (1-based), or
  * undefined when the marker sits before any heading. Gives the Issue the
  * section it came from (`Results` vs `Methods`) without copying the note.

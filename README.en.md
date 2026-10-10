@@ -80,7 +80,7 @@ Obsidian reads the release's `versions.json` from the repository, so there is no
 | Create experiment | Create a new `.labnote.md` experiment note |
 | Change experiment status | Update the active experiment's `status` frontmatter via a picker |
 | Toggle discussion flag | Turn the active experiment's `discuss` flag on/off, so the next push opens a GitHub Issue |
-| Insert issue marker | Drop an `@issue;<ID>;<topic>` marker at the cursor (selection becomes the topic); each marker opens its own Issue |
+| Insert issue marker | Drop an `@issue;<ID>;<topic>` marker at the cursor (selection becomes the topic); each marker opens its own Issue. If text follows the selection or the cursor is mid-line, the line is kept as is and the marker goes at its end; on a heading it goes on the line below, and inside a table it is not inserted |
 | Create workflow | Create a numbered workflow note |
 | Insert unit operation | Insert a unit operation from the catalog |
 | Export tables to CSV | Export note tables to CSV |

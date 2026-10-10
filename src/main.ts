@@ -183,7 +183,7 @@ export default class LabnotePlugin extends Plugin {
       id: 'insert-issue-marker',
       name: this.t('Insert issue marker'),
       editorCallback: editor => {
-        insertIssueMarkerCommand(editor);
+        insertIssueMarkerCommand(editor, this.host);
       },
     });
 

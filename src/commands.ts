@@ -28,7 +28,7 @@ import {
   isDiscussFlagged,
   parseFrontMatterYaml,
   parseIssueMarkers,
-  renderIssueMarker,
+  planIssueMarkerInsertion,
   serializeFrontMatterEntry,
   setDiscussFlag,
 } from '@labnoteo/core';
@@ -150,19 +150,20 @@ export async function changeExperimentStatusCommand(app: App, host: LabnoteHost)
 }
 
 /**
- * Insert an `@issue` marker at the cursor, with a freshly generated ID.
+ * Insert an `@issue` marker for the selection, with a freshly generated ID.
+ * Returns whether a marker was inserted.
  *
  * Discussion comes up mid-sentence while writing, so this is an editor command
  * rather than a note-level one: select the sentence that raises the question
  * and it becomes the topic; with no selection the marker is left open and the
- * cursor lands where the topic goes.
+ * cursor lands where the topic goes. Text after the selection is never pulled
+ * into the marker — see {@link planIssueMarkerInsertion} for where it goes.
+ * Only the primary selection is used, so one command yields one ID.
  *
  * The ID exists so the topic can be reworded later without orphaning the issue
  * it opened, which is also why it is generated rather than typed.
  */
-export function insertIssueMarkerCommand(editor: Editor): void {
-  const title = editor.getSelection().trim().replace(/\s*\n\s*/g, ' ');
-
+export function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost): boolean {
   // IDs are a timestamp plus a counter, so generating a duplicate is not
   // actually possible; this scan is kept only because it costs nothing.
   //
@@ -170,11 +171,31 @@ export function insertIssueMarkerCommand(editor: Editor): void {
   // which carries the ID along and never goes through this command. Two notes
   // then point at one issue and the discussions merge silently. The pre-commit
   // hook and the server `validate` catch that, since only they see the folder.
-  const used = new Set(parseIssueMarkers(editor.getValue()).markers.map(m => m.id));
+  const doc = editor.getValue();
+  const used = new Set(parseIssueMarkers(doc).markers.map(m => m.id));
   let id = generateIssueMarkerId();
   while (used.has(id)) id = generateIssueMarkerId();
 
-  editor.replaceSelection(renderIssueMarker({ id, title }));
+  const plan = planIssueMarkerInsertion(
+    doc,
+    editor.posToOffset(editor.getCursor('from')),
+    editor.posToOffset(editor.getCursor('to')),
+    id
+  );
+  if ('reason' in plan) {
+    host.notify(
+      'warn',
+      plan.reason === 'table'
+        ? host.t('Issue markers cannot go inside a table. Run this on a line below the table.')
+        : host.t('This line already has an issue marker. A line can hold only one.')
+    );
+    return false;
+  }
+
+  const { edit, cursor } = plan;
+  editor.replaceRange(edit.insert, editor.offsetToPos(edit.from), editor.offsetToPos(edit.to));
+  editor.setCursor(editor.offsetToPos(cursor));
+  return true;
 }
 
 /**

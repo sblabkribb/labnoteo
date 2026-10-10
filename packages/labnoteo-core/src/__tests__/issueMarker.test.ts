@@ -12,6 +12,7 @@ import {
   findIssueMarkerRanges,
   generateIssueMarkerId,
   parseIssueMarkers,
+  planIssueMarkerInsertion,
   renderIssueMarker,
   resetIssueMarkerIdCounter,
 } from '../lib/issueMarker';
@@ -153,6 +154,102 @@ describe('generateIssueMarkerId', () => {
     const id = generateIssueMarkerId();
     const { markers } = parseIssueMarkers(renderIssueMarker({ id, title: '확인 필요' }));
     expect(markers[0]).toMatchObject({ id, title: '확인 필요' });
+  });
+});
+
+describe('planIssueMarkerInsertion', () => {
+  const ID = 'ISS-t';
+
+  /** Run the plan for `[from, to)` and apply it; throws when it was refused. */
+  function insert(doc: string, from: number, to = from): { out: string; cursor: number } {
+    const plan = planIssueMarkerInsertion(doc, from, to, ID);
+    if ('reason' in plan) throw new Error(`refused: ${plan.reason}`);
+    const { edit, cursor } = plan;
+    return { out: doc.slice(0, edit.from) + edit.insert + doc.slice(edit.to), cursor };
+  }
+  /** Select the first occurrence of `text`. */
+  const select = (doc: string, text: string): [number, number] => {
+    const at = doc.indexOf(text);
+    return [at, at + text.length];
+  };
+  const titleOf = (md: string): string | undefined => parseIssueMarkers(md).markers[0]?.title;
+
+  it('keeps the sentence and appends the marker when text follows the selection (#28)', () => {
+    const doc = 'BS-3 형광 높음 누출 의심';
+    const { out, cursor } = insert(doc, ...select(doc, 'BS-3 형광 '));
+    expect(out).toBe('BS-3 형광 높음 누출 의심 @issue;ISS-t;BS-3 형광');
+    expect(cursor).toBe(out.length);
+    expect(titleOf(out)).toBe('BS-3 형광');
+  });
+
+  it('leaves a metadata line intact', () => {
+    const doc = '- Equipment: Multi-functional microplate reader';
+    const { out } = insert(doc, ...select(doc, 'Equipment: Multi-functional '));
+    expect(out).toBe(`${doc} @issue;ISS-t;Equipment: Multi-functional`);
+    expect(titleOf(out)).toBe('Equipment: Multi-functional');
+  });
+
+  it('moves a bare caret in mid-line to the line end instead of splitting a word', () => {
+    const doc = '0 µM에서도 높음. 누출 의심\n다음 줄';
+    const { out, cursor } = insert(doc, doc.indexOf('도 높음'));
+    expect(out).toBe('0 µM에서도 높음. 누출 의심 @issue;ISS-t;\n다음 줄');
+    expect(out.slice(0, cursor)).toBe('0 µM에서도 높음. 누출 의심 @issue;ISS-t;');
+  });
+
+  it('inserts at a caret on the line end, spaced from the text before it', () => {
+    expect(insert('수율 40%.', 7).out).toBe('수율 40%. @issue;ISS-t;');
+    expect(insert('수율 40% ', 7).out).toBe('수율 40% @issue;ISS-t;');
+    expect(insert('', 0).out).toBe('@issue;ISS-t;');
+  });
+
+  it('replaces a selection that runs to the line end, keeping the space before it', () => {
+    const doc = '결과: BS-3 형광';
+    const { out } = insert(doc, ...select(doc, ' BS-3 형광'));
+    expect(out).toBe('결과: @issue;ISS-t;BS-3 형광');
+    expect(titleOf(out)).toBe('BS-3 형광');
+  });
+
+  it('treats a selection that took its line break as ending on that line', () => {
+    const doc = '누출 의심\n다음 줄';
+    const { out } = insert(doc, ...select(doc, '누출 의심\n'));
+    expect(out).toBe('@issue;ISS-t;누출 의심\n다음 줄');
+  });
+
+  it('joins a multi-line selection into one topic', () => {
+    const doc = 'line one\nline two tail';
+    const { out } = insert(doc, doc.indexOf('one'), doc.indexOf(' tail'));
+    expect(out).toBe('line one\nline two tail @issue;ISS-t;one line two');
+    expect(titleOf(out)).toBe('one line two');
+
+    const toEnd = 'a first\nsecond';
+    expect(insert(toEnd, ...select(toEnd, 'first\nsecond')).out).toBe('a @issue;ISS-t;first second');
+  });
+
+  it('accepts a backwards selection', () => {
+    const doc = 'BS-3 형광 높음';
+    const [from, to] = select(doc, 'BS-3');
+    expect(insert(doc, to, from).out).toBe('BS-3 형광 높음 @issue;ISS-t;BS-3');
+  });
+
+  it('puts the marker under a heading instead of into it', () => {
+    const doc = '### [UHW010 A]\n\n#### Meta';
+    expect(insert(doc, 6).out).toBe('### [UHW010 A]\n@issue;ISS-t;\n\n#### Meta');
+    const { out } = insert(doc, ...select(doc, 'UHW010 A'));
+    expect(out).toBe('### [UHW010 A]\n@issue;ISS-t;UHW010 A\n\n#### Meta');
+    expect(parseIssueMarkers(out).markers[0]).toMatchObject({ title: 'UHW010 A', line: 2 });
+  });
+
+  it('refuses inside a table row', () => {
+    expect(planIssueMarkerInsertion('| a | b |', 2, 3, ID)).toEqual({ reason: 'table' });
+  });
+
+  it('refuses a second marker on one line', () => {
+    const doc = 'foo @issue;ISS-a;기존 논의';
+    expect(planIssueMarkerInsertion(doc, 0, 0, ID)).toEqual({ reason: 'conflict' });
+    expect(planIssueMarkerInsertion(doc, 0, 3, ID)).toEqual({ reason: 'conflict' });
+    expect(planIssueMarkerInsertion(doc, doc.length, doc.length, ID)).toEqual({ reason: 'conflict' });
+    // A selection that contains a marker would put it into the new topic.
+    expect(planIssueMarkerInsertion(doc, 0, doc.length, ID)).toEqual({ reason: 'conflict' });
   });
 });
 

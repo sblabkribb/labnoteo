@@ -58,7 +58,7 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 | 실험 생성 (`Create experiment`)                              | 새 `.labnote.md` 실험 노트 생성                                                |
 | 실험 상태 변경 (`Change experiment status`)                    | 활성 실험의 `status` frontmatter를 피커로 변경                                     |
 | 논의 표시 전환 (`Toggle discussion flag`)                      | 활성 실험의 `discuss` 표시를 켜고 끔 — 다음 push 때 GitHub Issue 생성                   |
-| 논의 이슈 마커 삽입 (`Insert issue marker`)                      | 커서 위치에 `@issue;<ID>;<주제문장>` 마커 삽입(선택 영역이 주제문장) — 마커마다 별도 Issue 생성       |
+| 논의 이슈 마커 삽입 (`Insert issue marker`)                      | 커서 위치에 `@issue;<ID>;<주제문장>` 마커 삽입(선택 영역이 주제문장) — 마커마다 별도 Issue 생성. 선택 뒤에 글자가 남거나 커서가 줄 중간이면 원문은 그대로 두고 줄 끝에 마커를 붙임. 제목 줄에서는 아랫줄에 넣고, 표 안에서는 넣지 않음 |
 | 워크플로 생성 (`Create workflow`)                              | 번호가 매겨진 워크플로 노트 생성                                                      |
 | 유닛 오퍼레이션 삽입 (`Insert unit operation`)                    | 카탈로그에서 유닛 오퍼레이션 삽입                                                      |
 | 표 CSV 내보내기 (`Export tables to CSV`)                      | 노트의 표를 CSV로 내보내기                                                        |

@@ -62,6 +62,10 @@ const obsidianKo: Record<string, string> = {
     '논의 표시를 설정했습니다. 다음 push 때 이슈가 생성됩니다.',
   'Discussion flag cleared. Any issue already opened stays open.':
     '논의 표시를 해제했습니다. 이미 생성된 이슈는 닫히지 않습니다.',
+  'Issue markers cannot go inside a table. Run this on a line below the table.':
+    '표 안에서는 이슈 마커를 넣을 수 없습니다. 표 아래 줄에서 실행하세요.',
+  'This line already has an issue marker. A line can hold only one.':
+    '이 줄에는 이미 이슈 마커가 있습니다. 한 줄에 하나만 둘 수 있습니다.',
   'Front matter of this note could not be read, so it was left unchanged. Fix the YAML and try again: {0}':
     '이 노트의 front matter를 읽을 수 없어 변경하지 않았습니다. YAML을 고친 뒤 다시 시도하세요: {0}',
   'Overwrite {0}?': '{0} 파일을 덮어쓰시겠습니까?',
