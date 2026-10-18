@@ -169,11 +169,13 @@ export {
 
 // === Platform-neutral tree model (VS Code providers + Obsidian ItemViews) ===
 export {
+  buildExperimentTree,
   buildWorkflowTree,
   buildSampleTree,
   filterSampleTree,
   type TreeNode,
   type TreeNodeKind,
+  type ExperimentEntry,
   type WorkflowTreeData,
   type SampleScope,
   type SampleTreeRoots,
