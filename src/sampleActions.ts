@@ -202,6 +202,18 @@ export async function createSampleInteractive(
     };
   }
 
+  const twin = alias ? await globalSampleWithAlias(plugin, type, folder, alias) : undefined;
+  if (twin) {
+    new Notice(
+      plugin.t(
+        'Global samples already have the alias {0} ({1}). Autocomplete will show both, marked Local and Global.',
+        alias!,
+        twin
+      ),
+      8000
+    );
+  }
+
   // `sources` is omitted so the record keeps whatever documents already
   // reference it; a tree-created sample legitimately starts with none.
   await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
@@ -222,6 +234,24 @@ export async function createSampleInteractive(
     definitionText: buildSampleDefinitionText(type, id, alias, description),
     referenceText: buildSampleReferenceText(id, alias),
   };
+}
+
+/**
+ * The ID of a Global `type` sample with `alias` (trimmed, case ignored) when a
+ * sample is being added to the Local `folder`: the two would look alike in
+ * autocomplete (#109). Undefined for a Global folder or no such sample.
+ */
+async function globalSampleWithAlias(
+  plugin: LabnotePlugin,
+  type: string,
+  folder: string,
+  alias: string
+): Promise<string | undefined> {
+  const globalFolder = plugin.settings.globalSampleFolder;
+  if (!globalFolder || isSameSampleFolder(folder, globalFolder)) return undefined;
+  const wanted = alias.trim().toLowerCase();
+  const records = await loadSamplesByType(plugin.fs, globalFolder, type);
+  return Object.keys(records).find(id => records[id].alias?.trim().toLowerCase() === wanted);
 }
 
 /**

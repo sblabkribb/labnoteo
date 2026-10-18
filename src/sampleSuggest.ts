@@ -145,15 +145,20 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
     const recordsByType: Record<string, SampleCandidate[]> = {};
     // A vault-root note's local folder is the global one: read it once.
     const readGlobal = Boolean(globalFolder) && !isSameSampleFolder(localFolder, globalFolder);
+    // Outside an experiment the local folder is the global one, so its records are Global (#109).
+    const localScope = readGlobal || !globalFolder ? 'local' : 'global';
     for (const type of trigger.typesToSearch) {
       const local = await this.loadCached(localFolder, type);
       const global = readGlobal ? await this.loadCached(globalFolder, type) : {};
       // Local definitions win over global on id collision.
-      const merged = { ...global, ...local };
-      recordsByType[type] = Object.entries(merged).map(([id, rec]) => ({
+      const merged: Record<string, { rec: SampleRecord; scope: 'local' | 'global' }> = {};
+      for (const [id, rec] of Object.entries(global)) merged[id] = { rec, scope: 'global' };
+      for (const [id, rec] of Object.entries(local)) merged[id] = { rec, scope: localScope };
+      recordsByType[type] = Object.entries(merged).map(([id, { rec, scope }]) => ({
         id,
         alias: rec.alias,
         description: rec.descriptions?.[0],
+        scope,
       }));
     }
 
@@ -185,8 +190,9 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
     const t = this.deps.plugin.t;
     if (item.kind === 'existing') {
       el.createEl('div', { text: item.entry.label });
+      const { type, scope } = item.entry;
       el.createEl('small', {
-        text: `${item.entry.type} Sample`,
+        text: scope ? t(scope === 'local' ? 'Local {0} sample' : 'Global {0} sample', type) : `${type} Sample`,
         cls: 'labnote-suggest-detail',
       });
       return;
