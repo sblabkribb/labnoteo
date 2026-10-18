@@ -15,6 +15,8 @@ export {
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
+  findUnitOpInsertPointAt,
+  type UnitOpInsertPoint,
   minimalReplacement,
   computeUnitOpSyncEdits,
   applyTextEdits,
@@ -117,6 +119,7 @@ export type {
 // === Shared command logic (host-driven; consumed by both platforms) ===
 export {
   insertUnitOperation,
+  unitOpInsertPointAtCursor,
   type InsertUnitOperationInput,
 } from './commands/insertUnitOperation';
 

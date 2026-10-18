@@ -22,7 +22,7 @@ import {
   insertUnitOperation,
   rebuildUnitOpToc,
   locateInsertedUnitOpHeading,
-  findUnitOpInsertOffset,
+  unitOpInsertPointAtCursor,
   EXPERIMENT_STATUSES,
   generateIssueMarkerId,
   isDiscussFlagged,
@@ -619,23 +619,24 @@ export async function insertWorkflowLinkCommand(
 }
 
 /**
- * Insert a unit-operation block at the end of the `## Related Unit Operations`
- * section, then rebuild that section's TOC so its entries follow the document
- * order of the actual `### [..]` headings. Finally, move the cursor/focus to
- * the just-inserted heading. Shared by the command and the workflow sidebar's
- * context menu.
+ * Insert a unit-operation block into the `## Related Unit Operations` section
+ * (after the block the cursor is in, see `insertUnitOperation`), then rebuild
+ * that section's TOC so its entries follow the document order of the actual
+ * `### [..]` headings. Finally, move the cursor/focus to the just-inserted
+ * heading. Shared by the command and the workflow sidebar's context menu, which
+ * uses the cursor of the editor last active.
  */
 export async function insertUnitOpAndUpdateToc(
   host: LabnoteHost,
   input: InsertUnitOperationInput
 ): Promise<boolean> {
-  // Resolve the insertion point BEFORE inserting: the block lands here, which
-  // lets us relocate the new heading after the whole-doc TOC rewrite. The same
-  // pure helper drives the insert itself, so both agree on the offset.
+  // Resolve the insertion point BEFORE inserting and hand it to the insert, so
+  // the new heading can be found again after the whole-doc TOC rewrite.
   const before = host.editTarget();
-  const insertOffset = before ? findUnitOpInsertOffset(await before.getText()) : -1;
+  const at = before ? await unitOpInsertPointAtCursor(before) : undefined;
+  const insertOffset = at?.offset ?? -1;
 
-  const ok = await insertUnitOperation(host, input);
+  const ok = await insertUnitOperation(host, { ...input, at });
   if (!ok) return false;
 
   const target = host.editTarget();
@@ -655,7 +656,7 @@ export async function insertUnitOpAndUpdateToc(
   return true;
 }
 
-/** Insert a unit-operation block at the cursor + update the workflow TOC. */
+/** Insert a unit-operation block after the one the cursor is in + update the workflow TOC. */
 export async function insertUnitOperationCommand(app: App, host: LabnoteHost): Promise<void> {
   await ensureWorkflowResources(host.fs, VAULT_ROOT);
   const hw = await loadUnitOperations(host.fs, VAULT_ROOT, 'hw');

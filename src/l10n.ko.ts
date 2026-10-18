@@ -177,6 +177,9 @@ const obsidianKo: Record<string, string> = {
   'This experiment has no README.labnote.md, so the workflow was not added to a checklist.':
     '이 실험에는 README.labnote.md가 없어 워크플로를 체크리스트에 등록하지 못했습니다.',
   'Unit operation inserted: {0} {1}': '유닛 오퍼레이션이 삽입되었습니다: {0} {1}',
+  '(after {0})': '({0} 다음)',
+  '(before the first unit operation)': '(첫 유닛 오퍼레이션 앞)',
+  '(after the last unit operation)': '(마지막 유닛 오퍼레이션 다음)',
   'Please open a workflow file.': '워크플로 파일을 열어주세요.',
   'Please run this command on a workflow file inside the labnote folder.':
     'labnote 폴더 내의 워크플로 파일에서 실행해주세요.',
