@@ -88,7 +88,29 @@ export function extractMarkdownTables(markdown: string): CsvTable[] {
   return tables;
 }
 
+/** A leading character Excel reads as the start of a formula (full-width forms included). */
+const FORMULA_START_RE = /^[=@+\-＝＠＋－]/;
+/** A signed number Excel reads as one: `-80`, `+5`, `-1.2e3`, `-.5`, `-80%`, `-1,250`. */
+const SIGNED_NUMBER_RE = /^[+-](?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%?$/i;
+
+/**
+ * Whether Excel would evaluate `cell` instead of showing it (#122): `=2:1`
+ * turns into `#NAME?` and `+82-2-000-0000` into 80. Signed numbers stay
+ * numbers, and a lone `-` (a common "none") is not a formula.
+ */
+function readsAsFormula(cell: string): boolean {
+  if (!FORMULA_START_RE.test(cell)) return false;
+  const ascii = cell.replace(/^[＋－]/, (c) => (c === '＋' ? '+' : '-'));
+  if (!/^[+-]/.test(ascii)) return true;
+  return ascii.length > 1 && !SIGNED_NUMBER_RE.test(ascii);
+}
+
 function escapeCsvCell(cell: string): string {
+  // A tab inside the quotes (OWASP's advice for Excel) keeps the text as typed;
+  // a leading `'` would stay visible, since Excel does not hide it in a CSV.
+  if (readsAsFormula(cell)) {
+    return `"\t${cell.replace(/"/g, '""')}"`;
+  }
   if (/[",\n]/.test(cell)) {
     return `"${cell.replace(/"/g, '""')}"`;
   }

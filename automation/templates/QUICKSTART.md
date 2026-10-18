@@ -368,6 +368,9 @@ README frontmatter:
   파일은 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM으로 저장됩니다. pandas·readr은 그대로
   읽고, Python `csv` 모듈은 `encoding='utf-8-sig'`, R `read.csv`는
   `fileEncoding='UTF-8-BOM'`으로 여세요.
+  `=`·`@`로 시작하거나 숫자가 아닌데 `+`·`-`로 시작하는 칸(`=2:1`, `+82-2-000-0000`)은 엑셀이
+  수식으로 읽지 않도록 앞에 탭을 붙여 적어 둔 글자 그대로 보이게 합니다. `-80`·`+5` 같은 숫자는
+  그대로 둡니다. pandas·R로 읽으면 그 칸 앞에 탭이 남으니 필요하면 `str.strip()`(R은 `trimws()`)으로 지우세요.
 
 ## 샘플 다루기
 

@@ -131,6 +131,22 @@ describe('tableToCsv', () => {
   it('quotes cells containing commas, quotes, or newlines', () => {
     expect(tableToCsv([['a,b', 'say "hi"', 'plain']])).toBe('"a,b","say ""hi""",plain\n');
   });
+
+  // #122: Excel evaluates these instead of showing them.
+  it('puts a tab inside quotes before cells Excel would read as a formula', () => {
+    const cells = ['=2:1', '=B2*1.5', '@reagent;Reagent-1;완충액', '+82-2-000-0000', '-20 °C', '＝1+1', '＠x', '－a'];
+    expect(tableToCsv(cells.map(c => [c]))).toBe(cells.map(c => `"\t${c}"`).join('\n') + '\n');
+  });
+
+  it('leaves signed numbers and a lone dash as they are', () => {
+    const cells = ['-80', '+5', '-1.2e3', '-0.5', '-.5', '-80%', '－80', '-', '+'];
+    expect(tableToCsv(cells.map(c => [c]))).toBe(cells.join('\n') + '\n');
+    expect(tableToCsv([['-1,250']])).toBe('"-1,250"\n');
+  });
+
+  it('still doubles quotes in a protected cell with a comma', () => {
+    expect(tableToCsv([['=A1,"x"']])).toBe('"\t=A1,""x"""\n');
+  });
 });
 
 describe('extractMarkdownTables', () => {
