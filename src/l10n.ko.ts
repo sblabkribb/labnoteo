@@ -174,6 +174,8 @@ const obsidianKo: Record<string, string> = {
     '다음 CSV 파일에 다른 표가 들어가게 됩니다(표가 추가·삭제되었거나 순서가 바뀌었습니다). 덮어쓸까요?\n\n{0}',
   'The header of these CSV files changed. Overwrite them?\n\n{0}':
     '다음 CSV 파일의 머리글이 바뀌었습니다. 덮어쓸까요?\n\n{0}',
+  '{0} rows → {1} rows': '{0}행 → {1}행',
+  'row {0}: {1} → {2}': '{0}번째 행: {1} → {2}',
   'Command failed: {0}': '명령 실행 실패: {0}',
   'Yes': '예',
   'Workflow created: {0}': '워크플로가 생성되었습니다: {0}',
