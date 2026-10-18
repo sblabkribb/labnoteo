@@ -102,7 +102,7 @@ vault/
 
 | 경로 | 설명 |
 | --- | --- |
-| `.labnoteo/scripts/validate.mjs` | status 허용값 / 중복 id / `@issue` 마커 형식·폴더 내 ID 중복 / 대용량 파일 중앙 재검사 (결정적). `--notes-only`는 마지막 대용량 재검사를 생략(훅 전용) |
+| `.labnoteo/scripts/validate.mjs` | status 허용값 / 중복 id / `@issue` 마커 형식·폴더 내 ID 중복 / 대용량 파일 중앙 재검사 (결정적). `--notes-only`는 마지막 대용량 재검사를 생략(훅 전용). 어느 폴더에서 실행해도 스크립트가 있는 보관함을 검사하고, 보관함을 찾지 못하면 종료 코드 2. 실험 노트가 0개면 통과 대신 경고 |
 | `.github/workflows/validate.yml` | `labnote/**` push마다 `node .labnoteo/scripts/validate.mjs` 실행. Actions 탭에서 **수동 실행**도 가능(항상 전체 검사) |
 
 ### Experiment ↔ Issue (결정적, AI 불필요)
