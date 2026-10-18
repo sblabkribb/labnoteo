@@ -989,7 +989,13 @@ export default class LabnotePlugin extends Plugin {
         this.run(async () => {
           const readmePath = posix.join(dir, 'README.labnote.md');
           if (this.unloaded || !(await this.fs.exists(readmePath))) return;
-          const plan = planWorkflowChecklistSync(await this.fs.read(readmePath), await this.fs.list(dir));
+          const plan = planWorkflowChecklistSync(
+            await this.fs.read(readmePath),
+            await this.fs.list(dir),
+            undefined,
+            undefined,
+            dir
+          );
           if (plan.added.length === 0) return;
           this.host.notify(
             'warn',

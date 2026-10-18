@@ -65,6 +65,8 @@ import {
   relabelWorkflowChecklistEntries,
   dedupeWorkflowChecklistEntries,
   normalizeWorkflowChecklistLabels,
+  normalizeWorkflowChecklistLinks,
+  normalizeChecklistLink,
   relinkWorkflowChecklistEntries,
   collapseWorkflowRenames,
   defaultWorkflowTitle,
@@ -735,7 +737,7 @@ export async function renumberWorkflowsCommand(
   // Files the checklist does not list are renumbered too, so register them in
   // the same run; otherwise one takes 001 and the overview starts at 002 (#56).
   const unlisted = (await host.fs.exists(readmePath))
-    ? planWorkflowChecklistSync(await host.fs.read(readmePath), existing).added.length
+    ? planWorkflowChecklistSync(await host.fs.read(readmePath), existing, undefined, undefined, labnoteDir).added.length
     : 0;
   if (renames.length === 0 && unlisted === 0) {
     host.notify('info', host.t('Workflow numbering is already sequential.'));
@@ -780,11 +782,11 @@ export async function renumberWorkflowsCommand(
       await readmeSync.settle();
       if (baseline !== undefined) {
         const relink = (content: string): string =>
-          moved.length > 0 ? reconcileWorkflowChecklist(content, moved, { baseline }).content : content;
+          moved.length > 0 ? reconcileWorkflowChecklist(content, moved, { baseline, dir: labnoteDir }).content : content;
         const { names, notes } = await readWorkflowFolder(host, labnoteDir);
         const titles = workflowLabels(notes);
         await processNoteThroughVault(app, host, readmePath, content => {
-          const plan = planWorkflowChecklistSync(relink(content), names, titles);
+          const plan = planWorkflowChecklistSync(relink(content), names, titles, undefined, labnoteDir);
           added = plan.added.length;
           return plan.content;
         });
@@ -1005,7 +1007,7 @@ export async function addWorkflowFileToChecklist(
     app,
     host,
     readmePath,
-    content => planWorkflowChecklistSync(content, [fileName], titles).content
+    content => planWorkflowChecklistSync(content, [fileName], titles, undefined, labnoteDir).content
   );
 }
 
@@ -1188,8 +1190,9 @@ export async function syncWorkflowChecklistCommand(
     );
     if (ok) duplicates = plan.duplicates;
   }
-  // Escaping a label changes only the link text, not what it reads.
-  const relinked = plan.unescaped.length;
+  // Escaping a label changes only the link text, not what it reads, and so does
+  // shortening a link Obsidian made vault-absolute (#102).
+  const relinked = plan.unescaped.length + normalizeWorkflowChecklistLinks(readme, labnoteDir).count;
 
   const samplesBrought = adoptSamples ? await adoptSamples(labnoteDir, names) : 0;
 
@@ -1218,17 +1221,25 @@ export async function syncWorkflowChecklistCommand(
     return;
   }
 
-  await processNoteThroughVault(app, host, readmePath, content =>
-    normalizeWorkflowChecklistLabels(
+  // Links are shortened first, so the entries to remove are matched in that form.
+  const removeLinks = remove.map(link => normalizeChecklistLink(link, labnoteDir));
+  await processNoteThroughVault(app, host, readmePath, content => {
+    const shortened = normalizeWorkflowChecklistLinks(content, labnoteDir).content;
+    return normalizeWorkflowChecklistLabels(
       dedupeWorkflowChecklistEntries(
         relabelWorkflowChecklistEntries(
-          removeWorkflowChecklistEntries(planWorkflowChecklistSync(content, names, titles).content, remove),
-          relabel
+          removeWorkflowChecklistEntries(
+            planWorkflowChecklistSync(shortened, names, titles, undefined, labnoteDir).content,
+            removeLinks
+          ),
+          relabel,
+          labnoteDir
         ),
-        [...new Set(duplicates)]
+        [...new Set(duplicates)],
+        labnoteDir
       )
-    )
-  );
+    );
+  });
   const parts = [
     host.t('Workflow checklist updated: {0} added, {1} removed.', String(plan.added.length), String(remove.length)),
   ];
@@ -1332,6 +1343,7 @@ export async function syncReadmeOrderOnRename(
     content =>
       reconcileWorkflowChecklist(content, renames, {
         labelFor: name => labels.get(name) ?? defaultWorkflowTitle(name),
+        dir: labnoteDir,
       }).content
   );
 }
