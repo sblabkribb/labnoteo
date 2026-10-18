@@ -111,6 +111,7 @@ export {
   type ToolPreview,
   type SectionEditPreview,
   type SampleCreatePreview,
+  type WorkflowCreatePreview,
   type JsonSchema,
 } from './tools';
 

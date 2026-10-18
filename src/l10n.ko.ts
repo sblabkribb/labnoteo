@@ -437,6 +437,8 @@ const obsidianKo: Record<string, string> = {
     '같은 절 {1}개 중 {0}번째로, 제목이 {2}번째 줄에 있습니다.',
   'This creates a {0} sample with a new ID.': '{0} 샘플을 새 ID로 만듭니다.',
   'This creates {0} sample {1}.': '{0} 샘플 {1}을(를) 만듭니다.',
+  'This creates catalog workflow {0} {1}. File: {2}. It is also added to the checklist in {3}.':
+    '카탈로그 워크플로 {0} {1}을(를) 새로 만듭니다. 파일: {2}. {3}의 체크리스트에도 등록합니다.',
   'This adds to {0} sample {1}.': '이미 있는 {0} 샘플 {1}에 더합니다.',
   'Alias: {0}': '별칭: {0}',
   'Storage location: {0}': '보관 위치: {0}',
