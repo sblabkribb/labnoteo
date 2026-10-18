@@ -422,6 +422,10 @@ export async function toggleDiscussionFlagCommand(
         ? host.t('Discussion flag cleared. Any issue already opened stays open.')
         : host.t('Discussion flag cleared.');
   }
+  // The flag belongs to the experiment, so say so when run from another note (#108).
+  if (app.workspace.getActiveFile()?.path !== readmePath) {
+    message += ` ${host.t("Changed {0}'s README, not this note.", posix.basename(labnoteDir))}`;
+  }
   host.notify('info', message);
 }
 

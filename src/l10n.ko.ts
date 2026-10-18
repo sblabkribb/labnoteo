@@ -126,6 +126,7 @@ const obsidianKo: Record<string, string> = {
   'Flagged for discussion. To open it as an issue, run "Setup research automation" first.':
     "논의 표시를 설정했습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
   'Discussion flag cleared.': '논의 표시를 해제했습니다.',
+  "Changed {0}'s README, not this note.": '이 노트가 아니라 {0}의 README를 바꿨습니다.',
   'Issue marker inserted. To open it as an issue, run "Setup research automation" first.':
     "이슈 마커를 넣었습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
   'Issue topic sentence': '이슈 주제 문장',
