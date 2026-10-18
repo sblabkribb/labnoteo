@@ -165,7 +165,7 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 | 실험 상태 변경 | 명령 팔레트 → `Change experiment status` |
 | 워크플로(실험 단계) 추가 | 명령 팔레트 → `Create workflow` (README 체크리스트에 자동 등록) |
 | 옮겨 오거나 복사한 워크플로를 체크리스트에 등록 | 명령 팔레트 → `Sync workflow checklist with folder` (README·실험 폴더 우클릭에도 있음) |
-| 워크플로에 작업 단위 추가 | 워크플로 파일에서 → `Insert unit operation` (README에서는 안 됨) |
+| 워크플로에 작업 단위 추가 | 워크플로 파일에서 → `Insert unit operation` → 별칭(선택) (README에서는 안 됨) |
 | 샘플 참조 넣기 | 본문에 `@dna` 입력 → 자동완성 |
 | 샘플 목록 보기 | 왼쪽 리본의 시험관 아이콘, 또는 `Open sample view` |
 | 샘플 정의 확인 | 샘플 ID 위에서 **우클릭** → `Go to definition` |
@@ -323,8 +323,12 @@ README frontmatter:
 ### 유닛 오퍼레이션 (한 번의 작업)
 
 **워크플로 노트를 연 상태에서** 명령 팔레트 → **`Insert unit operation`** →
-카탈로그에서 장비/소프트웨어 작업 선택. README에서 실행하면
-"워크플로 파일에서 실행해주세요" 경고만 뜨고 아무 일도 일어나지 않습니다.
+카탈로그에서 장비/소프트웨어 작업 선택 → 별칭 입력. README에서 실행하면
+"워크플로 파일에서 실행해주세요" 경고만 뜨고 아무 일도 일어나지 않습니다(별칭도 묻지 않음).
+별칭은 같은 작업을 여러 번 할 때 회차·조건을 구분하는 이름입니다. `[UHW180 Incubation]` 뒤에
+`1차 37도`를 적으면 헤딩이 `### [UHW180 Incubation] 1차 37도`, 목차가
+`UHW180 Incubation | 1차 37도`가 됩니다. 비워 두고 Enter를 누르면 별칭 없이, Esc를 누르면 넣지 않습니다.
+워크플로 뷰에서 유닛 오퍼레이션을 우클릭해 넣을 때도 같습니다.
 
 `### [UHW010 Liquid Handling]` 헤딩과 `#### Meta`(실험자·시작/종료 시각),
 그리고 Input / Method / Output 같은 빈 섹션이 들어갑니다. 커서가 유닛 오퍼레이션 블록 안이면

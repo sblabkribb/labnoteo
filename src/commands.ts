@@ -71,6 +71,7 @@ import {
   relinkWorkflowChecklistEntries,
   collapseWorkflowRenames,
   defaultWorkflowTitle,
+  isValidWorkflowPath,
   parseWorkflowFileName,
   planWorkflowRetitle,
   planWorkflowExperimenterSync,
@@ -668,15 +669,25 @@ export async function insertWorkflowLinkCommand(
  */
 export async function insertUnitOpAndUpdateToc(
   host: LabnoteHost,
-  input: InsertUnitOperationInput
+  input: InsertUnitOperationInput,
+  askAlias?: (input: InsertUnitOperationInput) => Promise<string | undefined>
 ): Promise<boolean> {
+  // Asked only where the insert will go ahead: `insertUnitOperation` refuses a
+  // note that is no workflow, which would come after the alias was typed.
+  let alias = input.alias;
+  const opened = host.editTarget();
+  if (askAlias && opened && isValidWorkflowPath(opened.path)) {
+    alias = await askAlias(input);
+    if (alias === undefined) return false;
+  }
+
   // Resolve the insertion point BEFORE inserting and hand it to the insert, so
   // the new heading can be found again after the whole-doc TOC rewrite.
   const before = host.editTarget();
   const at = before ? await unitOpInsertPointAtCursor(before) : undefined;
   const insertOffset = at?.offset ?? -1;
 
-  const ok = await insertUnitOperation(host, { ...input, at });
+  const ok = await insertUnitOperation(host, { ...input, alias, at });
   if (!ok) return false;
 
   const target = host.editTarget();
@@ -724,14 +735,36 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
   if (!chosen) return;
 
   const { op, kind } = chosen;
-  await insertUnitOpAndUpdateToc(host, {
-    opId: op.id,
-    opName: op.name,
-    opDescription: op.description,
-    opType: kind,
-    equipment: op.equipment,
-    software: op.software,
-  });
+  await insertUnitOpAndUpdateToc(
+    host,
+    {
+      opId: op.id,
+      opName: op.name,
+      opDescription: op.description,
+      opType: kind,
+      equipment: op.equipment,
+      software: op.software,
+    },
+    unitOpAliasPrompt(app, host)
+  );
+}
+
+/**
+ * The alias prompt of {@link insertUnitOpAndUpdateToc} (#118): the same fixed
+ * `[id name]` prefix as a workflow's name. Empty inserts without an alias;
+ * Escape inserts nothing.
+ */
+export function unitOpAliasPrompt(
+  app: App,
+  host: LabnoteHost
+): (input: InsertUnitOperationInput) => Promise<string | undefined> {
+  return input =>
+    workflowAliasModal(app, {
+      id: input.opId,
+      catalogName: input.opName,
+      title: host.t('Unit operation alias'),
+      placeholder: host.t('Run or condition of this step (optional)'),
+    });
 }
 
 /**

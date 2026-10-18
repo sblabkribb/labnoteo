@@ -19,7 +19,7 @@ import {
   loadUnitOperations,
 } from '@labnoteo/core/lib/workflowDataLoader';
 import type LabnotePlugin from '../main';
-import { insertUnitOpAndUpdateToc, createWorkflowForItem } from '../commands';
+import { insertUnitOpAndUpdateToc, createWorkflowForItem, unitOpAliasPrompt } from '../commands';
 import { renderTree } from './treeRender';
 
 export const WORKFLOW_VIEW_TYPE = 'labnote-workflow-view';
@@ -113,14 +113,18 @@ export class WorkflowTreeView extends ItemView {
         .setTitle(this.plugin.t('Insert unit operation'))
         .setIcon('plus')
         .onClick(() =>
-          void insertUnitOpAndUpdateToc(this.plugin.host, {
-            opId: op.id,
-            opName: op.name,
-            opDescription: op.description,
-            opType: op.opType,
-            equipment: op.equipment,
-            software: op.software,
-          })
+          void insertUnitOpAndUpdateToc(
+            this.plugin.host,
+            {
+              opId: op.id,
+              opName: op.name,
+              opDescription: op.description,
+              opType: op.opType,
+              equipment: op.equipment,
+              software: op.software,
+            },
+            unitOpAliasPrompt(this.app, this.plugin.host)
+          )
         )
     );
     menu.showAtMouseEvent(evt);

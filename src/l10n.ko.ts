@@ -77,6 +77,8 @@ const obsidianKo: Record<string, string> = {
   'current': '현재',
   'Workflow name': '워크플로 이름',
   'Enter a name for this workflow': '이 워크플로의 상세 별칭을 입력하세요',
+  'Unit operation alias': '유닛 오퍼레이션 별칭',
+  'Run or condition of this step (optional)': '이 공정의 회차·조건 별칭(선택)',
 
   // Notices / results
   'Experiment created: {0}': '실험이 생성되었습니다: {0}',
