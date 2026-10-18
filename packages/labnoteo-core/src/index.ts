@@ -110,6 +110,7 @@ export {
   type ToolResult,
   type ToolPreview,
   type SectionEditPreview,
+  type SampleCreatePreview,
   type JsonSchema,
 } from './tools';
 

@@ -427,6 +427,15 @@ const obsidianKo: Record<string, string> = {
   'This empties section "{0}", which now has {1} line(s).':
     '절 "{0}"의 내용을 모두 지웁니다. 지금 {1}줄이 있습니다.',
   'Its {0} nested heading(s) are replaced too.': '그 안의 하위 제목 {0}개도 함께 바뀝니다.',
+  'It is occurrence {0} of {1}, with its heading on line {2}.':
+    '같은 절 {1}개 중 {0}번째로, 제목이 {2}번째 줄에 있습니다.',
+  'This creates a {0} sample with a new ID.': '{0} 샘플을 새 ID로 만듭니다.',
+  'This creates {0} sample {1}.': '{0} 샘플 {1}을(를) 만듭니다.',
+  'This adds to {0} sample {1}.': '이미 있는 {0} 샘플 {1}에 더합니다.',
+  'Alias: {0}': '별칭: {0}',
+  'Storage location: {0}': '보관 위치: {0}',
+  'Saved in the global samples folder {0}.': '전역 샘플 폴더 {0}에 저장합니다.',
+  'Saved in the local samples folder {0}.': '로컬 샘플 폴더 {0}에 저장합니다.',
   'MCP tool "{0}" was not run: no answer in time.':
     'MCP 도구 "{0}"을(를) 실행하지 않았습니다: 시간 안에 응답이 없었습니다.',
   'MCP tool "{0}" was not run: the client disconnected.':
