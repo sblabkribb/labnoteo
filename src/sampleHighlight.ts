@@ -28,21 +28,39 @@ import {
   findSampleIdRanges,
   type IssueMarkerRange,
 } from '@labnoteo/core';
+import { noteMarkerIds } from './issueMarkerIndex';
 
 export interface HighlightState {
   types: string[];
   colors: Record<string, string>;
+  /** Marker ID → name of another note of the experiment that uses it (#119). */
+  otherMarkerIds?: ReadonlyMap<string, string>;
+  /** Changes whenever `otherMarkerIds` may have, so the editor redraws. */
+  markerVersion?: number;
+  /** Tooltip of a duplicate marker; `owner` is undefined when this note repeats the ID. */
+  duplicateTitle?: (owner: string | undefined) => string;
 }
 
 const SAMPLE_ID_CLASS = 'labnote-sample-id';
 const ISSUE_MARKER_CLASS = 'labnote-issue-marker';
+const DUPLICATE_MARKER_CLASS = 'labnote-issue-marker-duplicate';
+const MARKER_ID_RE = /^@issue[;:]([A-Za-z0-9-]+)/i;
 
-/** One span to decorate, with the class and optional colour it carries. */
+/** One span to decorate, with the class and optional colour or tooltip it carries. */
 interface TokenRange {
   start: number;
   end: number;
   cls: string;
   color?: string;
+  title?: string;
+}
+
+/** Which markers to draw, and how, in the editor. */
+interface MarkerOptions {
+  /** Drops the markers the automation will not read (#120). */
+  inCode?: (start: number, end: number) => boolean;
+  /** Tooltip for a marker whose ID is used again, undefined otherwise (#119). */
+  duplicate?: (id: string) => string | undefined;
 }
 
 /**
@@ -51,17 +69,22 @@ interface TokenRange {
  * A marker owns the rest of its line, so a sample ID quoted inside a topic
  * sentence would nest inside it. Nested marks would break `RangeSetBuilder`'s
  * sorted-insert contract, so the marker wins and the sample ID inside it is
- * dropped. `inCode` drops the markers the automation will not read (#120);
- * sample IDs are kept there, since the sample sync does register them.
+ * dropped. Sample IDs in code are kept, since the sample sync does register them.
  */
 function collectTokenRanges(
   text: string,
   types: string[],
   colors: Record<string, string>,
-  inCode: (start: number, end: number) => boolean = () => false
+  opts: MarkerOptions = {}
 ): TokenRange[] {
-  const markers = findIssueMarkerRanges(text).filter(r => !inCode(r.start, r.end));
-  const ranges: TokenRange[] = markers.map(r => ({ ...r, cls: ISSUE_MARKER_CLASS }));
+  const markers = findIssueMarkerRanges(text).filter(r => !opts.inCode?.(r.start, r.end));
+  const ranges: TokenRange[] = markers.map(r => {
+    const id = MARKER_ID_RE.exec(text.slice(r.start, r.end))?.[1];
+    const title = id ? opts.duplicate?.(id) : undefined;
+    return title === undefined
+      ? { ...r, cls: ISSUE_MARKER_CLASS }
+      : { ...r, cls: `${ISSUE_MARKER_CLASS} ${DUPLICATE_MARKER_CLASS}`, title };
+  });
 
   for (const r of findSampleIdRanges(text, types)) {
     if (markers.some(m => r.start < m.end && r.end > m.start)) continue;
@@ -84,7 +107,8 @@ function sampleColorVar(color: string): string | undefined {
 
 /** What a set of decorations was drawn for; a different key means redraw. */
 export function highlightStateKey(state: HighlightState): string {
-  return state.types.map(t => `${t}=${state.colors[t] ?? ''}`).join('\u0000');
+  const key = state.types.map(t => `${t}=${state.colors[t] ?? ''}`).join('\u0000');
+  return state.markerVersion === undefined ? key : `${key}\u0001${state.markerVersion}`;
 }
 
 /**
@@ -114,6 +138,8 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
       drawnKey = '';
       /** Fenced code of `fencedDoc`; a fence may open outside the visible ranges. */
       fenced: IssueMarkerRange[] = [];
+      /** How often each marker ID appears in `fencedDoc`, off screen included. */
+      ownIds = new Map<string, number>();
       fencedDoc: DocText | undefined;
 
       constructor(view: EditorView) {
@@ -133,21 +159,32 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
         const doc = view.state.doc;
         // Scrolling keeps the same document, so the scan runs once per edit.
         if (this.fencedDoc !== doc) {
-          this.fenced = fencedCodeRanges(doc.toString());
+          const whole = doc.toString();
+          this.fenced = fencedCodeRanges(whole);
+          this.ownIds = new Map();
+          for (const id of noteMarkerIds(whole)) this.ownIds.set(id, (this.ownIds.get(id) ?? 0) + 1);
           this.fencedDoc = doc;
         }
-        const fenced = this.fenced;
+        const { fenced, ownIds } = this;
+        // The open note counts as typed, the others as last saved.
+        const duplicate = (id: string): string | undefined => {
+          // Only an experiment's notes share issues; elsewhere nothing is read.
+          if (!state.otherMarkerIds) return undefined;
+          const owner = state.otherMarkerIds.get(id);
+          if (owner === undefined && (ownIds.get(id) ?? 0) < 2) return undefined;
+          return state.duplicateTitle?.(owner) ?? '';
+        };
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to } of view.visibleRanges) {
           const text = doc.sliceString(from, to);
           const inCode = (start: number, end: number): boolean =>
             fenced.some(f => from + start < f.end && from + end > f.start);
-          for (const r of collectTokenRanges(text, types, colors, inCode)) {
+          for (const r of collectTokenRanges(text, types, colors, { inCode, duplicate })) {
             const styleVar = sampleColorVar(r.color ?? '');
-            const deco = Decoration.mark({
-              class: r.cls,
-              attributes: styleVar ? { style: styleVar } : {},
-            });
+            const attributes: Record<string, string> = {};
+            if (styleVar) attributes.style = styleVar;
+            if (r.title) attributes.title = r.title;
+            const deco = Decoration.mark({ class: r.cls, attributes });
             builder.add(from + r.start, from + r.end, deco);
           }
         }

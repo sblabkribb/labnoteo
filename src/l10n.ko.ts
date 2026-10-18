@@ -149,6 +149,12 @@ const obsidianKo: Record<string, string> = {
     '머리말(front matter)에는 이슈 마커를 넣을 수 없습니다. 본문에서 실행하세요.',
   'Issue markers inside a code block open no issue. Run this on a line outside the code block.':
     '코드 블록 안의 이슈 마커는 이슈를 열지 않습니다. 코드 블록 밖의 줄에서 실행하세요.',
+  'This marker ID appears more than once in this note.': '이 마커 ID는 이 노트에 두 번 이상 있습니다.',
+  'This marker ID is already used in {0}.': '이 마커 ID는 이미 {0}에서 쓰고 있습니다.',
+  'Marker ID {0} appears twice in this note, so the two questions merge into one issue. Delete one of these markers and insert it again with "Insert issue marker".':
+    '마커 ID {0}이(가) 이 노트에 두 번 있어 두 질문이 한 이슈로 합쳐집니다. 그중 하나를 지우고 "논의 이슈 마커 삽입"으로 다시 넣으세요.',
+  'Marker ID {0} is also used in {1}, so the two questions merge into one issue. Delete the marker in this note (underlined) and insert it again with "Insert issue marker".':
+    '마커 ID {0}은(는) {1}에서도 쓰고 있어 두 질문이 한 이슈로 합쳐집니다. 이 노트의 그 마커(물결 밑줄)를 지우고 "논의 이슈 마커 삽입"으로 다시 넣으세요.',
   'A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.':
     '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
   'This line already has an issue marker. A line can hold only one.':

@@ -92,6 +92,7 @@ import {
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
 import { LastUpdatedTracker } from './lastUpdatedTracker';
+import { IssueMarkerIndex } from './issueMarkerIndex';
 import { isLabNotePath, stampNoteAndReadme, writeNoteStamped } from './lastUpdatedStamp';
 import { createOutlineDropTidy, type OutlineDropSnapshot } from './outlineDropTidy';
 import { WorkflowTreeView, WORKFLOW_VIEW_TYPE } from './views/workflowView';
@@ -1429,10 +1430,21 @@ export default class LabnotePlugin extends Plugin {
    * Handing the scanner an empty type list is what disables the sample half.
    */
   private registerInlineHighlighting(): void {
-    const getState = (path: string | undefined): HighlightState =>
-      this.sampleTrackingFor(path)
+    const markers = new IssueMarkerIndex(this.fs, () => this.app.workspace.updateOptions());
+    const duplicateTitle = (owner: string | undefined): string =>
+      owner === undefined
+        ? this.t('This marker ID appears more than once in this note.')
+        : this.t('This marker ID is already used in {0}.', owner);
+    const getState = (path: string | undefined): HighlightState => {
+      const base = this.sampleTrackingFor(path)
         ? getSampleDisplayMeta(this.settings.customSampleTypes)
         : { types: [], colors: {} };
+      const others = markers.othersFor(path);
+      return others
+        ? { ...base, otherMarkerIds: others.ids, markerVersion: others.version, duplicateTitle }
+        : base;
+    };
+    this.registerIssueMarkerIndex(markers);
     this.registerEditorExtension(createSampleHighlightPlugin(getState));
     this.registerMarkdownPostProcessor(createSampleReadingHighlighter(getState));
     // An experiment's `sample_tracking` lives in its README (#105); editors
@@ -1442,6 +1454,55 @@ export default class LabnotePlugin extends Plugin {
         if (file.name === 'README.labnote.md') this.app.workspace.updateOptions();
       })
     );
+  }
+
+  /**
+   * Keep the marker ID index current, and say once, after a save, when a note
+   * now shares a marker ID: `issue-sync` would merge the two questions (#119).
+   */
+  private registerIssueMarkerIndex(markers: IssueMarkerIndex): void {
+    const timers = new Map<string, number>();
+    const schedule = (file: TFile): void => {
+      if (!markers.tracks(file.path)) return;
+      const prev = timers.get(file.path);
+      if (prev !== undefined) window.clearTimeout(prev);
+      timers.set(
+        file.path,
+        window.setTimeout(() => {
+          timers.delete(file.path);
+          this.run(async () => {
+            const fresh = markers.update(file.path, await this.app.vault.cachedRead(file));
+            for (const { id, owner } of fresh) {
+              new Notice(
+                owner === undefined
+                  ? this.t(
+                      'Marker ID {0} appears twice in this note, so the two questions merge into one issue. Delete one of these markers and insert it again with "Insert issue marker".',
+                      id
+                    )
+                  : this.t(
+                      'Marker ID {0} is also used in {1}, so the two questions merge into one issue. Delete the marker in this note (underlined) and insert it again with "Insert issue marker".',
+                      id,
+                      owner
+                    ),
+                12000
+              );
+            }
+          });
+        }, 800)
+      );
+    };
+    this.registerEvent(
+      this.app.vault.on('modify', file => {
+        if (file instanceof TFile) schedule(file);
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        markers.remove(oldPath);
+        if (file instanceof TFile) schedule(file);
+      })
+    );
+    this.registerEvent(this.app.vault.on('delete', file => markers.remove(file.path)));
   }
 
   /** Debounced write-through of a lab note's sample definitions. */
