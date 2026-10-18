@@ -43,6 +43,8 @@ const obsidianKo: Record<string, string> = {
   'Could not copy: {0}': '복사하지 못했습니다: {0}',
   'That note is no longer open. Copy the answer instead.':
     '그 노트가 더 이상 열려 있지 않습니다. 답변을 복사해서 쓰세요.',
+  'Inserted the summary into {0}.': '요약을 {0}에 넣었습니다.',
+  'Inserted the Method draft into {0}.': 'Method 초안을 {0}에 넣었습니다.',
 
   // View titles / ribbon
   'Workflows': '워크플로',
