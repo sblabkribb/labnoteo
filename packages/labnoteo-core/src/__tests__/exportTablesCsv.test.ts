@@ -82,6 +82,32 @@ describe('classifyCsvOverwrites', () => {
   it('reads a header with a line break inside quotes as one record', () => {
     expect(classifyCsvOverwrites([{ fresh: '"Name\nlong",Mass\nA,1\nB,2\n', old: T1 }], 1)).toEqual(['updated']);
   });
+
+  // #117: both tables share a header, so the header check alone said `updated`.
+  const RNA = '샘플,값\nRNA,1\n';
+  const DNA = '샘플,값\nDNA,2\n';
+  const PRO = '샘플,값\nPRO,3\n';
+
+  it('asks when the first of two same-header tables is removed', () => {
+    expect(classifyCsvOverwrites([{ fresh: DNA, old: RNA }], 2, [DNA])).toEqual(['moved']);
+  });
+
+  it('asks when the first of three same-header tables is removed', () => {
+    expect(
+      classifyCsvOverwrites(
+        [
+          { fresh: DNA, old: RNA },
+          { fresh: PRO, old: DNA },
+        ],
+        3,
+        [PRO]
+      )
+    ).toEqual(['moved', 'moved']);
+  });
+
+  it('still overwrites edited values without asking while a kept CSV is left over (#92)', () => {
+    expect(classifyCsvOverwrites([{ fresh: '샘플,값\nDNA,5\n', old: DNA }], 2, [DNA])).toEqual(['updated']);
+  });
 });
 
 describe('tableToCsv', () => {
