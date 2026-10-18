@@ -9,10 +9,16 @@ import type LabnotePlugin from './main';
 import { suggestSampleTypeName } from '@labnoteo/core/lib/sampleUtils';
 import { DEFAULT_SETTINGS, partitionCustomSampleTypes, type LlmProviderKind } from './settings';
 import { openUserGuide } from './userGuide';
+import { tokenFingerprint } from './llm/mcpServer';
+
+/** How long the regenerate button waits for its confirming second click. */
+const REGENERATE_CONFIRM_MS = 5000;
 
 export class LabnoteSettingTab extends PluginSettingTab {
   /** Debounce handle for refreshing sample views after a Global folder edit. */
   private globalFolderRefreshTimer?: number;
+  /** Set between the first and the confirming second click on "Regenerate token". */
+  private regenerateArm?: { timer: number; reset: () => void };
 
   constructor(app: App, private readonly plugin: LabnotePlugin) {
     super(app, plugin);
@@ -36,6 +42,7 @@ export class LabnoteSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
+    this.disarmRegenerate();
     containerEl.empty();
 
     const s = this.plugin.settings;
@@ -239,7 +246,7 @@ export class LabnoteSettingTab extends PluginSettingTab {
         })
       );
 
-    new Setting(containerEl)
+    const tokenSetting = new Setting(containerEl)
       .setName(this.plugin.t('MCP token'))
       .setDesc(
         this.plugin.t(
@@ -252,18 +259,51 @@ export class LabnoteSettingTab extends PluginSettingTab {
           new Notice(this.plugin.t('MCP token copied to clipboard.'));
         })
       )
-      .addButton(b =>
+      .addButton(b => {
+        // Confirmed by a second click rather than a dialog: a modal opened over
+        // the settings modal is what left the token unchanged (#107).
+        const reset = (): void => {
+          b.setButtonText(this.plugin.t('Regenerate token'));
+          b.buttonEl.classList.remove('mod-warning');
+        };
         b.setButtonText(this.plugin.t('Regenerate token')).onClick(async () => {
-          const ok = await this.plugin.host.confirm(
-            this.plugin.t(
-              'Regenerate the MCP token? Clients using the current token stop working until you paste the new one into their settings.'
-            ),
-            { confirmLabel: this.plugin.t('Regenerate token') }
-          );
-          if (!ok) return;
-          await navigator.clipboard.writeText(await this.plugin.mcpServer.regenerateToken());
-          new Notice(this.plugin.t('New MCP token copied to clipboard.'));
-        })
-      );
+          if (!this.regenerateArm) {
+            b.setButtonText(this.plugin.t('Click again to regenerate')).setWarning();
+            this.regenerateArm = {
+              timer: window.setTimeout(() => this.disarmRegenerate(), REGENERATE_CONFIRM_MS),
+              reset,
+            };
+            return;
+          }
+          this.disarmRegenerate();
+          const token = await this.plugin.mcpServer.regenerateToken();
+          showFingerprint();
+          new Notice(this.plugin.t('New MCP token issued. The old token no longer works.'));
+          try {
+            await navigator.clipboard.writeText(token);
+            new Notice(this.plugin.t('New MCP token copied to clipboard.'));
+          } catch {
+            new Notice(this.plugin.t('The new token could not be copied. Use "Copy token".'));
+          }
+        });
+      });
+    const fingerprintEl = tokenSetting.descEl.createDiv();
+    const showFingerprint = (): void => {
+      const token = this.plugin.settings.mcpToken;
+      fingerprintEl.setText(token ? this.plugin.t('Current token ends in {0}.', tokenFingerprint(token)) : '');
+    };
+    showFingerprint();
+  }
+
+  hide(): void {
+    this.disarmRegenerate();
+  }
+
+  /** Put the regenerate button back to its first-click state. */
+  private disarmRegenerate(): void {
+    if (!this.regenerateArm) return;
+    window.clearTimeout(this.regenerateArm.timer);
+    this.regenerateArm.reset();
+    this.regenerateArm = undefined;
   }
 }

@@ -322,8 +322,12 @@ const obsidianKo: Record<string, string> = {
     '외부 MCP 클라이언트용 베어러 토큰입니다. Obsidian이나 서버를 다시 시작해도 유지됩니다. 유출됐다면 재발급하고, 새 토큰을 모든 클라이언트에 다시 붙여 넣으세요.',
   'Copy token': '토큰 복사',
   'Regenerate token': '토큰 재발급',
-  'Regenerate the MCP token? Clients using the current token stop working until you paste the new one into their settings.':
-    'MCP 토큰을 재발급할까요? 지금 토큰을 쓰는 클라이언트는 새 토큰을 설정에 붙여 넣기 전까지 연결되지 않습니다.',
+  'Click again to regenerate': '한 번 더 눌러 재발급',
+  'New MCP token issued. The old token no longer works.':
+    '새 MCP 토큰을 발급했습니다. 옛 토큰은 더 이상 쓸 수 없습니다.',
+  'The new token could not be copied. Use "Copy token".':
+    '새 토큰을 복사하지 못했습니다. `토큰 복사`를 누르세요.',
+  'Current token ends in {0}.': '현재 토큰 끝자리: {0}',
   'MCP token copied to clipboard.': 'MCP 토큰을 클립보드에 복사했습니다.',
   'New MCP token copied to clipboard.': '새 MCP 토큰을 클립보드에 복사했습니다.',
 

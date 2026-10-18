@@ -10,7 +10,9 @@ import {
   buildInitializeResult,
   buildToolCallResult,
   isAllowedOrigin,
+  isAuthorized,
   timingSafeEqual,
+  tokenFingerprint,
 } from '../../src/llm/mcpServer';
 import { buildApprovalMessage } from '../../src/llm/approvalMessage';
 import { createObsidianTranslator } from '../../src/i18n';
@@ -170,6 +172,24 @@ describe('timingSafeEqual', () => {
 
   it('rejects a correct prefix, which a short-circuit compare would accept', () => {
     expect(timingSafeEqual('Bearer ab', 'Bearer abc')).toBe(false);
+  });
+});
+
+// #107: a regenerated token must lock out the old one.
+describe('isAuthorized', () => {
+  it('accepts only the current token', () => {
+    expect(isAuthorized('Bearer new-token', 'new-token')).toBe(true);
+    expect(isAuthorized('Bearer old-token', 'new-token')).toBe(false);
+  });
+
+  it('rejects every request while no token is set', () => {
+    expect(isAuthorized('Bearer ', '')).toBe(false);
+    expect(isAuthorized('', '')).toBe(false);
+  });
+
+  it('shows a fingerprint that changes with the token', () => {
+    expect(tokenFingerprint('abcdef123456')).toBe('…123456');
+    expect(tokenFingerprint('')).toBe('');
   });
 });
 
