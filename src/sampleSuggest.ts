@@ -29,12 +29,11 @@ import {
 } from '@labnoteo/core/lib/sampleUtils';
 import {
   loadSamplesByType,
-  getLabsamplesFolder,
+  noteLabsamplesFolder,
   hasReferenceCatalog,
   isSameSampleFolder,
   type SampleRecord,
 } from '@labnoteo/core/lib/sampleStorage';
-import { getExperimentLabsamplesFolder } from '@labnoteo/core/lib/labnoteStructure';
 import type LabnotePlugin from './main';
 import { createSampleInteractive, pickCatalogReference } from './sampleActions';
 
@@ -98,7 +97,7 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
    * records. Without one the action is left out (#99).
    */
   private async catalogExists(docPath: string, type: string): Promise<boolean> {
-    const localFolder = getExperimentLabsamplesFolder(docPath) ?? getLabsamplesFolder(docPath);
+    const localFolder = noteLabsamplesFolder(docPath, this.deps.globalFolder());
     const globalFolder = this.deps.globalFolder();
     const key = `${localFolder}\u0000${globalFolder}\u0000${type}`;
     const now = Date.now();

@@ -17,7 +17,7 @@ import type { LabnoteFs } from '../fs/labnoteFs';
 import {
   loadSamplesByType,
   mergeSampleRecord,
-  getLabsamplesFolder,
+  noteLabsamplesFolder,
   isSameSampleFolder,
   type SampleRecord,
 } from '../lib/sampleStorage';
@@ -329,7 +329,7 @@ export function createLabnoteTools(): ToolDef[] {
 
         const documentPath = safePath(ctx, args, 'documentPath');
         const folders: string[] = [];
-        if (documentPath) folders.push(getLabsamplesFolder(documentPath));
+        if (documentPath) folders.push(noteLabsamplesFolder(documentPath, ctx.globalSampleFolder));
         if (ctx.globalSampleFolder) folders.push(ctx.globalSampleFolder);
 
         for (const folder of folders) {
@@ -362,7 +362,7 @@ export function createLabnoteTools(): ToolDef[] {
           Object.assign(merged, await loadSamplesByType(ctx.fs, ctx.globalSampleFolder, type));
         }
         if (documentPath) {
-          Object.assign(merged, await loadSamplesByType(ctx.fs, getLabsamplesFolder(documentPath), type));
+          Object.assign(merged, await loadSamplesByType(ctx.fs, noteLabsamplesFolder(documentPath, ctx.globalSampleFolder), type));
         }
         const data = Object.entries(merged).map(([id, rec]) => ({
           id,
@@ -454,7 +454,7 @@ export function createLabnoteTools(): ToolDef[] {
           };
         }
 
-        const folder = getLabsamplesFolder(documentPath);
+        const folder = noteLabsamplesFolder(documentPath, ctx.globalSampleFolder);
         const id = normalizedId ?? generateSampleId(type);
 
         // Atomic merge into an existing record (#73): calling again for a known

@@ -7,6 +7,7 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type LabnotePlugin from './main';
 import { suggestSampleTypeName } from '@labnoteo/core/lib/sampleUtils';
+import { isSameSampleFolder } from '@labnoteo/core/lib/sampleStorage';
 import { DEFAULT_SETTINGS, partitionCustomSampleTypes, type LlmProviderKind } from './settings';
 import { openUserGuide } from './userGuide';
 import { tokenFingerprint } from './llm/mcpServer';
@@ -19,6 +20,13 @@ export class LabnoteSettingTab extends PluginSettingTab {
   private globalFolderRefreshTimer?: number;
   /** Set between the first and the confirming second click on "Regenerate token". */
   private regenerateArm?: { timer: number; reset: () => void };
+  /**
+   * The Global sample folder when the tab was first shown; kept until the move
+   * question for a change has been asked, so a redraw does not lose it (#101).
+   */
+  private globalFolderBaseline?: string;
+  /** Polls for the settings modal to close before asking about a folder change. */
+  private globalFolderPromptTimer?: number;
 
   constructor(app: App, private readonly plugin: LabnotePlugin) {
     super(app, plugin);
@@ -43,6 +51,10 @@ export class LabnoteSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     this.disarmRegenerate();
+    // Back on the tab before the question was asked: ask on the next hide.
+    window.clearTimeout(this.globalFolderPromptTimer);
+    this.globalFolderPromptTimer = undefined;
+    this.globalFolderBaseline ??= this.plugin.settings.globalSampleFolder;
     containerEl.empty();
 
     const s = this.plugin.settings;
@@ -297,6 +309,32 @@ export class LabnoteSettingTab extends PluginSettingTab {
 
   hide(): void {
     this.disarmRegenerate();
+    this.askAboutGlobalFolderChange();
+  }
+
+  /**
+   * When the Global sample folder changed while the tab was open, offer to move
+   * the samples left in the old one — once settings has closed, so the question
+   * is not a modal over the settings modal (#107), and only for the final value.
+   */
+  private askAboutGlobalFolderChange(): void {
+    const from = this.globalFolderBaseline;
+    const to = this.plugin.settings.globalSampleFolder;
+    if (from === undefined || !to || isSameSampleFolder(from, to)) {
+      this.globalFolderBaseline = undefined;
+      return;
+    }
+    const check = (): void => {
+      if (document.querySelector('.modal-container')) {
+        this.globalFolderPromptTimer = window.setTimeout(check, 250);
+        return;
+      }
+      this.globalFolderPromptTimer = undefined;
+      this.globalFolderBaseline = undefined;
+      this.plugin.offerGlobalSampleFolderMove(from, to);
+    };
+    window.clearTimeout(this.globalFolderPromptTimer);
+    this.globalFolderPromptTimer = window.setTimeout(check, 250);
   }
 
   /** Put the regenerate button back to its first-click state. */

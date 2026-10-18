@@ -38,8 +38,10 @@ import {
 import {
   saveSamplesFromDocument,
   resolveLocalSampleFolder,
-  getLabsamplesFolder,
+  noteLabsamplesFolder,
   hasReferenceCatalog,
+  inventorySampleFolder,
+  moveSampleFolder,
 } from '@labnoteo/core/lib/sampleStorage';
 import { VaultFileSystem } from './vaultFileSystem';
 import { createObsidianTranslator } from './i18n';
@@ -68,13 +70,12 @@ import * as posix from '@labnoteo/core/posix';
 import {
   diagnoseExperimentPath,
   getExperimentDir,
-  getExperimentLabsamplesFolder,
   isSampleTrackingOn,
   suggestExperimentFolderName,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { SampleEditorSuggest } from './sampleSuggest';
 import { openSampleDefinition } from './sampleDefinitionModal';
-import { pickModal, workflowAliasModal } from './modals';
+import { confirmModal, pickModal, workflowAliasModal } from './modals';
 import { createSampleInteractive, pickCatalogReference, insertSampleReference } from './sampleActions';
 import {
   offerSamplesAfterMove,
@@ -558,7 +559,7 @@ export default class LabnotePlugin extends Plugin {
     // Catalog types (Reagent/Labware/Equip) are curated: search the read-only
     // product catalog first; without one, a generated id is registered instead.
     let referenceText: string | undefined;
-    const localFolder = getExperimentLabsamplesFolder(target.path) ?? getLabsamplesFolder(target.path);
+    const localFolder = noteLabsamplesFolder(target.path, this.settings.globalSampleFolder);
     if (
       isCatalogSampleType(type) &&
       ((await hasReferenceCatalog(this.fs, localFolder, type)) ||
@@ -1482,6 +1483,47 @@ export default class LabnotePlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(SAMPLE_VIEW_TYPE)) {
       if (leaf.view instanceof SampleTreeView) void leaf.view.refresh();
     }
+  }
+
+  /**
+   * The Global sample folder setting went from `from` to `to`: offer to bring
+   * the samples and catalogs left in `from` along, which no longer show (#101).
+   */
+  offerGlobalSampleFolderMove(from: string, to: string): void {
+    this.run(async () => {
+      const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
+      const left = await inventorySampleFolder(this.fs, from, types);
+      if (left.records === 0 && left.catalogs.length === 0) return;
+      const message = [
+        this.t(
+          'The old Global sample folder {0} still has {1} sample(s). Move them to the new folder {2}?',
+          from,
+          String(left.records),
+          to
+        ),
+      ];
+      if (left.catalogs.length > 0) {
+        message.push(this.t('Product catalog files move too: {0}', left.catalogs.join(', ')));
+      }
+      if (!(await confirmModal(this.app, message.join('\n\n'), this.t('Move samples')))) {
+        new Notice(this.t('Samples in the old folder are not shown. Set the folder back to see them again.'), 8000);
+        return;
+      }
+      const moved = await moveSampleFolder(this.fs, from, to, types);
+      const parts = [this.t('Moved {0} sample(s) to {1}.', String(moved.moved), to)];
+      if (moved.catalogsMoved > 0) parts.push(this.t('{0} catalog file(s) moved.', String(moved.catalogsMoved)));
+      if (moved.skipped.length > 0) {
+        parts.push(this.t('Not moved, {0} already has the same ID: {1}', to, moved.skipped.join(', ')));
+      }
+      if (moved.catalogsSkipped.length > 0) {
+        parts.push(
+          this.t('Catalog files not moved, {0} already has them: {1}', to, moved.catalogsSkipped.join(', '))
+        );
+      }
+      new Notice(parts.join(' '), 10000);
+      this.sampleSuggest?.clearCache();
+      this.refreshSampleViews();
+    });
   }
 
   /**

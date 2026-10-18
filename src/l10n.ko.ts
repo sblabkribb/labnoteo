@@ -301,6 +301,17 @@ const obsidianKo: Record<string, string> = {
   'Global sample folder': '전역 샘플 폴더',
   'Vault-relative folder for vault-global samples.':
     '볼트 전역 샘플을 저장할 볼트 기준 상대 폴더입니다.',
+  'The old Global sample folder {0} still has {1} sample(s). Move them to the new folder {2}?':
+    '옛 전역 샘플 폴더 {0}에 시료 {1}건이 남아 있습니다. 새 폴더 {2}(으)로 옮길까요?',
+  'Product catalog files move too: {0}': '제품 카탈로그 파일도 함께 옮깁니다: {0}',
+  'Move samples': '시료 옮기기',
+  'Samples in the old folder are not shown. Set the folder back to see them again.':
+    '옛 폴더의 시료는 보이지 않습니다. 설정을 되돌리면 다시 보입니다.',
+  'Moved {0} sample(s) to {1}.': '시료 {0}건을 {1}(으)로 옮겼습니다.',
+  '{0} catalog file(s) moved.': '카탈로그 파일 {0}개를 옮겼습니다.',
+  'Not moved, {0} already has the same ID: {1}': '{0}에 같은 ID가 있어 옮기지 않았습니다: {1}',
+  'Catalog files not moved, {0} already has them: {1}':
+    '{0}에 같은 이름이 있어 옮기지 않은 카탈로그 파일: {1}',
   'Auto-sync unit operation TOC': '유닛오퍼레이션 TOC 자동 정렬',
   "Reorder a workflow note's Related Unit Operations list to match heading order after edits, and tidy the --- separators immediately when a block is moved.":
     '편집 후 워크플로 노트의 Related Unit Operations 목록을 헤딩 순서에 맞게 정렬하고, 블록을 옮기면 `---` 구분선도 즉시 정리합니다.',
