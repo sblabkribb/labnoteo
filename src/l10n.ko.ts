@@ -164,7 +164,10 @@ const obsidianKo: Record<string, string> = {
     '이 줄에는 이미 이슈 마커가 있습니다. 한 줄에 하나만 둘 수 있습니다.',
   'Front matter of this note could not be read, so it was left unchanged. Fix the YAML and try again: {0}':
     '이 노트의 front matter를 읽을 수 없어 변경하지 않았습니다. YAML을 고친 뒤 다시 시도하세요: {0}',
-  'Overwrite {0}?': '{0} 파일을 덮어쓰시겠습니까?',
+  '{0} differs from the new version. Edits made after it was installed are lost if you replace it. Replace it with the new version?':
+    '{0}이(가) 새 버전과 다릅니다. 설치 뒤에 직접 고친 내용이 있다면 바꿀 때 사라집니다. 새 버전으로 바꿀까요?',
+  'From then on, updates change only the marked block and keep what you write below it.':
+    '이번에 바꾸면 다음부터는 업데이트가 표시된 블록만 바꾸고, 그 아래 적은 내용은 그대로 둡니다.',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run `git config core.hooksPath {6}`).':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 `git config core.hooksPath {6}`을 실행하세요.',
   'Remove {0} file(s) left by the previous layout ({1})? Afterwards run `git config core.hooksPath {2}` so the pre-commit hook keeps working.':

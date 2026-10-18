@@ -7,8 +7,8 @@ import { describe, it, expect, vi } from 'vitest';
 import type { LabnoteHost } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
 import { openUserGuide } from '../../src/userGuide';
-import { applyAsset } from '../../src/scaffold/scaffold';
-import { QUICKSTART_DOC_CONTENT, QUICKSTART_DOC_PATH } from '../../src/scaffold/assets';
+import { applyAsset, managedFileContent } from '../../src/scaffold/scaffold';
+import { QUICKSTART_ASSET, QUICKSTART_DOC_CONTENT, QUICKSTART_DOC_PATH } from '../../src/scaffold/assets';
 import obsidianKo from '../../src/l10n.ko';
 
 function makeHost(files: Record<string, string> = {}, confirmResult = true) {
@@ -31,7 +31,7 @@ describe('openUserGuide', () => {
 
     await openUserGuide(asHost, '1.0.0');
 
-    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(QUICKSTART_DOC_CONTENT);
+    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(managedFileContent(QUICKSTART_ASSET));
     expect(await fs.exists('.labnoteo/SETUP.md')).toBe(false);
     expect(await fs.exists('.github/workflows/experiment-issues.yml')).toBe(false);
     expect(host.notify).toHaveBeenCalledTimes(1);
@@ -63,6 +63,16 @@ describe('applyAsset overwrite prompt', () => {
     const { host, asHost } = makeHost({ [QUICKSTART_DOC_PATH]: crlf });
     expect(await applyAsset(asHost, asset)).toBeUndefined();
     expect(host.confirm).not.toHaveBeenCalled();
+  });
+
+  it('leaves the guide "Open user guide" wrote to the setup run without asking', async () => {
+    const { fs, host, asHost } = makeHost();
+    await openUserGuide(asHost, '1.0.0');
+    const written = await fs.read(QUICKSTART_DOC_PATH);
+
+    expect(await applyAsset(asHost, QUICKSTART_ASSET)).toBeUndefined();
+    expect(host.confirm).not.toHaveBeenCalled();
+    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(written);
   });
 
   it('still asks before overwriting a file that differs', async () => {
