@@ -7,7 +7,7 @@
  * highlighting, sidebar views, the settings tab and the LLM/MCP layer are added
  * by subsequent modules that all consume the same `LabnoteHost` built here.
  */
-import { Plugin, Notice, TFile, TFolder, editorInfoField } from 'obsidian';
+import { MarkdownView, Plugin, Notice, TFile, TFolder, editorInfoField } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import {
   findSampleReferenceAt,
@@ -77,7 +77,12 @@ import {
 import { SampleEditorSuggest } from './sampleSuggest';
 import { openSampleDefinition } from './sampleDefinitionModal';
 import { confirmModal, pickModal, workflowAliasModal } from './modals';
-import { createSampleInteractive, pickCatalogReference, insertSampleReference } from './sampleActions';
+import {
+  createSampleInteractive,
+  pickCatalogReference,
+  insertSampleReference,
+  listSampleDefinitions,
+} from './sampleActions';
 import {
   offerSamplesAfterMove,
   offerSamplesLeftBehind,
@@ -350,6 +355,12 @@ export default class LabnotePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'open-sample-definition',
+      name: this.t('Open sample definition'),
+      callback: () => this.run(() => this.openSampleDefinitionCommand()),
+    });
+
+    this.addCommand({
       id: 'export-tables-csv',
       name: this.t('Export tables to CSV'),
       callback: () => this.run(() => exportActiveNoteTablesToCsv(this)),
@@ -531,6 +542,42 @@ export default class LabnotePlugin extends Plugin {
         }
       })
     );
+  }
+
+  /**
+   * The definition window from the command palette (#121), which the editor's
+   * context menu and the Samples sidebar only offered to the mouse: the
+   * reference under the cursor, else a sample picked from the Local and Global
+   * ones.
+   */
+  private async openSampleDefinitionCommand(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const path = view?.file?.path ?? this.app.workspace.getActiveFile()?.path;
+    if (!this.sampleTrackingFor(path)) {
+      new Notice(this.t('Sample tracking is off for this note.'));
+      return;
+    }
+    const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
+    if (view?.file) {
+      const cur = view.editor.getCursor();
+      const hit = findSampleReferenceAt(view.editor.getLine(cur.line), cur.ch, types);
+      if (hit) {
+        await openSampleDefinition(this.app, this, { type: hit.type, id: hit.id, docPath: view.file.path });
+        return;
+      }
+    }
+
+    const items = await listSampleDefinitions(this, path);
+    if (items.length === 0) {
+      new Notice(this.t('No samples are registered yet.'));
+      return;
+    }
+    const chosen = await pickModal(this.app, items, {
+      title: this.t('Open sample definition'),
+      placeholder: this.t('Search by ID or alias'),
+    });
+    if (!chosen) return;
+    await openSampleDefinition(this.app, this, { ...chosen, docPath: path ?? '' });
   }
 
   /**
