@@ -116,7 +116,9 @@ const obsidianKo: Record<string, string> = {
   'Added "{0}" to the README checklist.': '"{0}"을(를) README 체크리스트에 등록했습니다.',
   'Workflow notes moved into {0} are not in its README checklist yet. Run "{1}" to add them.':
     '{0}(으)로 옮겨 온 워크플로 노트가 README 체크리스트에 없습니다. "{1}"을(를) 실행해 등록하세요.',
-  'Experiment status changed: {0}': '실험 상태가 변경되었습니다: {0}',
+  'Experiment status changed: {0} → {1}': '실험 상태가 변경되었습니다: {0} → {1}',
+  '(none)': '(없음)',
+  'To undo, run "{0}" again and pick {1}.': '되돌리려면 "{0}"을(를) 다시 실행해 {1}을(를) 고르세요.',
   'This vault is not a git repository yet, so no review issue will open. Finish the repository setup in {0} first.':
     '이 보관함은 아직 git 저장소가 아니라 검토 이슈가 생성되지 않습니다. 먼저 {0}의 저장소 연결을 마치세요.',
   'To open a review issue, run "Setup research automation" first.':

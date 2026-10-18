@@ -157,9 +157,11 @@ export async function createExperimentCommand(app: App, host: LabnoteHost): Prom
 export async function changeExperimentStatusCommand(
   app: App,
   host: LabnoteHost,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string) => string = c => c,
+  experimentDir?: string
 ): Promise<void> {
-  const labnoteDir = await resolveLabnoteDir(app, host);
+  // The workflow view names the experiment itself; the active file may be another one (#128).
+  const labnoteDir = experimentDir ?? (await resolveLabnoteDir(app, host));
   if (!labnoteDir) return;
 
   const readmePath = posix.join(labnoteDir, README);
@@ -188,7 +190,14 @@ export async function changeExperimentStatusCommand(
   const updated = renderNote({ ...frontMatter, status: chosen }, body);
 
   await writeNoteThroughVault(app, host, readmePath, stamp(updated));
-  let message = host.t('Experiment status changed: {0}', chosen);
+  let message = host.t('Experiment status changed: {0} → {1}', current ?? host.t('(none)'), chosen);
+  // Ctrl+Z only reaches the README when it is the open note (#126).
+  if (app.workspace.getActiveFile()?.path !== readmePath) {
+    message += ` ${host.t("Changed {0}'s README, not this note.", posix.basename(labnoteDir))}`;
+    if (current) {
+      message += ` ${host.t('To undo, run "{0}" again and pick {1}.', host.t('Change experiment status'), current)}`;
+    }
+  }
   // `needs-review` only opens a review issue through the automation (#79).
   if (chosen === 'needs-review') {
     const state = await issueAutomationState(host);
