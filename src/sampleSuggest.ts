@@ -13,6 +13,7 @@ import {
   EditorSuggest,
   EditorSuggestContext,
   EditorSuggestTriggerInfo,
+  TFile,
 } from 'obsidian';
 import {
   parseSampleTrigger,
@@ -119,8 +120,10 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
 
   onTrigger(
     cursor: EditorPosition,
-    editor: Editor
+    editor: Editor,
+    file: TFile | null
   ): EditorSuggestTriggerInfo | null {
+    if (!this.deps.plugin.sampleTrackingFor(file?.path)) return null;
     const linePrefix = editor.getLine(cursor.line).slice(0, cursor.ch);
     const trigger = parseSampleTrigger(linePrefix, this.types);
     if (!trigger) return null;

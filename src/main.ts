@@ -69,6 +69,7 @@ import {
   diagnoseExperimentPath,
   getExperimentDir,
   getExperimentLabsamplesFolder,
+  isSampleTrackingOn,
   suggestExperimentFolderName,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { SampleEditorSuggest } from './sampleSuggest';
@@ -445,8 +446,10 @@ export default class LabnotePlugin extends Plugin {
 
   private syncWorkflowChecklist(dir?: string): Promise<void> {
     const adoptSamples = this.settings.sampleTracking
-      ? (experimentDir: string, names: string[]) =>
-          offerSamplesLeftBehind(this.sampleRelocationDeps(), experimentDir, names)
+      ? async (experimentDir: string, names: string[]) =>
+          this.sampleTrackingFor(posix.join(experimentDir, 'README.labnote.md'))
+            ? offerSamplesLeftBehind(this.sampleRelocationDeps(), experimentDir, names)
+            : 0
       : undefined;
     return syncWorkflowChecklistCommand(this.app, this.host, this.readmeSyncControl(), dir, adoptSamples);
   }
@@ -464,7 +467,7 @@ export default class LabnotePlugin extends Plugin {
 
         // Go to definition works in ANY markdown note (references may appear
         // outside `.labnote.md`), so add it before the workflow-file gate below.
-        if (this.settings.sampleTracking) {
+        if (this.sampleTrackingFor(file.path)) {
           const cur = editor.getCursor();
           const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
           const hit = findSampleReferenceAt(editor.getLine(cur.line), cur.ch, types);
@@ -1017,7 +1020,7 @@ export default class LabnotePlugin extends Plugin {
    * once per (old, new) experiment pair for a batch of moves.
    */
   private offerLocalSamplesMoved(oldPath: string, newPath: string): void {
-    if (!this.settings.sampleTracking || !/\.md$/i.test(newPath)) return;
+    if (!this.sampleTrackingFor(newPath) || !/\.md$/i.test(newPath)) return;
     if (posix.basename(newPath) === 'README.labnote.md') return;
     const fromDir = getExperimentDir(oldPath);
     const toDir = getExperimentDir(newPath);
@@ -1424,17 +1427,24 @@ export default class LabnotePlugin extends Plugin {
    * Handing the scanner an empty type list is what disables the sample half.
    */
   private registerInlineHighlighting(): void {
-    const getState = (): HighlightState =>
-      this.settings.sampleTracking
+    const getState = (path: string | undefined): HighlightState =>
+      this.sampleTrackingFor(path)
         ? getSampleDisplayMeta(this.settings.customSampleTypes)
         : { types: [], colors: {} };
     this.registerEditorExtension(createSampleHighlightPlugin(getState));
     this.registerMarkdownPostProcessor(createSampleReadingHighlighter(getState));
+    // An experiment's `sample_tracking` lives in its README (#105); editors
+    // re-check their state on the update this sends.
+    this.registerEvent(
+      this.app.metadataCache.on('changed', file => {
+        if (file.name === 'README.labnote.md') this.app.workspace.updateOptions();
+      })
+    );
   }
 
   /** Debounced write-through of a lab note's sample definitions. */
   private scheduleSampleSync(file: TFile): void {
-    if (!file.path.endsWith('.labnote.md')) return;
+    if (!file.path.endsWith('.labnote.md') || !this.sampleTrackingFor(file.path)) return;
     const prev = this.sampleSyncTimers.get(file.path);
     if (prev !== undefined) window.clearTimeout(prev);
     const handle = window.setTimeout(() => {
@@ -1511,6 +1521,19 @@ export default class LabnotePlugin extends Plugin {
   /** Whether a Local sample scope can be resolved (an experiment is known). */
   hasLocalScope(): boolean {
     return this.activeNotePath() !== undefined || this.lastExperimentDir !== undefined;
+  }
+
+  /**
+   * Whether sample autocomplete, highlighting and registry sync run for `path`:
+   * the global setting, narrowed by the experiment README's `sample_tracking`
+   * (#105). Notes outside an experiment follow the setting alone, and so does
+   * an experiment whose README Obsidian has not indexed yet.
+   */
+  sampleTrackingFor(path: string | undefined): boolean {
+    return isSampleTrackingOn(this.settings.sampleTracking, path, readmePath => {
+      const readme = this.app.vault.getFileByPath(readmePath);
+      return readme ? this.app.metadataCache.getFileCache(readme)?.frontmatter : undefined;
+    });
   }
 
   notify(message: string): void {
