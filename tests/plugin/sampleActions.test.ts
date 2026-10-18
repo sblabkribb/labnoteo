@@ -102,7 +102,7 @@ describe('createSampleInteractive', () => {
     expect(JSON.parse(await fs.read(REGISTRY))[created!.id].alias).toBe('sikif');
   });
 
-  it('does not warn when adding to the Global folder itself', async () => {
+  it('warns about a same-alias Global sample as one that cannot be told apart when adding to Global', async () => {
     await fs.write(
       `${GLOBAL}/RNA.json`,
       JSON.stringify({ 'RNA-7': { type: 'RNA', alias: 'siKIF', descriptions: [], sources: [] } })
@@ -112,7 +112,44 @@ describe('createSampleInteractive', () => {
 
     await createSampleInteractive(new App(), plugin, { type: 'RNA', folder: GLOBAL, mode: 'generate' });
 
-    expect(Notice.shown.some(m => m.startsWith('Global samples already have'))).toBe(false);
+    expect(Notice.shown[0]).toBe(
+      'Global samples already have the alias siKIF (RNA-7). Autocomplete cannot tell the two apart, so picking the existing sample is usually better.'
+    );
+  });
+
+  // #125: two Local samples with one alias show as identical autocomplete lines.
+  it('warns, without refusing, when the same experiment has the alias', async () => {
+    await fs.write(
+      REGISTRY,
+      JSON.stringify({ 'RNA-3': { type: 'RNA', alias: '배지성분-1', descriptions: [], sources: [] } })
+    );
+    await fs.write(
+      `${GLOBAL}/RNA.json`,
+      JSON.stringify({ 'RNA-7': { type: 'RNA', alias: '배지성분-1', descriptions: [], sources: [] } })
+    );
+    Notice.reset();
+    answer('배지성분-1', '', '');
+
+    const created = await add();
+
+    expect(Notice.shown[0]).toBe(
+      'This experiment already has the alias 배지성분-1 (RNA-3). Autocomplete cannot tell the two apart, so picking the existing sample is usually better.'
+    );
+    expect(Notice.shown.some(m => m.includes('marked Local and Global'))).toBe(false);
+    expect(Object.keys(JSON.parse(await fs.read(REGISTRY)))).toContain(created!.id);
+  });
+
+  it('does not warn about a same alias of another type', async () => {
+    await fs.write(
+      `${FOLDER}/DNA.json`,
+      JSON.stringify({ 'DNA-3': { type: 'DNA', alias: 'R1', descriptions: [], sources: [] } })
+    );
+    Notice.reset();
+    answer('R1', '', '');
+
+    await add();
+
+    expect(Notice.shown.some(m => m.includes('already has the alias'))).toBe(false);
   });
 });
 

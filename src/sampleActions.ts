@@ -202,8 +202,22 @@ export async function createSampleInteractive(
     };
   }
 
-  const twin = alias ? await globalSampleWithAlias(plugin, type, folder, alias) : undefined;
-  if (twin) {
+  // A twin in the same folder is worse than a Global one (#125): autocomplete
+  // shows the two with identical text and no Local/Global tag to tell them apart.
+  const sibling = alias ? await sampleWithAliasIn(plugin, type, folder, alias) : undefined;
+  const twin = alias && !sibling ? await globalSampleWithAlias(plugin, type, folder, alias) : undefined;
+  if (sibling) {
+    new Notice(
+      plugin.t(
+        isSameSampleFolder(folder, plugin.settings.globalSampleFolder)
+          ? 'Global samples already have the alias {0} ({1}). Autocomplete cannot tell the two apart, so picking the existing sample is usually better.'
+          : 'This experiment already has the alias {0} ({1}). Autocomplete cannot tell the two apart, so picking the existing sample is usually better.',
+        alias!,
+        sibling
+      ),
+      8000
+    );
+  } else if (twin) {
     new Notice(
       plugin.t(
         'Global samples already have the alias {0} ({1}). Autocomplete will show both, marked Local and Global.',
@@ -249,8 +263,18 @@ async function globalSampleWithAlias(
 ): Promise<string | undefined> {
   const globalFolder = plugin.settings.globalSampleFolder;
   if (!globalFolder || isSameSampleFolder(folder, globalFolder)) return undefined;
+  return sampleWithAliasIn(plugin, type, globalFolder, alias);
+}
+
+/** The ID of a `type` sample in `folder` with `alias` (trimmed, case ignored). */
+async function sampleWithAliasIn(
+  plugin: LabnotePlugin,
+  type: string,
+  folder: string,
+  alias: string
+): Promise<string | undefined> {
   const wanted = alias.trim().toLowerCase();
-  const records = await loadSamplesByType(plugin.fs, globalFolder, type);
+  const records = await loadSamplesByType(plugin.fs, folder, type);
   return Object.keys(records).find(id => records[id].alias?.trim().toLowerCase() === wanted);
 }
 
