@@ -152,6 +152,19 @@ describe('moving the Global sample folder (#101)', () => {
     expect(await fs.read('new/Reagent_sigma.json')).toBe('{}');
     expect(await fs.exists('old')).toBe(false);
   });
+
+  it('still reports the move when the emptied folder cannot be removed', async () => {
+    const fs = new MemFileSystem();
+    await putSampleRecord(fs, 'old', 'DNA', 'DNA-1', record('a'));
+    fs.rmdir = async () => {
+      throw new Error('Path is a directory: rm returned EISDIR (is a directory) old');
+    };
+
+    const result = await moveSampleFolder(fs, 'old', 'new', TYPES);
+
+    expect(result).toMatchObject({ moved: 1, skipped: [] });
+    expect(Object.keys(await loadSamplesByType(fs, 'new', 'DNA'))).toEqual(['DNA-1']);
+  });
 });
 
 describe('extractSampleInfoFromText', () => {

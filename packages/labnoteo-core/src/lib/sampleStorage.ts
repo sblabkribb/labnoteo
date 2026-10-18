@@ -987,7 +987,13 @@ export async function moveSampleFolder(
     await fs.remove(path.join(from, name));
     result.catalogsMoved++;
   }
-  await fs.rmdir(from);
+  // The samples have moved; a folder that will not go only leaves an empty
+  // directory behind, which must not turn the whole move into a failure.
+  try {
+    await fs.rmdir(from);
+  } catch {
+    // ignore
+  }
   return result;
 }
 
