@@ -29,6 +29,7 @@ import {
   parseFrontMatterYaml,
   parseIssueMarkers,
   planIssueMarkerInsertion,
+  planDateInsertion,
   issueSentenceRange,
   serializeFrontMatterEntry,
   setDiscussFlag,
@@ -201,6 +202,30 @@ export async function changeExperimentStatusCommand(
     }
   }
   host.notify('info', message);
+}
+
+/**
+ * Insert a date (or date and time) over the selection. In the front matter it
+ * only fills a key with an empty value; elsewhere there it is refused with a
+ * warning, since the text would break the YAML (#106).
+ */
+export function insertDateCommand(editor: Editor, host: LabnoteHost, text: string): boolean {
+  const plan = planDateInsertion(
+    editor.getValue(),
+    editor.posToOffset(editor.getCursor('from')),
+    editor.posToOffset(editor.getCursor('to')),
+    text
+  );
+  if ('reason' in plan) {
+    host.notify(
+      'warn',
+      host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
+    );
+    return false;
+  }
+  editor.replaceRange(plan.text, editor.offsetToPos(plan.from), editor.offsetToPos(plan.to));
+  editor.setCursor(editor.offsetToPos(plan.from + plan.text.length));
+  return true;
 }
 
 /**

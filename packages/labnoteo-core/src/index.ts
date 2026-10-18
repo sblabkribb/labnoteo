@@ -56,7 +56,13 @@ export {
 
 // Front-matter primitives (YAML parse + per-entry serialize). Shared by plugin
 // commands that read/rewrite README frontmatter (e.g. the status command).
-export { parseFrontMatterYaml, serializeFrontMatterEntry } from './sections/frontMatter';
+export {
+  parseFrontMatterYaml,
+  serializeFrontMatterEntry,
+  planDateInsertion,
+  type DateInsertion,
+} from './sections/frontMatter';
+export { isInFrontMatter } from './sections/documentHead';
 
 // === Experiment status vocabulary + validation ===============================
 // Single source of the controlled `status` terms; consumed by the plugin status

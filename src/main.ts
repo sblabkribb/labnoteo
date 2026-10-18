@@ -50,6 +50,7 @@ import {
   createExperimentCommand,
   changeExperimentStatusCommand,
   insertIssueMarkerCommand,
+  insertDateCommand,
   issueAutomationState,
   toggleDiscussionFlagCommand,
   createWorkflowCommand,
@@ -263,7 +264,7 @@ export default class LabnotePlugin extends Plugin {
       id: 'insert-date',
       name: this.t('Insert date'),
       editorCallback: editor => {
-        editor.replaceSelection(getSeoulDateString());
+        insertDateCommand(editor, this.host, getSeoulDateString());
       },
     });
 
@@ -271,7 +272,7 @@ export default class LabnotePlugin extends Plugin {
       id: 'insert-datetime',
       name: this.t('Insert date and time'),
       editorCallback: editor => {
-        editor.replaceSelection(getSeoulDateTimeString());
+        insertDateCommand(editor, this.host, getSeoulDateTimeString());
       },
     });
 

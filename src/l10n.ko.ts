@@ -142,6 +142,8 @@ const obsidianKo: Record<string, string> = {
     '표 안에서는 이슈 마커를 넣을 수 없습니다. 표 아래 줄에서 실행하세요.',
   'Issue markers cannot go in the front matter. Run this in the note body.':
     '머리말(front matter)에는 이슈 마커를 넣을 수 없습니다. 본문에서 실행하세요.',
+  'A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.':
+    '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
   'This line already has an issue marker. A line can hold only one.':
     '이 줄에는 이미 이슈 마커가 있습니다. 한 줄에 하나만 둘 수 있습니다.',
   'Front matter of this note could not be read, so it was left unchanged. Fix the YAML and try again: {0}':
