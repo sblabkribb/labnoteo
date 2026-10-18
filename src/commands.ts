@@ -266,14 +266,16 @@ export async function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost
     while (used.has(id)) id = generateIssueMarkerId();
     return id;
   };
-  const refuse = (reason: 'conflict' | 'table' | 'frontMatter'): false => {
+  const refuse = (reason: 'conflict' | 'table' | 'frontMatter' | 'codeBlock'): false => {
     host.notify(
       'warn',
       reason === 'table'
         ? host.t('Issue markers cannot go inside a table. Run this on a line below the table.')
         : reason === 'frontMatter'
           ? host.t('Issue markers cannot go in the front matter. Run this in the note body.')
-          : host.t('This line already has an issue marker. A line can hold only one.')
+          : reason === 'codeBlock'
+            ? host.t('Issue markers inside a code block open no issue. Run this on a line outside the code block.')
+            : host.t('This line already has an issue marker. A line can hold only one.')
     );
     return false;
   };

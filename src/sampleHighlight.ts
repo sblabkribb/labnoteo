@@ -20,9 +20,14 @@ import {
   type EditorView,
   type ViewUpdate,
 } from '@codemirror/view';
-import { RangeSetBuilder } from '@codemirror/state';
+import { RangeSetBuilder, type Text as DocText } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
-import { findIssueMarkerRanges, findSampleIdRanges } from '@labnoteo/core';
+import {
+  fencedCodeRanges,
+  findIssueMarkerRanges,
+  findSampleIdRanges,
+  type IssueMarkerRange,
+} from '@labnoteo/core';
 
 export interface HighlightState {
   types: string[];
@@ -46,14 +51,16 @@ interface TokenRange {
  * A marker owns the rest of its line, so a sample ID quoted inside a topic
  * sentence would nest inside it. Nested marks would break `RangeSetBuilder`'s
  * sorted-insert contract, so the marker wins and the sample ID inside it is
- * dropped.
+ * dropped. `inCode` drops the markers the automation will not read (#120);
+ * sample IDs are kept there, since the sample sync does register them.
  */
 function collectTokenRanges(
   text: string,
   types: string[],
-  colors: Record<string, string>
+  colors: Record<string, string>,
+  inCode: (start: number, end: number) => boolean = () => false
 ): TokenRange[] {
-  const markers = findIssueMarkerRanges(text);
+  const markers = findIssueMarkerRanges(text).filter(r => !inCode(r.start, r.end));
   const ranges: TokenRange[] = markers.map(r => ({ ...r, cls: ISSUE_MARKER_CLASS }));
 
   for (const r of findSampleIdRanges(text, types)) {
@@ -105,6 +112,9 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
     class {
       decorations: DecorationSet;
       drawnKey = '';
+      /** Fenced code of `fencedDoc`; a fence may open outside the visible ranges. */
+      fenced: IssueMarkerRange[] = [];
+      fencedDoc: DocText | undefined;
 
       constructor(view: EditorView) {
         this.decorations = this.build(view);
@@ -120,10 +130,19 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
         const state = getState(editorPath(view));
         this.drawnKey = highlightStateKey(state);
         const { types, colors } = state;
+        const doc = view.state.doc;
+        // Scrolling keeps the same document, so the scan runs once per edit.
+        if (this.fencedDoc !== doc) {
+          this.fenced = fencedCodeRanges(doc.toString());
+          this.fencedDoc = doc;
+        }
+        const fenced = this.fenced;
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to } of view.visibleRanges) {
-          const text = view.state.doc.sliceString(from, to);
-          for (const r of collectTokenRanges(text, types, colors)) {
+          const text = doc.sliceString(from, to);
+          const inCode = (start: number, end: number): boolean =>
+            fenced.some(f => from + start < f.end && from + end > f.start);
+          for (const r of collectTokenRanges(text, types, colors, inCode)) {
             const styleVar = sampleColorVar(r.color ?? '');
             const deco = Decoration.mark({
               class: r.cls,

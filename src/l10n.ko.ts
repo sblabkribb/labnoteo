@@ -147,6 +147,8 @@ const obsidianKo: Record<string, string> = {
     '표 안에서는 이슈 마커를 넣을 수 없습니다. 표 아래 줄에서 실행하세요.',
   'Issue markers cannot go in the front matter. Run this in the note body.':
     '머리말(front matter)에는 이슈 마커를 넣을 수 없습니다. 본문에서 실행하세요.',
+  'Issue markers inside a code block open no issue. Run this on a line outside the code block.':
+    '코드 블록 안의 이슈 마커는 이슈를 열지 않습니다. 코드 블록 밖의 줄에서 실행하세요.',
   'A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.':
     '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
   'This line already has an issue marker. A line can hold only one.':

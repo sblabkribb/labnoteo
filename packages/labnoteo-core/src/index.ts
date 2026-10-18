@@ -87,6 +87,7 @@ export {
   ISSUE_MARKER_ID_PREFIX,
   parseIssueMarkers,
   findIssueMarkerRanges,
+  fencedCodeRanges,
   generateIssueMarkerId,
   resetIssueMarkerIdCounter,
   renderIssueMarker,
