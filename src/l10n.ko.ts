@@ -198,6 +198,8 @@ const obsidianKo: Record<string, string> = {
   'Move to Local': '로컬로 이동',
   'Open a note to insert into.': '삽입할 노트를 여세요.',
   'Open a note first to add a local sample.': '로컬 샘플을 추가하려면 먼저 노트를 여세요.',
+  'Notes outside an experiment use the Global samples below. Open an experiment note to see its samples.':
+    '실험 밖 노트는 아래 Global 샘플을 씁니다. 실험 노트를 열면 그 실험의 시료가 보입니다.',
   'No samples found.': '샘플을 찾을 수 없습니다.',
 
   // Sample create / autocomplete actions
