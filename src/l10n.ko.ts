@@ -389,6 +389,13 @@ const obsidianKo: Record<string, string> = {
   'Configure an AI provider in settings first.': '먼저 설정에서 AI 프로바이더를 구성하세요.',
   'Contacting {0}…': '{0}에 연결 중…',
   'AI request failed: {0}': 'AI 요청 실패: {0}',
+  'Settings': '설정',
+  'Cannot connect to {0} ({1}). Check that it is running and that {2} is right.':
+    '{0}에 연결할 수 없습니다({1}). 실행 중인지, {2} 값이 맞는지 확인하세요.',
+  'The API key is missing or wrong. Check {0}.': 'API 키가 없거나 잘못되었습니다. {0} 값을 확인하세요.',
+  'Model {0} was not found. Check {1}.': '모델 {0}을(를) 찾을 수 없습니다. {1} 값을 확인하세요.',
+  '{0} has no such address (404). Check {1}: enter only the server address, without a path such as /v1 or /api.':
+    '{0}에서 요청 주소를 찾을 수 없습니다(404). {1} 값을 확인하세요. /v1이나 /api 같은 경로 없이 서버 주소만 적습니다.',
   'This Method section already has content. Replace it with the AI draft?':
     '이 Method 절에는 이미 내용이 있습니다. AI 초안으로 바꿀까요?',
   'Replace': '바꾸기',

@@ -124,6 +124,8 @@ See the generated `.labnoteo/SETUP.md` (admins) for the full asset table, prereq
 
 **AI provider** — pick `none`, `ollama`, or `openai`; set the Ollama/OpenAI endpoint (separate fields so an OpenAI key never leaks to a local Ollama address), the model id (e.g. `qwen3`, `gpt-4o-mini`), and the API key (OpenAI-compatible only, never sent to Ollama).
 
+When an AI request fails, the notice names the cause and the setting to fix: the endpoint when the server cannot be reached, the API key on 401/403, the model when it is not found, and the endpoint path (server address only, without `/v1` or `/api`) on any other 404. The original error stays in the developer console (Ctrl+Shift+I, or Cmd+Option+I on macOS).
+
 > **Tool calling needs a model with function-calling support.** With Ollama, pick a model that advertises the `tools` capability (`qwen3`, `llama3.1`, …); one without it answers in prose instead.
 
 **MCP server & Copilot agents** — to expose Labnote's tools to an external MCP client, or to hand commits/Issues/Wiki drafts to Copilot's agent mode, see the **[Copilot agents guide](docs/COPILOT.md)** (Korean).

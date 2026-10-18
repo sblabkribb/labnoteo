@@ -588,6 +588,9 @@ API 키는 OpenAI 계열에만 전송되며 Ollama로는 절대 나가지 않습
 
 **AI 명령이 응답이 없어요**
 - 설정 → Labnote Assistant → **Provider**가 `Disabled`가 아닌지(Ollama/OpenAI) 확인하고, 엔드포인트·모델명을 설정하세요.
+- 실패 알림이 고칠 설정을 알려 줍니다. "연결할 수 없습니다"면 Ollama가 켜져 있는지와 엔드포인트, "API 키가 없거나
+  잘못"이면 API 키, "모델 …을(를) 찾을 수 없습니다"면 모델 이름(Ollama는 `ollama pull`로 받았는지),
+  "(404)"면 엔드포인트에 `/v1`·`/api` 같은 경로를 붙이지 않았는지 보세요.
 
 **노트 검증이 실패해요 (Actions의 validate)**
 - `status` 값이 허용 목록(`planned`, `in-progress`, `needs-review`, `completed`, `failed`, `discontinued`, `needs-repeat`)에 있는지, 실험 `id`와 마커 ID가 중복되지 않는지 확인하세요.

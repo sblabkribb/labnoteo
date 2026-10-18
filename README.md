@@ -117,6 +117,8 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 - **모델**: 모델 id. 예: `qwen3`, `gpt-4o-mini`.
 - **API 키**: OpenAI 호환 제공자 전용 — Ollama로는 전송되지 않습니다.
 
+AI 요청이 실패하면 알림이 원인과 고칠 설정을 알려 줍니다: 서버에 연결할 수 없으면 엔드포인트, 401/403이면 API 키, 모델을 찾을 수 없으면 모델, 그 밖의 404면 엔드포인트 경로(`/v1`·`/api` 없이 서버 주소만)를 확인하라고 합니다. 원래 오류는 개발자 콘솔(Ctrl+Shift+I, macOS는 Cmd+Option+I)에 남습니다.
+
 > **툴 호출에는 함수 호출(function calling)을 지원하는 모델이 필요합니다.** Ollama에서는 `tools` capability가 있는 모델(`qwen3`, `llama3.1` 등)을 쓰세요. 지원하지 않는 모델은 툴을 호출하지 않고 산문으로만 답합니다.
 
 **MCP 서버 · Copilot 에이전트** — 로컬 MCP 서버로 Labnote 툴을 외부 클라이언트에 노출하거나, Copilot 에이전트 모드로 커밋·이슈·Wiki를 맡기는 설정은 **[Copilot 에이전트 가이드](docs/COPILOT.md)** 를 참고하세요.
