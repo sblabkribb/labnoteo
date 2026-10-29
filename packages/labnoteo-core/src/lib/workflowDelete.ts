@@ -6,7 +6,8 @@
  * section. The filesystem side (moving the file to trash, sample cleanup) is
  * handled by the command; this module stays pure and unit-testable.
  */
-import { decodeChecklistLink } from './workflowStructure';
+import { decodeChecklistLink, workflowChecklistSectionRange } from './workflowStructure';
+import { findSectionMatches, sectionBodyEnd, stepFence, type OpenFence } from '../sections/sectionEdit';
 
 export interface RemoveWorkflowFromReadmeResult {
   changed: boolean;
@@ -47,21 +48,37 @@ export function removeWorkflowFromReadme(
   readmeContent: string,
   fileName: string
 ): RemoveWorkflowFromReadmeResult {
-  const lines = readmeContent.split('\n');
-  const kept: string[] = [];
-  let changed = false;
-
+  // Keep each line's terminator so untouched bytes survive even mixed endings.
+  const lines = readmeContent.split(/(?<=\n)/);
+  // Fence state is tracked over the whole document: the workflow section's
+  // heading pick is not fence-aware, so its range may start inside a fence.
+  const inCode: boolean[] = [];
+  let fence: OpenFence | null = null;
   for (const line of lines) {
-    if (isChecklistLineForFile(line, fileName)) {
-      changed = true;
-      continue;
+    const next = stepFence(line, fence);
+    inCode.push(fence !== null || next !== null);
+    fence = next;
+  }
+  // The exact-heading sections, plus the section the add path writes to
+  // (translated or renamed heading, #298), clipped where the exact path stops.
+  const ranges = findSectionMatches(readmeContent, 'Related Workflows').map(section => ({
+    start: section.line + 1,
+    end: sectionBodyEnd(lines, section.line, section.level),
+  }));
+  const workflow = workflowChecklistSectionRange(readmeContent);
+  if (workflow) {
+    ranges.push({ start: workflow.header + 1, end: Math.min(workflow.end, sectionBodyEnd(lines, workflow.header, 2)) });
+  }
+  const drop = new Set<number>();
+  for (const { start, end } of ranges) {
+    for (let i = start; i < Math.min(end, lines.length); i++) {
+      if (!inCode[i] && isChecklistLineForFile(lines[i], fileName)) drop.add(i);
     }
-    kept.push(line);
   }
 
-  if (!changed) {
+  if (drop.size === 0) {
     return { changed: false, content: readmeContent };
   }
 
-  return { changed: true, content: kept.join('\n') };
+  return { changed: true, content: lines.filter((_, i) => !drop.has(i)).join('') };
 }
