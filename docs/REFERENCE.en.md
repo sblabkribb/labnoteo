@@ -17,8 +17,9 @@ name alone.
 
 ### Insert date
 
-Insert the current date. Inside the front matter it only fills a line with an empty value such as
-`end_date: ''`; on a line that has a value it inserts nothing and warns. On an empty
+Insert the current date. Inside the front matter it only fills a date line (a key with `date` or
+`time` in its name) with an empty value such as `end_date: ''`; on a line that has a value, or an
+empty line that is not a date's such as `author:`, it inserts nothing and warns. On an empty
 `Start_date`/`End_date` line of a unit operation's `#### Meta` it fills that value (with a value
 already there, it points to the 📅 picker). Right after a sample reference with an alias
 (`DNA-…;T7-frag1`), a space goes in first, so the date is not read as part of the alias.
@@ -273,6 +274,9 @@ version.
   says how many notes use it.
 - When a plugin update changes the bundled catalogs, you are told once on startup. In a team, one
   person runs it and commits.
+- Deleting a catalog file (`workflows_en.json` and the like) warns that the next workflow picker or
+  workflow view redraw makes it again from the built-in catalog, without the lab's edits; when that
+  happens you are told again. Replace it with the file from the trash or Git if the lab had edited it.
 
 This command is about the workflow catalogs. The sample "product catalogs" of
 [partbank](#partbank) are a different thing.
@@ -337,7 +341,11 @@ Export note tables to `<note name>.labnote_tableN.csv` next to the note.
   row that differs.
 - The completion notice counts the files written and the ones left unchanged separately and shows
   the folder and file names, with a hint that the file explorer hides them while Obsidian's "Show
-  all file types" setting is off.
+  all file types" setting is off. The files written come first; among unchanged ones, a CSV made by
+  this export is marked "(new)".
+- A CSV another program (such as Excel) has open, or that is read-only, is skipped and the others
+  are still exported. The notice then opens with a warning naming the files it could not write;
+  close them and export again.
 - CSVs of tables the note no longer has are listed and moved to the trash after asking. So are
   `….labnote_tableN.csv` files with no note of their name in the folder (left by a deleted note, or
   by a rename that found the new CSV name taken), listed apart in the same prompt.
@@ -393,6 +401,9 @@ type.
   folder (`001_GFP_expression (3 note(s))`, with notes outside every experiment last under
   `Outside experiments`). The usages load after the window opens; clicking one opens the note with
   the cursor on that reference. They are counted like View usages below.
+- **Edit sample** asks before saving when it would empty an alias or the first description the
+  sample had, since the sample list tables and the sample view lose it too; cancelling saves
+  nothing.
 
 - **Insert reference** follows the cursor: at the end of the note from the front matter or above
   the title, on the next line from a heading or a `@type;ID;…` definition line, at the end of the
@@ -622,6 +633,10 @@ read is left unchanged, with a notice.
   back as `LN-R4W7TZ04` with a notice, and any other value is replaced only after asking (with the
   ID its scans name offered first), since worksheets printed under the old ID would no longer find
   the note.
+- When a `labnote_id` changes to another valid ID (merging notes with the Note composer, or an edit
+  by hand), you are asked whether to restore the old one (`Restore ID`), for the same reason.
+  Cancelling keeps the new ID. When another note holds the old ID (a colleague's fix of a duplicate,
+  pulled), nothing is asked.
 
 - Lab notes sharing an ID (usually a copy) are pointed out with an offer to give the newest one a
   new ID. With three or more, you are asked again about the ones still sharing it. A set you
@@ -833,9 +848,14 @@ When Obsidian still saves new attachments at the vault root, it then offers to s
 Settings → Files and links → **Default location for new attachments** to **In subfolder under
 current folder**, with **Subfolder name** `images`; to do it later, set those two yourself.
 
-Once the automation is installed, renaming `AGENTS.md`, `CLAUDE.md` or `wiki-staging/` at the vault
-root warns that AI agents and the automation look for them only by that name, and offers the name
-back. Rerunning the command after one went missing names the files it had to create again.
+Once the automation is installed, renaming `AGENTS.md`, `CLAUDE.md`, `QUICKSTART.md` or
+`wiki-staging/` at the vault root warns that AI agents and the automation look for them only by that
+name, and offers the name back. The same goes for a section draft the command made in
+`wiki-staging/` (`Results.md`, `Methods.md` and so on), which `Home.md`, the Wiki publishing and AI
+agents find by its name; renaming it back also turns the link Obsidian changed in `Home.md` back.
+Rerunning the command after one went missing names the files it had to create again. The
+`wiki-staging/` drafts already in the vault are left as they are: rerunning the command does not
+offer to overwrite them.
 
 ### Open user guide
 

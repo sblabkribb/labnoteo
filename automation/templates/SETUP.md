@@ -235,7 +235,8 @@ node .labnoteo/scripts/validate.mjs --notes-only  # 위에서 대용량 재검�
   건드리지 않고 목록만 알려 줍니다. 그때 "Setup research automation" 명령을 다시
   실행하면 파일마다 덮어쓸지 묻습니다. 한 번 알린 파일은 템플릿이 다시 바뀔 때까지
   다시 알리지 않습니다.
-- `wiki-staging/` 초안은 자동으로 바꾸지 않습니다.
+- `wiki-staging/` 초안은 자동으로 바꾸지 않습니다. "Setup research automation"을 다시
+  실행해도 이미 있는 초안은 덮어쓸지 묻지 않고 그대로 둡니다.
 - `installed.json`이 없는 보관함(0.95.0 이전 버전으로 설치)도 이전 버전이 만든 그대로인
   파일과 `.labnoteo/scripts/*.mjs`는 자동으로 갱신됩니다. 고친 파일은 위처럼 한 번만
   알립니다.
