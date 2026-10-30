@@ -246,4 +246,17 @@ describe('validationWarnings', () => {
     expect(warnings[0]).toContain('discuss: maybe');
     expect(validateExperiments(notes)).toEqual([]);
   });
+
+  // #475: GitHub refuses an issue title over 256 characters.
+  it('warns, without failing, when a marker topic makes the issue title too long', () => {
+    const long = '가'.repeat(270);
+    const notes = [
+      note('labnote/001_A/README.labnote.md', { status: 'in-progress' }, `@issue;ISS-mvtwryzp;${long}`, 4),
+      note('labnote/002_B/README.labnote.md', { status: 'in-progress' }, '@issue;ISS-short01;짧은 주제'),
+    ];
+    const warnings = validationWarnings(notes);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^labnote\/001_A\/README\.labnote\.md:5: the issue title of `ISS-mvtwryzp` would be 291 characters/);
+    expect(validateExperiments(notes)).toEqual([]);
+  });
 });

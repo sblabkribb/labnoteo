@@ -20,12 +20,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isValidStatus, EXPERIMENT_STATUSES } from '@labnoteo/core/lib/experimentStatus';
-import { parseFrontMatterYaml, parseIssueMarkers } from '@labnoteo/core';
+import { MAX_ISSUE_TITLE, parseFrontMatterYaml, parseIssueMarkers } from '@labnoteo/core';
 import { unrecognizedDiscussValue } from '@labnoteo/core/lib/discussFlag';
 import { findDuplicateNoteIds } from '@labnoteo/core/lib/noteId';
 import { run as runLargeFileCheck } from './lib/largeFiles';
 import { isVaultRoot, vaultRootFromScript } from './lib/vaultRoot';
 import {
+  deriveIdentifier,
+  experimentFolderName,
   findExperimentReadmes,
   README_NAME,
   readMarkerSources,
@@ -135,6 +137,22 @@ export function validationWarnings(notes: ValidatedNote[]): string[] {
         `${note.path}: \`discuss: ${discuss}\` is not read as a discussion flag, so no issue is opened ` +
           '(use `true`, `yes` or `예` to flag, or remove the line).'
       );
+    }
+    // GitHub refuses a longer title; issue-sync shortens it, the body keeps it whole (#475).
+    const experimentId = deriveIdentifier(
+      note.frontMatter,
+      experimentFolderName(note.path.slice(0, -(README_NAME.length + 1)))
+    );
+    for (const source of note.sources) {
+      for (const marker of parseIssueMarkers(source.body).markers) {
+        const length = Array.from(`[${experimentId}/${marker.id}] ${marker.title}`).length;
+        if (length <= MAX_ISSUE_TITLE) continue;
+        warnings.push(
+          `${source.path}:${marker.line + source.bodyLineOffset}: the issue title of \`${marker.id}\` would be ` +
+            `${length} characters, over GitHub's ${MAX_ISSUE_TITLE}, so it is shortened with "…"; ` +
+            'the whole topic sentence goes in the issue body.'
+        );
+      }
     }
   }
   return warnings;

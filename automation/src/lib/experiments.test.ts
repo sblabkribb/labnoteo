@@ -226,6 +226,16 @@ describe('buildDiscussionIssue', () => {
     expect(issue.labels).toEqual(['experiment', 'discussion', 'status:in-progress']);
   });
 
+  // #475: GitHub refuses a title over 256 characters.
+  it('shortens a long topic in the title, keeping the token, and keeps it whole in the body', () => {
+    const long = { ...marker, title: '가'.repeat(270) };
+    const issue = buildDiscussionIssue(note, source, long, 'acme/vault', 'abc');
+    expect(Array.from(issue.title)).toHaveLength(256);
+    expect(issue.title.startsWith('[EXP-001/ISS-mkd8x3k] ')).toBe(true);
+    expect(issue.title.endsWith('…')).toBe(true);
+    expect(issue.body).toContain(long.title);
+  });
+
   it('links the file the marker is in, not the README, at the exact line', () => {
     const issue = buildDiscussionIssue(note, source, marker, 'acme/vault', 'abc1234');
     expect(issue.body).toContain(

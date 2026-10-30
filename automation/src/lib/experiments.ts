@@ -13,7 +13,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { readNoteId } from '@labnoteo/core/lib/noteId';
-import { findEnclosingHeading, parseFrontMatterYaml, type IssueMarker } from '@labnoteo/core';
+import { findEnclosingHeading, issueTitle, parseFrontMatterYaml, type IssueMarker } from '@labnoteo/core';
 
 /** File name of the single-source-of-truth note inside each experiment folder. */
 export const README_NAME = 'README.labnote.md';
@@ -101,14 +101,14 @@ export function deriveIdentifier(
 
 /**
  * Issue title `[identifier] <note title>`. Falls back to the identifier as the
- * title text when the note has no `title` front-matter.
+ * title text when the note has no `title` front-matter. Cut to GitHub's limit (#475).
  */
 export function deriveIssueTitle(
   identifier: string,
   frontMatter: Record<string, unknown>
 ): string {
   const title = readStringField(frontMatter, 'title') ?? identifier;
-  return `[${identifier}] ${title}`;
+  return issueTitle(identifier, title);
 }
 
 /**
@@ -323,7 +323,8 @@ export function buildDiscussionIssue(
       'removing the marker does not close this issue._'
   );
 
-  return { identifier, title: `[${identifier}] ${marker.title}`, body: lines.join('\n'), labels };
+  // The body holds the whole topic sentence; the title may be cut (#475).
+  return { identifier, title: issueTitle(identifier, marker.title), body: lines.join('\n'), labels };
 }
 
 /** Permalink to one line of a file at a commit. */

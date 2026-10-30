@@ -336,6 +336,8 @@ const obsidianKo: Record<string, string> = {
   'Issue topic sentence': '이슈 주제 문장',
   'This sentence becomes the issue title. Keep the sentence from this line or type another.':
     '이 문장이 이슈 제목이 됩니다. 이 줄의 문장을 그대로 두거나 다른 문장을 입력하세요.',
+  'The topic sentence is {0} characters long. The issue title takes about {1}, so it will be shortened there; the whole sentence goes in the issue body.':
+    '주제 문장이 {0}자입니다. 이슈 제목에는 약 {1}자까지 들어가므로 제목에서는 줄여 쓰고, 전체 문장은 이슈 본문에 넣습니다.',
   'Enter the topic sentence of the issue.': '이슈의 주제 문장을 입력하세요.',
   'Flagged for discussion. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.':
     '논의 표시를 설정했습니다. 이 보관함은 아직 git 저장소가 아니라 이슈가 생성되지 않습니다. 먼저 {0}의 저장소 연결을 마치세요.',

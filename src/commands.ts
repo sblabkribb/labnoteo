@@ -40,6 +40,7 @@ import {
   isDiscussFlagged,
   parseFrontMatterYaml,
   parseIssueMarkers,
+  MAX_ISSUE_TOPIC,
   planIssueMarkerInsertion,
   planDateInsertion,
   endsAliasedReference,
@@ -813,6 +814,19 @@ export async function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost
   const { edit, cursor } = plan;
   editor.replaceRange(edit.insert, editor.offsetToPos(edit.from), editor.offsetToPos(edit.to));
   editor.setCursor(editor.offsetToPos(cursor));
+  // GitHub takes titles up to 256 characters, the experiment ID included (#475).
+  const topic = parseIssueMarkers(edit.insert).markers[0]?.title ?? '';
+  const length = Array.from(topic).length;
+  if (length > MAX_ISSUE_TOPIC) {
+    host.notify(
+      'warn',
+      host.t(
+        'The topic sentence is {0} characters long. The issue title takes about {1}, so it will be shortened there; the whole sentence goes in the issue body.',
+        String(length),
+        String(MAX_ISSUE_TOPIC)
+      )
+    );
+  }
   return true;
 }
 
