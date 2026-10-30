@@ -240,6 +240,8 @@ export async function applyAsset(
   installed?: string
 ): Promise<keyof ScaffoldResult | undefined> {
   const exists = await host.fs.exists(asset.vaultPath);
+  // A manuscript draft the lab writes in: never replaced, not even on request (#454).
+  if (asset.seed && exists) return undefined;
 
   if (asset.merge === 'managed-block') {
     const current = exists ? await host.fs.read(asset.vaultPath) : '';

@@ -819,6 +819,8 @@ const obsidianKo: Record<string, string> = {
   'Rename it back to "{0}"?': '"{0}"(으)로 이름을 되돌릴까요?',
   '{0} was renamed to {1}, but AI agents and the research automation look for it only as {0} at the vault root.':
     '{0}의 이름이 {1}(으)로 바뀌었습니다. AI 에이전트와 연구노트 자동화는 보관함 최상위의 {0}만 찾습니다.',
+  '{0} was renamed to {1}, but Home.md, the Wiki publishing and AI agents look for it as {0}, and "Setup research automation" makes an empty {0} when it is missing.':
+    '{0}의 이름이 {1}(으)로 바뀌었습니다. Home.md 목차, Wiki 발행, AI 에이전트는 {0}(이)라는 이름으로 찾고, "연구노트 자동화 설정"은 {0}이(가) 없으면 빈 파일을 새로 만듭니다.',
   'Rename back': '이름 되돌리기',
   'Kept the name "{0}". If the title or the README checklist no longer match the file name later, run "{1}".':
     '이름 "{0}"을(를) 그대로 두었습니다. 나중에 제목이나 README 체크리스트가 파일 이름과 맞지 않으면 "{1}"을(를) 실행하세요.',
