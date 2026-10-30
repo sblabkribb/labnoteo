@@ -960,6 +960,10 @@ const obsidianKo: Record<string, string> = {
   'This note has no labnote_id, but its scans show it was printed as {0}. Restore that ID? With a new ID, worksheets already printed will not find this note.':
     '이 노트에는 labnote_id가 없지만, 붙어 있는 스캔을 보면 전에 {0}(으)로 출력되었습니다. 그 ID를 되살릴까요? 새 ID를 쓰면 이미 출력한 기록지는 이 노트를 찾지 못합니다.',
   'Restore ID': 'ID 되살리기',
+  'The labnote_id of {0} was written as "{1}"; restored it as {2}.':
+    '{0}의 labnote_id가 "{1}"(으)로 적혀 있어 {2}(으)로 되돌렸습니다.',
+  'The labnote_id of this note, "{0}", is not a note ID (LN- and 8 letters or digits). Give it a new one? Worksheets printed under the old ID will not find this note.':
+    '이 노트의 labnote_id "{0}"은(는) 노트 ID 형식(LN-와 영문·숫자 8자)이 아닙니다. 새 ID를 받을까요? 새 ID를 받으면 예전 ID로 출력한 기록지는 이 노트를 찾지 못합니다.',
   'The scans in this note are named after the note ID {0}, but {1} has that ID now, so this note gets a new one. Worksheets printed as {0} are filed in {1}.':
     '이 노트의 스캔은 노트 ID {0}의 이름을 달고 있지만 지금은 {1}이(가) 그 ID를 쓰고 있어 새 ID를 발급합니다. {0}(으)로 출력한 기록지는 {1}에 붙습니다.',
   '{0} now has the note ID {1}.': '{0}에 노트 ID {1}을(를) 발급했습니다.',

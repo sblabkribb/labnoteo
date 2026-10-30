@@ -3,6 +3,7 @@ import {
   generateNoteId,
   isValidNoteId,
   readNoteId,
+  readRawNoteId,
   setNoteId,
 } from '../lib/noteId';
 import { createWorkflowContent } from '../lib/workflowStructure';
@@ -27,6 +28,15 @@ describe('generateNoteId', () => {
 
 describe('readNoteId / setNoteId', () => {
   const note = '---\ntitle: WD010 Design\nexperimenter: Kim\n---\n\n## [WD010 Design]\n';
+
+  // #478
+  it('reads a malformed value as written, but not as an ID', () => {
+    const odd = "---\nlabnote_id: ' ln-r4w7tz04 '\n---\n";
+    expect(readRawNoteId(odd)).toBe('ln-r4w7tz04');
+    expect(readNoteId(odd)).toBeUndefined();
+    expect(readRawNoteId('---\nlabnote_id:\n---\n')).toBeUndefined();
+    expect(readRawNoteId(note)).toBeUndefined();
+  });
 
   it('inserts the ID after the title and reads it back', () => {
     const out = setNoteId(note, 'LN-7K3M9QX2');

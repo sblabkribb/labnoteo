@@ -240,6 +240,37 @@ describe('NoteIdService', () => {
     expect(readNoteId(files.get('a.labnote.md')!.text)).toBe(id);
   });
 
+  // #478: an ID edited out of the format was silently replaced.
+  it('restores an ID that only lost its capitals', async () => {
+    const { svc, files, fileOf, notices } = service({ 'a.labnote.md': { text: note('ln-r4w7tz04'), ctime: 1 } });
+    expect(await svc.ensureId(fileOf('a.labnote.md'))).toBe('LN-R4W7TZ04');
+    expect(readNoteId(files.get('a.labnote.md')!.text)).toBe('LN-R4W7TZ04');
+    expect(notices).toEqual(['The labnote_id of {0} was written as "{1}"; restored it as {2}.']);
+  });
+
+  it('asks before replacing any other malformed ID, and changes nothing on cancel', async () => {
+    const text = note("'LN-냉동고 정리 1'");
+    for (const answer of ['cancel', null] as const) {
+      const { svc, files, fileOf } = service({ 'a.labnote.md': { text, ctime: 1 } }, answer);
+      expect(await svc.ensureIdResult(fileOf('a.labnote.md'))).toEqual({ reason: 'cancelled' });
+      expect(files.get('a.labnote.md')!.text).toBe(text);
+    }
+    const { svc, files, fileOf } = service({ 'a.labnote.md': { text, ctime: 1 } }, 'new');
+    const id = await svc.ensureId(fileOf('a.labnote.md'));
+    expect(readNoteId(files.get('a.labnote.md')!.text)).toBe(id);
+  });
+
+  it('asks about a lower-case ID another note already holds instead of restoring it', async () => {
+    const { svc, fileOf } = service(
+      {
+        'orig.labnote.md': { text: note('LN-R4W7TZ04'), ctime: 1 },
+        'copy.labnote.md': { text: note('ln-r4w7tz04'), ctime: 2 },
+      },
+      'cancel'
+    );
+    expect(await svc.ensureIdResult(fileOf('copy.labnote.md'))).toEqual({ reason: 'cancelled' });
+  });
+
   it('gives a new ID, with a warning, when another note holds the old one', async () => {
     const { svc, fileOf, notices } = service({
       'orig.labnote.md': { text: note('LN-FK5Q8KV0'), ctime: 1 },
