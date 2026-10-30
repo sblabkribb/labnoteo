@@ -22,11 +22,8 @@ import {
   type UnitOperationItem,
   type WorkflowItem,
 } from '@labnoteo/core';
-import {
-  ensureWorkflowResources,
-  loadWorkflows,
-  loadUnitOperations,
-} from '@labnoteo/core/lib/workflowDataLoader';
+import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
+import { ensureVaultCatalogs } from '../catalogUpdate';
 import { getExperimentDir, retryOfLinkpath } from '@labnoteo/core/lib/labnoteStructure';
 import { parseWorkflowChecklistFromReadme } from '@labnoteo/core/lib/workflowStructure';
 import * as posix from '@labnoteo/core/posix';
@@ -318,7 +315,7 @@ export class WorkflowTreeView extends ItemView {
     // normalises away to clean vault-relative resource paths.
     const root = '.';
     const { fs } = this.plugin;
-    await ensureWorkflowResources(fs, root);
+    await ensureVaultCatalogs(this.plugin.host);
     const [catalog, hw, sw] = await Promise.all([
       loadWorkflows(fs, root),
       loadUnitOperations(fs, root, 'hw'),

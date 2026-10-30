@@ -38,6 +38,28 @@ interface CsvOutput {
   /** The table's header row, and the cells Excel would change (#375). */
   header: string[];
   risky: ExcelRiskCell[];
+  /** Another program (Excel) holds the CSV, or it is read-only: it is left as it is (#476). */
+  locked?: boolean;
+}
+
+/**
+ * A read or write refused because another program has the file open or it is
+ * read-only (#476). The vault adapter passes Node's error through unwrapped.
+ */
+function isFileLocked(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === 'string') return ['EBUSY', 'EPERM', 'EACCES'].includes(code);
+  return /^(EBUSY|EPERM|EACCES)\b/.test(err instanceof Error ? err.message : String(err));
+}
+
+/** The CSV at `path` without BOM and CRLF, or `locked` when it cannot be read (#476). */
+async function readCsv(plugin: LabnotePlugin, path: string): Promise<string | { locked: true }> {
+  try {
+    return normalizeCsv(await plugin.fs.read(path));
+  } catch (err) {
+    if (!isFileLocked(err)) throw err;
+    return { locked: true };
+  }
 }
 
 /** A note's tables as CSVs, worked out before anything is written. */
@@ -80,8 +102,17 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
       // A CSV still to be renamed holds the old content of this table.
       const current = posix.join(dir, renamedFrom.get(name) ?? name);
       const csv = tableToCsv(table.rows, { bom: true });
-      const old = (await plugin.fs.exists(current)) ? normalizeCsv(await plugin.fs.read(current)) : undefined;
-      return { path, csv, fresh: normalizeCsv(csv), old, header: table.rows[0] ?? [], risky: excelRiskCells(table.rows) };
+      const read = (await plugin.fs.exists(current)) ? await readCsv(plugin, current) : undefined;
+      const output: CsvOutput = {
+        path,
+        csv,
+        fresh: normalizeCsv(csv),
+        header: table.rows[0] ?? [],
+        risky: excelRiskCells(table.rows),
+      };
+      if (typeof read === 'object') output.locked = true;
+      else output.old = read;
+      return output;
     })
   );
   // `a → a` says nothing when two tables share a header: show what differs (#110).
@@ -100,12 +131,16 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
     ...siblingTableCsvs(file.name, siblings).map(f => Number(/_table(\d+)\.csv$/.exec(f)![1]))
   );
   const staleOld = await Promise.all(
-    names.stale.map(async name => normalizeCsv(await plugin.fs.read(posix.join(dir, name))))
+    names.stale.map(async name => {
+      const read = await readCsv(plugin, posix.join(dir, name));
+      return typeof read === 'object' ? '' : read;
+    })
   );
   const kinds = classifyCsvOverwrites(outputs, existingCount, staleOld);
+  // A locked CSV is not written, so there is nothing to ask about it.
   const linesOf = (kind: CsvOverwriteKind) =>
     outputs
-      .filter((_, k) => kinds[k] === kind)
+      .filter((o, k) => !o.locked && kinds[k] === kind)
       .map(
         o =>
           `- ${posix.basename(o.path)}: ${firstLine(o.old!)} → ${firstLine(o.fresh)}${sameHeaderHint(o.old!, o.fresh)}`
@@ -134,7 +169,10 @@ async function confirmOverwrites(plugin: LabnotePlugin, plans: readonly NoteCsvP
 }
 
 interface CsvWriteResult {
-  written: number;
+  /** Paths of the CSVs written. */
+  written: string[];
+  /** Paths of the CSVs another program held or that were read-only, left as they were (#476). */
+  locked: string[];
   renamed: string[];
   notRenamed: number;
 }
@@ -155,13 +193,23 @@ async function writeNoteCsvExport(plugin: LabnotePlugin, plan: NoteCsvPlan): Pro
     }
   }
 
-  let written = 0;
+  const written: string[] = [];
+  const locked: string[] = [];
   for (const o of plan.outputs) {
+    if (o.locked) {
+      locked.push(o.path);
+      continue;
+    }
     if (o.old === o.fresh && !notRenamed.has(posix.basename(o.path))) continue;
-    await plugin.fs.write(o.path, o.csv);
-    written++;
+    try {
+      await plugin.fs.write(o.path, o.csv);
+      written.push(o.path);
+    } catch (err) {
+      if (!isFileLocked(err)) throw err;
+      locked.push(o.path);
+    }
   }
-  return { written, renamed, notRenamed: notRenamed.size };
+  return { written, locked, renamed, notRenamed: notRenamed.size };
 }
 
 /** How long after writing a moved caret is still put back, and how often it is checked. */
@@ -290,11 +338,30 @@ function skippedText(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): stri
     .join(' ');
 }
 
+/** The CSVs left unwritten because they were locked, said first in the notice (#476), or ''. */
+function lockedText(plugin: LabnotePlugin, locked: readonly string[]): string {
+  if (locked.length === 0) return '';
+  return plugin.t(
+    'Could not write {0} CSV file(s) because another program (such as Excel) has them open or they are read-only: {1}. Close them and export again.',
+    String(locked.length),
+    listInline(plugin, locked.map(p => posix.basename(p)), 3)
+  );
+}
+
+/** The export notice, held longer and marked as a warning when a CSV was locked (#476). */
+function showExportNotice(parts: readonly string[], locked: readonly string[]): void {
+  const text = parts.filter(Boolean).join(' ');
+  if (locked.length > 0) new Notice(`⚠️ ${text}`, 15000);
+  else new Notice(text);
+}
+
 /** The opening line of the export notice. */
-function exportedText(plugin: LabnotePlugin, written: number, total: number): string {
-  const unchanged = total - written;
+function exportedText(plugin: LabnotePlugin, result: CsvWriteResult, total: number): string {
+  const written = result.written.length;
+  const unchanged = total - written - result.locked.length;
+  if (written === 0 && unchanged === 0) return '';
   return written === 0
-    ? plugin.t('The CSV files are already up to date ({0}).', String(total))
+    ? plugin.t('The CSV files are already up to date ({0}).', String(unchanged))
     : unchanged > 0
       ? plugin.t('Exported {0} CSV file(s) ({1} unchanged file(s) left as they were).', String(written), String(unchanged))
       : plugin.t('Exported {0} CSV file(s).', String(written));
@@ -343,19 +410,19 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
     await orphanCsvsIn(plugin, plan.dir)
   );
   const paths = plan.outputs.map(o => o.path);
-  new Notice(
+  showExportNotice(
     [
-      exportedText(plugin, result.written, plan.outputs.length),
+      lockedText(plugin, result.locked),
+      exportedText(plugin, result, plan.outputs.length),
       renameText(plugin, result),
-      savedIn(plugin, plan.dir, paths),
+      savedIn(plugin, plan.dir, plan.outputs, result),
       skipped,
       excelHint(plugin, plan.outputs),
       excelPathHint(plugin, paths),
       cleanup,
       explorerHint(plugin),
-    ]
-      .filter(Boolean)
-      .join(' ')
+    ],
+    result.locked
   );
 }
 
@@ -393,11 +460,12 @@ export async function exportExperimentTablesToCsv(plugin: LabnotePlugin, dir: st
     new Notice(plugin.t('No changes made.'));
     return;
   }
-  const result: CsvWriteResult = { written: 0, renamed: [], notRenamed: 0 };
+  const result: CsvWriteResult = { written: [], locked: [], renamed: [], notRenamed: 0 };
   await keepingCaret(plugin, async () => {
     for (const plan of withTables) {
       const r = await writeNoteCsvExport(plugin, plan);
-      result.written += r.written;
+      result.written.push(...r.written);
+      result.locked.push(...r.locked);
       result.renamed.push(...r.renamed);
       result.notRenamed += r.notRenamed;
     }
@@ -406,21 +474,22 @@ export async function exportExperimentTablesToCsv(plugin: LabnotePlugin, dir: st
   const paths = withTables.flatMap(p => p.outputs.map(o => o.path));
   const perNote = withTables.map(p => `${noteLabel(p.file)} ${p.outputs.length}`);
   const withoutTables = plans.length - withTables.length;
-  new Notice(
+  const outputs = withTables.flatMap(p => p.outputs);
+  showExportNotice(
     [
-      exportedText(plugin, result.written, paths.length),
+      lockedText(plugin, result.locked),
+      exportedText(plugin, result, paths.length),
       plugin.t('Tables per note: {0}.', listInline(plugin, perNote, 5)),
       withoutTables > 0 ? plugin.t('{0} note(s) without tables were skipped.', String(withoutTables)) : '',
       renameText(plugin, result),
-      savedIn(plugin, dir, paths),
+      savedIn(plugin, dir, outputs, result),
       skipped,
-      excelHint(plugin, withTables.flatMap(p => p.outputs)),
+      excelHint(plugin, outputs),
       excelPathHint(plugin, paths),
       cleanup,
       explorerHint(plugin),
-    ]
-      .filter(Boolean)
-      .join(' ')
+    ],
+    result.locked
   );
 }
 
@@ -489,10 +558,23 @@ function excelPathHint(plugin: LabnotePlugin, paths: readonly string[]): string 
   );
 }
 
-/** Where the CSVs are, so they can be found outside Obsidian (#140): the folder and the first few names. */
-function savedIn(plugin: LabnotePlugin, dir: string, paths: readonly string[]): string {
-  const names = listInline(plugin, paths.map(p => posix.basename(p)), 3);
-  return plugin.t('Saved in {0}: {1}.', dir === '.' ? '/' : `${dir}/`, names);
+/**
+ * Where the CSVs are, so they can be found outside Obsidian (#140): the folder
+ * and the first few names, those just written first (#469). Among unchanged
+ * ones, a CSV made by this export is marked new. Locked CSVs are named by
+ * {@link lockedText} instead.
+ */
+function savedIn(plugin: LabnotePlugin, dir: string, outputs: readonly CsvOutput[], result: CsvWriteResult): string {
+  const written = outputs.filter(o => result.written.includes(o.path));
+  const unchanged = outputs.filter(o => !result.written.includes(o.path) && !result.locked.includes(o.path));
+  const names = [
+    ...written.map(o =>
+      unchanged.length > 0 && o.old === undefined ? `${posix.basename(o.path)} ${plugin.t('(new)')}` : posix.basename(o.path)
+    ),
+    ...unchanged.map(o => posix.basename(o.path)),
+  ];
+  if (names.length === 0) return '';
+  return plugin.t('Saved in {0}: {1}.', dir === '.' ? '/' : `${dir}/`, listInline(plugin, names, 3));
 }
 
 /** The first `max` items joined by commas, and a count of the rest. */

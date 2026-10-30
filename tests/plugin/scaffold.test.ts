@@ -13,6 +13,7 @@ import {
   upsertManagedBlock,
 } from '../../src/scaffold/scaffold';
 import {
+  automationNameKind,
   LEGACY_ASSET_PATHS,
   MANAGED_BLOCK_BEGIN,
   MANAGED_BLOCK_END,
@@ -21,6 +22,22 @@ import {
 } from '../../src/scaffold/assets';
 
 const MARKERS = { begin: MANAGED_BLOCK_BEGIN, end: MANAGED_BLOCK_END };
+
+// #413, #452, #453: renaming one of these breaks what finds it by name.
+describe('automationNameKind', () => {
+  it('watches the vault-root files, QUICKSTART.md included, and the wiki-staging drafts', () => {
+    for (const root of ['AGENTS.md', 'CLAUDE.md', 'wiki-staging', 'QUICKSTART.md']) expect(automationNameKind(root)).toBe('root');
+    for (const draft of ['wiki-staging/Home.md', 'wiki-staging/Results.md', 'wiki-staging/Methods.md']) {
+      expect(automationNameKind(draft)).toBe('section');
+    }
+  });
+
+  it('leaves the lab\'s own wiki-staging pages and other files alone', () => {
+    for (const other of ['wiki-staging/Notes.md', 'labnote/001_A/README.labnote.md', 'docs/QUICKSTART.md', 'Results.md']) {
+      expect(automationNameKind(other)).toBeUndefined();
+    }
+  });
+});
 
 describe('upsertManagedBlock', () => {
   it('creates the block as the whole content for a new/empty file', () => {

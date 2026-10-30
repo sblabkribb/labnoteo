@@ -237,6 +237,20 @@ describe('refreshAutomationFiles', () => {
     expect(result.pending).not.toContain('wiki-staging/Home.md');
   });
 
+  // #454: the setup command asked to overwrite a draft holding Findings.
+  it('leaves an existing wiki-staging draft to the setup command without asking, and writes a missing one', async () => {
+    const draft = ASSETS.find(a => a.seed)!;
+    const { fs, host, asHost } = makeHost({ [draft.vaultPath]: 'seed v1\n### Finding: two clones carry the deletion\n' });
+
+    expect(await applyAsset(asHost, draft)).toBeUndefined();
+    expect(host.confirm).not.toHaveBeenCalled();
+    expect(await fs.read(draft.vaultPath)).toBe('seed v1\n### Finding: two clones carry the deletion\n');
+
+    await fs.remove(draft.vaultPath);
+    expect(await applyAsset(asHost, draft)).toBe('written');
+    expect(await fs.read(draft.vaultPath)).toBe('seed v2\n');
+  });
+
   it('reports a missing file once, but not one deleted after being installed', async () => {
     const added = makeHost({ [ISSUE_SYNC_WORKFLOW_PATH]: 'wf\n' });
     expect((await refreshAutomationFiles(added.asHost, '1.1.0', ASSETS)).missing).toEqual(['DOC.md']);

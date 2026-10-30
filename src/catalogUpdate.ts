@@ -133,11 +133,32 @@ async function notesUsing(host: LabnoteHost, ids: ReadonlySet<string>): Promise<
 }
 
 /**
+ * Make the catalog files the vault is missing from the bundled ones, warning
+ * when only some were missing (#477): the others were there, so a deleted one
+ * was made again and edits the lab had made to it are gone. The first seeding
+ * of all of them stays silent. Resolves the paths made.
+ */
+export async function ensureVaultCatalogs(host: LabnoteHost): Promise<string[]> {
+  const created = await ensureWorkflowResources(host.fs, '.');
+  if (created.length > 0 && created.length < CATALOG_FILE_SPECS.length) {
+    host.notify(
+      'warn',
+      host.t(
+        '{0} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.',
+        created.map(p => posix.basename(p)).join(', ')
+      )
+    );
+  }
+  return created;
+}
+
+/**
  * Run "Update catalogs": list the changes, and write them once confirmed.
  * Resolves true when a catalog file was written.
  */
 export async function updateCatalogsCommand(host: LabnoteHost): Promise<boolean> {
-  await ensureWorkflowResources(host.fs, '.');
+  const created = await ensureVaultCatalogs(host);
+  const remade = created.length > 0 && created.length < CATALOG_FILE_SPECS.length;
   const { files, broken } = await planVaultCatalogUpdate(host);
   for (const path of broken) {
     host.notify(
@@ -149,7 +170,7 @@ export async function updateCatalogsCommand(host: LabnoteHost): Promise<boolean>
   const pending = files.filter(f => !isCatalogPlanEmpty(f.plan));
   const { added, changed, kept } = counts(files);
   if (pending.length === 0) {
-    if (broken.length === 0) {
+    if (broken.length === 0 && !remade) {
       host.notify(
         'info',
         kept > 0

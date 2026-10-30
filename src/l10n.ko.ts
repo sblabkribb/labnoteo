@@ -34,6 +34,10 @@ const obsidianKo: Record<string, string> = {
   'equipment': '장비',
   'software': '소프트웨어',
   'The catalogs are up to date.': '카탈로그가 이미 최신입니다.',
+  '{0} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.':
+    '{0}이(가) 없어서 내장 카탈로그로 다시 만들었습니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git에서 복원한 파일로 바꾸세요.',
+  '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view redraws. If the lab had edited it, replace it with the file from the trash or Git.':
+    '{0}이(가) 삭제되었습니다. 다음에 워크플로를 고르거나 워크플로 뷰가 새로 그려질 때 내장 카탈로그로 다시 만들어집니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git의 파일로 바꾸세요.',
   'The catalogs are up to date. {0} field(s) edited in this vault were kept.':
     '카탈로그가 이미 최신입니다. 이 보관함에서 고친 값 {0}개는 그대로 두었습니다.',
   'Updated the catalogs: {0} added, {1} changed. Commit the changed files in {2}.':
@@ -363,6 +367,8 @@ const obsidianKo: Record<string, string> = {
     '마커 ID {0}은(는) {1}에서도 쓰고 있어 두 질문이 한 이슈로 합쳐집니다. 이 노트의 그 마커(물결 밑줄)를 지우고 "논의 이슈 마커 삽입"으로 다시 넣으세요.',
   'A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.':
     '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
+  '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.':
+    '{0}은(는) 날짜 칸이 아니어서 날짜를 넣지 않았습니다. end_date처럼 빈 날짜 줄이나 본문에서 실행하세요.',
   'This Start_date/End_date already has a value. Use the 📅 picker next to it to change the date.':
     '이 Start_date/End_date에는 이미 값이 있습니다. 날짜를 바꾸려면 옆의 📅 피커를 쓰세요.',
   'This line already has an issue marker. A line can hold only one.':
@@ -401,6 +407,9 @@ const obsidianKo: Record<string, string> = {
     'CSV 파일 {0}개를 내보냈습니다(내용이 같은 {1}개는 그대로 둠).',
   'The CSV files are already up to date ({0}).': 'CSV 파일이 이미 최신입니다({0}개).',
   'Saved in {0}: {1}.': '저장 위치 {0}: {1}.',
+  '(new)': '(새 파일)',
+  'Could not write {0} CSV file(s) because another program (such as Excel) has them open or they are read-only: {1}. Close them and export again.':
+    'CSV {0}개는 다른 프로그램(엑셀 등)이 열고 있거나 읽기 전용이어서 쓰지 못했습니다: {1}. 그 파일을 닫고 다시 내보내세요.',
   'The file explorer shows CSV files only when Settings → Files and links → Show all file types is on.':
     '파일 탐색기에는 설정 → 파일 및 링크 → 모든 파일 확장명 인식이 켜져 있을 때만 CSV 파일이 보입니다.',
   'No tables found in this note.': '이 노트에서 표를 찾을 수 없습니다.',
@@ -621,6 +630,11 @@ const obsidianKo: Record<string, string> = {
   '{0} was added to Global samples because this note is outside an experiment folder.':
     '이 노트는 실험 폴더 밖에 있어 {0}을(를) 전역 샘플에 추가했습니다.',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
+  "the alias '{0}'": "별칭 '{0}'",
+  "the first description '{0}'": "첫 설명 '{0}'",
+  ' and ': ' 및 ',
+  'Remove {0} of {1}? The sample list tables and the sample view lose it too.':
+    '{1}의 {0}을(를) 지울까요? 시료 목록 표와 샘플 뷰에서도 빠집니다.',
   '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.':
     '{0}이(가) 노트마다 다른 별칭으로 정의되어 있습니다: {1}. 샘플은 가장 나중에 바뀐 정의의 별칭을 씁니다. 하나로 맞추려면 "샘플 편집"으로 별칭을 정하고 노트를 함께 고치세요.',
   '{0} is also registered in other experiments ({1}); only this one changed.':
@@ -819,6 +833,8 @@ const obsidianKo: Record<string, string> = {
   'Rename it back to "{0}"?': '"{0}"(으)로 이름을 되돌릴까요?',
   '{0} was renamed to {1}, but AI agents and the research automation look for it only as {0} at the vault root.':
     '{0}의 이름이 {1}(으)로 바뀌었습니다. AI 에이전트와 연구노트 자동화는 보관함 최상위의 {0}만 찾습니다.',
+  '{0} was renamed to {1}, but Home.md, the Wiki publishing and AI agents look for it as {0}, and "Setup research automation" makes an empty {0} when it is missing.':
+    '{0}의 이름이 {1}(으)로 바뀌었습니다. Home.md 목차, Wiki 발행, AI 에이전트는 {0}(이)라는 이름으로 찾고, "연구노트 자동화 설정"은 {0}이(가) 없으면 빈 파일을 새로 만듭니다.',
   'Rename back': '이름 되돌리기',
   'Kept the name "{0}". If the title or the README checklist no longer match the file name later, run "{1}".':
     '이름 "{0}"을(를) 그대로 두었습니다. 나중에 제목이나 README 체크리스트가 파일 이름과 맞지 않으면 "{1}"을(를) 실행하세요.',
@@ -969,6 +985,9 @@ const obsidianKo: Record<string, string> = {
   'The scans in this note are named after the note ID {0}, but {1} has that ID now, so this note gets a new one. Worksheets printed as {0} are filed in {1}.':
     '이 노트의 스캔은 노트 ID {0}의 이름을 달고 있지만 지금은 {1}이(가) 그 ID를 쓰고 있어 새 ID를 발급합니다. {0}(으)로 출력한 기록지는 {1}에 붙습니다.',
   '{0} now has the note ID {1}.': '{0}에 노트 ID {1}을(를) 발급했습니다.',
+  'The labnote_id of {0} changed from {1} to {2} (by merging notes, say). Worksheets already printed as {1} will not find this note. Restore {1}?':
+    '{0}의 labnote_id가 {1}에서 {2}(으)로 바뀌었습니다(노트 합치기 등). 이미 {1}(으)로 출력한 기록지는 이 노트를 찾지 못합니다. {1}(으)로 되돌릴까요?',
+  '{0} has the note ID {1} again.': '{0}의 노트 ID를 {1}(으)로 되돌렸습니다.',
   'Gave the copy {0} its own note ID {1}.': '복사본 {0}에 새 노트 ID {1}을(를) 발급했습니다.',
   'Notes {0} share the note ID {1}, probably because one was copied. Scans of either note would be filed in the wrong one. Give {2} a new ID?':
     '{0} 노트가 같은 노트 ID {1}을(를) 쓰고 있습니다. 하나를 복사했기 때문일 수 있습니다. 이대로 두면 스캔이 다른 노트에 붙을 수 있습니다. {2}에 새 ID를 발급할까요?',

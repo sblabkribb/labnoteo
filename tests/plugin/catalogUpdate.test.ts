@@ -13,7 +13,12 @@ import {
   type LabnoteHost,
 } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { bundledCatalogHash, catalogUpdateNotice, updateCatalogsCommand } from '../../src/catalogUpdate';
+import {
+  bundledCatalogHash,
+  catalogUpdateNotice,
+  ensureVaultCatalogs,
+  updateCatalogsCommand,
+} from '../../src/catalogUpdate';
 import obsidianKo from '../../src/l10n.ko';
 import { __setGetLanguage } from '../stubs/obsidian';
 
@@ -108,6 +113,20 @@ describe('updateCatalogsCommand', () => {
     expect(host.notify).toHaveBeenCalledWith('info', 'The catalogs are up to date.');
   });
 
+  // #477: a deleted catalog came back from the built-in one without a word.
+  it('says a deleted catalog was made again instead of calling the catalogs up to date', async () => {
+    const { fs, host, asHost } = makeHost({ [pathOf(WORKFLOWS)]: currentCopy(WORKFLOWS), [pathOf(SW)]: currentCopy(SW) });
+
+    expect(await updateCatalogsCommand(asHost)).toBe(false);
+
+    expect(await fs.exists(pathOf(HW))).toBe(true);
+    expect(host.notify).toHaveBeenCalledTimes(1);
+    expect(host.notify).toHaveBeenCalledWith(
+      'warn',
+      `${HW.file} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.`
+    );
+  });
+
   it('keeps a field edited in the vault and says so', async () => {
     const edited = JSON.parse(oldCopy(HW));
     edited.unitOperations = edited.unitOperations.map((item: BundledCatalogItem) =>
@@ -160,6 +179,26 @@ describe('updateCatalogsCommand', () => {
     const message = host.confirm.mock.calls[0][0];
     expect(message).toContain('+ Add WB155 RCA 기반 표적 증폭');
     expect(message).toContain('WB125 콜로니 선별: name "Colony Picking" → "Colony Selection"');
+  });
+});
+
+describe('ensureVaultCatalogs (#477)', () => {
+  it('stays quiet when it makes every catalog for the first time', async () => {
+    const { host, asHost } = makeHost({});
+    expect(await ensureVaultCatalogs(asHost)).toHaveLength(3);
+    expect(host.notify).not.toHaveBeenCalled();
+  });
+
+  it('warns when it makes only the catalogs that went missing', async () => {
+    const { host, asHost } = makeHost({ [pathOf(HW)]: currentCopy(HW) });
+    expect(await ensureVaultCatalogs(asHost)).toEqual([pathOf(WORKFLOWS), pathOf(SW)]);
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining(`${WORKFLOWS.file}, ${SW.file} was missing`));
+  });
+
+  it('does nothing when every catalog is there', async () => {
+    const { host, asHost } = makeHost(oldVault());
+    expect(await ensureVaultCatalogs(asHost)).toEqual([]);
+    expect(host.notify).not.toHaveBeenCalled();
   });
 });
 

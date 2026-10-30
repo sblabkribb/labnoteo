@@ -153,7 +153,10 @@ export class BarcodeFeature {
       this.watcher?.start();
       this.slack.start();
       // Once the metadata cache has every note, look for IDs copied along with a note.
-      const check = () => this.run(() => this.noteIds.offerDuplicateFixes());
+      const check = () => {
+        this.noteIds.rememberIds();
+        this.run(() => this.noteIds.offerDuplicateFixes());
+      };
       if ((this.app.metadataCache as unknown as { resolved?: boolean }).resolved) check();
       else {
         const ref = this.app.metadataCache.on('resolved', () => {
@@ -168,11 +171,15 @@ export class BarcodeFeature {
         if (!isBarcodeNote(file.path) || !this.noteIds.idOf(file)) return;
         // A copied experiment renews its notes' IDs itself; asking as well gave the copy two (#265).
         if (this.plugin.isRenewingCopiedNoteId(file.path)) return;
-        if (this.noteIds.sharesId(file)) {
-          this.run(() => this.noteIds.offerDuplicateFixes());
-        }
+        this.run(async () => {
+          // A merge holds the merged note's ID for a moment: the changed ID is the question then (#443).
+          if (await this.noteIds.checkIdChange(file)) return;
+          if (this.noteIds.sharesId(file)) await this.noteIds.offerDuplicateFixes();
+        });
       })
     );
+    plugin.registerEvent(this.app.vault.on('rename', (file, oldPath) => this.noteIds.moveKnown(oldPath, file.path)));
+    plugin.registerEvent(this.app.vault.on('delete', file => this.noteIds.forget(file.path)));
     if (this.watcher) {
       const watcher = this.watcher;
       plugin.registerInterval(window.setInterval(() => void watcher.tick(), POLL_MS));

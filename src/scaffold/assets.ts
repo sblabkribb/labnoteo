@@ -223,3 +223,16 @@ export const SCAFFOLD_ASSETS: ScaffoldAsset[] = [
   { vaultPath: 'wiki-staging/Evidence-Index.md', content: wikiEvidenceIndex, seed: true },
   { vaultPath: 'wiki-staging/References.md', content: wikiReferences, seed: true },
 ];
+
+/** Vault-root names of the installed automation that agents, wiki-sync and "Open user guide" find only by name (#413, #452). */
+const AUTOMATION_ROOT_NAMES: readonly string[] = ['AGENTS.md', 'CLAUDE.md', 'wiki-staging', QUICKSTART_DOC_PATH];
+
+/**
+ * Whether `path` is a name the installed automation looks for (#413): `root`
+ * for the vault-root files and folder, `section` for a `wiki-staging/` draft
+ * that Home.md, wiki-sync and agents find by its name (#453).
+ */
+export function automationNameKind(path: string): 'root' | 'section' | undefined {
+  if (AUTOMATION_ROOT_NAMES.includes(path)) return 'root';
+  return SCAFFOLD_ASSETS.some(a => a.seed && a.vaultPath === path) ? 'section' : undefined;
+}

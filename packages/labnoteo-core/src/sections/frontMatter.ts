@@ -245,16 +245,25 @@ export function frontMatterNames(value: unknown): string[] {
 export type DateInsertion =
   | { from: number; to: number; text: string }
   | { reason: 'frontMatter' }
+  /** On an empty front matter key whose name is not a date's (#444). */
+  | { reason: 'notDateKey'; key: string }
   /** On a unit op's `Start_date`/`End_date` line that already has a value (#167). */
   | { reason: 'metaDate' };
+
+/** A front matter key meant for a date or time: `created_date`, `end_date`, `start_time`. */
+export function isDateLikeKey(key: string): boolean {
+  return /date|time/i.test(key);
+}
 
 /**
  * Plan inserting a date `text` over the selection `[from, to)` (#106).
  *
  * In the body the selection is replaced as before. In the front matter only a
- * top-level key with an empty value (`key:`, `key: ''`, `key: ""`) takes it,
- * written the way the other entries are ({@link serializeFrontMatterEntry}),
- * so an empty `end_date` can be filled. Anywhere else in the front matter —
+ * top-level date key ({@link isDateLikeKey}) with an empty value (`key:`,
+ * `key: ''`, `key: ""`) takes it, written the way the other entries are
+ * ({@link serializeFrontMatterEntry}), so an empty `end_date` can be filled;
+ * an empty `author` or a `tags:` with its list below is refused (#444).
+ * Anywhere else in the front matter —
  * a line with a value, a `---` line, a list item — typing the date would break
  * the YAML, so it is refused. A unit op's `- Start_date:`/`- End_date:` line
  * follows the same rule (#167): an empty value is filled inside its quotes,
@@ -292,5 +301,6 @@ export function planDateInsertion(
   if (doc[lineEnd - 1] === '\r') lineEnd--;
   const m = /^([A-Za-z_][\w-]*):[ \t]*(?:''|"")?[ \t]*$/.exec(doc.slice(lineStart, lineEnd));
   if (!m) return { reason: 'frontMatter' };
+  if (!isDateLikeKey(m[1])) return { reason: 'notDateKey', key: m[1] };
   return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], text) };
 }

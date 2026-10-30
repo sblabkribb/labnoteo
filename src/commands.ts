@@ -65,11 +65,8 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
-import {
-  ensureWorkflowResources,
-  loadWorkflows,
-  loadUnitOperations,
-} from '@labnoteo/core/lib/workflowDataLoader';
+import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
+import { ensureVaultCatalogs } from './catalogUpdate';
 import {
   getNextWorkflowNumber,
   workflowAliasBudget,
@@ -695,7 +692,12 @@ export function insertDateCommand(
       'warn',
       plan.reason === 'metaDate'
         ? host.t('This Start_date/End_date already has a value. Use the 📅 picker next to it to change the date.')
-        : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
+        : plan.reason === 'notDateKey'
+          ? host.t(
+              '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
+              plan.key
+            )
+          : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
     );
     return false;
   }
@@ -1119,7 +1121,7 @@ function catalogKoFields(
 
 /** Present the workflow catalog picker (seeding catalog resources first). */
 async function pickWorkflow(host: LabnoteHost): Promise<WorkflowItem | undefined> {
-  await ensureWorkflowResources(host.fs, VAULT_ROOT);
+  await ensureVaultCatalogs(host);
   const catalog = await loadWorkflows(host.fs, VAULT_ROOT);
   return host.pick(
     catalog.workflows.map<PickItem<WorkflowItem>>(wf => ({
@@ -1282,7 +1284,7 @@ export async function insertUnitOperationCommand(
     return;
   }
 
-  await ensureWorkflowResources(host.fs, VAULT_ROOT);
+  await ensureVaultCatalogs(host);
   const hw = await loadUnitOperations(host.fs, VAULT_ROOT, 'hw');
   const sw = await loadUnitOperations(host.fs, VAULT_ROOT, 'sw');
 
