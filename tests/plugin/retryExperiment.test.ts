@@ -7,7 +7,7 @@ import type { App } from 'obsidian';
 import type { LabnoteHost } from '@labnoteo/core';
 import { parseFrontMatterYaml } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { retryExperimentCommand, retryTitle, statusNames } from '../../src/commands';
+import { createExperimentCommand, experimentReadmes, retryExperimentCommand, retryTitle, statusNames } from '../../src/commands';
 import obsidianKo from '../../src/l10n.ko';
 
 const t = (key: string, ...args: string[]) => key.replace(/\{(\d+)\}/g, (_, i: string) => args[Number(i)]);
@@ -26,6 +26,27 @@ describe('retryTitle', () => {
     expect(retryTitle({ t: ko }, '오가노이드 1차', taken)).toBe('오가노이드 4차');
     expect(retryTitle({ t: ko }, 'GFP 발현', taken)).toBe('GFP 발현 3차');
     expect(retryTitle({ t }, 'GFP', taken)).toBe('GFP (retry) 2');
+  });
+
+  // #482
+  it('counts the runs of the family, a retry given another title included', () => {
+    const family = ['세포독성 1차', 'RNA 추출 키트 교체 재시도', '다른 조건'];
+    expect(retryTitle({ t: ko }, '세포독성 1차', [], family)).toBe('세포독성 4차');
+    expect(retryTitle({ t: ko }, '세포독성 1차', ['070_세포독성_4차'], family)).toBe('세포독성 5차');
+    expect(retryTitle({ t: ko }, '세포독성 1차', [], ['세포독성 1차', '키트 교체 6차'])).toBe('세포독성 7차');
+    expect(retryTitle({ t: ko }, 'GFP 발현', [], ['GFP 발현', '재측정'])).toBe('GFP 발현 3차');
+  });
+
+  it('starts from the title of the run retried, a middle one too', () => {
+    expect(retryTitle({ t: ko }, '오가노이드 2차', [], ['오가노이드 1차', '오가노이드 2차'])).toBe('오가노이드 3차');
+    expect(retryTitle({ t: ko }, '키트 교체', [], ['오가노이드 1차', '키트 교체'])).toBe('키트 교체 3차');
+  });
+
+  it('keeps the English run suffix one behind the run: (retry) is the second run', () => {
+    expect(retryTitle({ t }, 'GFP', [], ['GFP'])).toBe('GFP (retry)');
+    expect(retryTitle({ t }, 'GFP', [], ['GFP', 'Other conditions'])).toBe('GFP (retry) 2');
+    expect(retryTitle({ t }, 'GFP (retry)', [], ['GFP', 'GFP (retry)'])).toBe('GFP (retry) 2');
+    expect(retryTitle({ t }, 'GFP (retry) 2', [], ['GFP', 'GFP (retry) 2'])).toBe('GFP (retry) 3');
   });
 });
 
@@ -67,6 +88,23 @@ describe('retryExperimentCommand', () => {
     expect(frontMatter.discuss).toBeUndefined();
   });
 
+  // #482: the tooltip knew two retries, yet the title offered 3차 again.
+  it('counts retries given another title through retry_of', async () => {
+    const link = '[[labnote/130_세포독성_1차/README.labnote|130]]';
+    const fs = new MemFileSystem({
+      'labnote/130_세포독성_1차/README.labnote.md': '---\ntitle: 세포독성 1차\nstatus: failed\n---\n',
+      'labnote/131_RNA_키트_교체/README.labnote.md': `---\ntitle: RNA 키트 교체\nretry_of: '${link}'\n---\n`,
+      'labnote/146_세포독성_3차/README.labnote.md': `---\ntitle: 세포독성 3차\nretry_of: '${link}'\n---\n`,
+    });
+    const prompt = vi.fn(async (opts: { value?: string }) => opts.value);
+    const host = { fs, t: ko, prompt, notify: vi.fn(), openFile: vi.fn(async () => undefined) };
+
+    await retryExperimentCommand({} as App, host as unknown as LabnoteHost, 'labnote/130_세포독성_1차');
+
+    expect(prompt.mock.calls[0][0]).toMatchObject({ value: '세포독성 4차' });
+    expect(await fs.exists('labnote/147_세포독성_4차/README.labnote.md')).toBe(true);
+  });
+
   it('leaves author and project empty when the original has none', async () => {
     const fs = new MemFileSystem({ 'labnote/002_ALE/README.labnote.md': "---\ntitle: ALE\nauthor: ''\nproject:\n---\n" });
     const prompt = vi.fn(async (opts: { value?: string }) => opts.value);
@@ -78,6 +116,41 @@ describe('retryExperimentCommand', () => {
     const { frontMatter } = parseFrontMatterYaml(await fs.read(path));
     expect(frontMatter.author).toBe('');
     expect(frontMatter.project).toBeNull();
+  });
+});
+
+describe('experimentReadmes (#480)', () => {
+  it('reads each experiment README, those in a grouping folder too', async () => {
+    const fs = new MemFileSystem({
+      'labnote/001_GFP/README.labnote.md': '---\ntitle: GFP 발현 1차\nstatus: failed\n---\n',
+      'labnote/002_GFP_2차/README.labnote.md': "---\ntitle: '키트 교체'\nretry_of: '[[labnote/001_GFP/README.labnote|001]]'\n---\n",
+      'labnote/Group/005_Moved/README.labnote.md': '---\ntitle:\n---\n',
+      'labnote/006_No_readme/note.labnote.md': 'body',
+      'labnote/Group/notes.md': 'x',
+    });
+    const readmes = await experimentReadmes({ fs } as unknown as LabnoteHost);
+    expect(readmes.sort((a, b) => a.folder.localeCompare(b.folder))).toEqual([
+      { folder: 'labnote/001_GFP', title: 'GFP 발현 1차' },
+      { folder: 'labnote/002_GFP_2차', title: '키트 교체', retryOf: 'labnote/001_GFP' },
+      { folder: 'labnote/006_No_readme', title: 'No_readme' },
+      { folder: 'labnote/Group/005_Moved', title: 'Moved' },
+    ]);
+  });
+
+  it('is empty without a labnote folder', async () => {
+    expect(await experimentReadmes({ fs: new MemFileSystem({}) } as unknown as LabnoteHost)).toEqual([]);
+  });
+
+  it('gives the create prompt a hint that knows the existing titles', async () => {
+    const fs = new MemFileSystem({ 'labnote/001_VHH/README.labnote.md': '---\ntitle: VHH 패닝 1차\n---\n' });
+    const prompt = vi.fn(async () => undefined);
+    const host = { fs, t, prompt, notify: vi.fn(), openFile: vi.fn(async () => undefined) };
+
+    await createExperimentCommand({} as App, host as unknown as LabnoteHost);
+
+    const { hint } = (prompt.mock.calls[0] as unknown as [{ hint: (v: string) => { text: string; warn?: boolean } }])[0];
+    expect(hint('vhh 패닝 1차')).toMatchObject({ warn: true });
+    expect(hint('vhh 패닝 1차').text).toContain('001_VHH already has this title');
   });
 });
 

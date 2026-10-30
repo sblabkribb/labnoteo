@@ -51,6 +51,7 @@ import {
   hasWorkflowChecklistSection,
   parseExperimenterFromReadme,
   workflowAliasProblem,
+  findSameAliasWorkflow,
 } from '../lib/workflowStructure';
 import {
   findSectionMatches,
@@ -214,6 +215,8 @@ export interface WorkflowCreatePreview {
   /** Expected at approval time; the handler numbers the file again when it runs. */
   fileName: string;
   readmePath: string;
+  /** The workflow file of the experiment with the same ID and alias (#484). */
+  sameAliasAs?: string;
 }
 
 // --- small arg helpers -----------------------------------------------------
@@ -542,6 +545,8 @@ interface ResolvedWorkflowCreate {
   /** Per-instance alias after the catalog name, as the app's "Workflow name" prompt adds it. */
   alias?: string;
   fileName: string;
+  /** As in the app's alias prompt: a workflow file with this ID and alias already (#484). */
+  sameAliasAs?: string;
 }
 
 /**
@@ -597,8 +602,17 @@ async function resolveWorkflowCreate(
   }
 
   const info = { id: wf.id, name: wf.name, description: wf.description };
-  const sequence = getNextWorkflowNumber(await ctx.fs.list(labnoteDir));
-  return { labnoteDir, readmePath, info, alias, fileName: createWorkflowFileName(sequence, info, alias) };
+  const names = await ctx.fs.list(labnoteDir);
+  const sequence = getNextWorkflowNumber(names);
+  const sameAliasAs = findSameAliasWorkflow(names, info.id, info.name, alias ?? '');
+  return {
+    labnoteDir,
+    readmePath,
+    info,
+    alias,
+    fileName: createWorkflowFileName(sequence, info, alias),
+    ...(sameAliasAs ? { sameAliasAs } : {}),
+  };
 }
 
 async function findUnitOp(
@@ -1032,7 +1046,16 @@ export function createLabnoteTools(): ToolDef[] {
       async handler(ctx, args) {
         const resolved = await resolveWorkflowCreate(ctx, args);
         if ('error' in resolved) return { ok: false, error: resolved.error };
-        const { labnoteDir, readmePath, info, alias, fileName } = resolved;
+        const { labnoteDir, readmePath, info, alias, fileName, sameAliasAs } = resolved;
+        const withWarnings = (result: ToolResult): ToolResult =>
+          sameAliasAs
+            ? {
+                ...result,
+                warnings: [
+                  `${sameAliasAs} already has the ID ${info.id} and ${alias ? `the alias "${alias}"` : 'no alias'}, so the two read the same in the README checklist. Tell the user; if it is not the same workflow, give this one its own alias.`,
+                ],
+              }
+            : result;
 
         await ensureWorkflowResources(ctx.fs, ctx.workspaceRoot);
         const experimenter = parseExperimenterFromReadme(await ctx.fs.read(readmePath));
@@ -1048,7 +1071,7 @@ export function createLabnoteTools(): ToolDef[] {
         const readme = await ctx.fs.read(readmePath);
         // A README whose section was renamed beyond recognition lists nothing (#298).
         if (!hasWorkflowChecklistSection(readme)) {
-          return {
+          return withWarnings({
             ok: true,
             data: {
               path: workflowPath,
@@ -1057,12 +1080,12 @@ export function createLabnoteTools(): ToolDef[] {
               warning:
                 'The README has no "Related Workflows" section, so the workflow was not added to its checklist. Tell the user.',
             },
-          };
+          });
         }
         const title = [info.id, info.name, alias].filter(Boolean).join(' ');
         await writeNote(ctx, readmePath, insertWorkflowChecklistEntries(readme, [{ done: false, title, fileName }]));
 
-        return { ok: true, data: { path: workflowPath, fileName, registered: true } };
+        return withWarnings({ ok: true, data: { path: workflowPath, fileName, registered: true } });
       },
       async describe(ctx, args) {
         const resolved = await resolveWorkflowCreate(ctx, args);
@@ -1073,6 +1096,7 @@ export function createLabnoteTools(): ToolDef[] {
           workflowName: resolved.info.name,
           fileName: resolved.fileName,
           readmePath: resolved.readmePath,
+          ...(resolved.sameAliasAs ? { sameAliasAs: resolved.sameAliasAs } : {}),
         };
       },
     },

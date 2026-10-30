@@ -175,6 +175,8 @@ const obsidianKo: Record<string, string> = {
   'New experiment': '새 실험',
   'Experiment title': '실험 제목',
   'Title is required.': '제목을 입력해야 합니다.',
+  'The experiment {0} already has this title. Record in that experiment, or give this one another title.':
+    '같은 제목의 실험 {0}이(가) 이미 있습니다. 그 실험에 기록하거나 다른 제목을 주세요.',
   'The title has no characters usable in a folder name. Add letters or numbers.':
     '제목에 폴더 이름으로 쓸 수 있는 글자가 없습니다. 글자나 숫자를 넣어 주세요.',
   'Select workflow': '워크플로 선택',
@@ -533,6 +535,12 @@ const obsidianKo: Record<string, string> = {
   'Open a note of an experiment to list its samples.': '시료 목록을 넣으려면 실험 안의 노트를 여세요.',
   'This experiment has no samples yet.': '이 실험에는 아직 시료가 없습니다.',
   'Inserted {0} sample(s).': '시료 {0}개를 표로 넣었습니다.',
+  'This note already has {0} sample list table(s). Replacing them loses rows and order changed by hand.':
+    '이 노트에 시료 목록 표가 이미 {0}개 있습니다. 바꾸면 손으로 넣은 줄과 순서는 사라집니다.',
+  'Replace the existing table(s) with the current samples': '기존 표를 최신으로 바꾸기',
+  'Insert one more table': '새 표 하나 더 넣기',
+  'Replaced {0} sample list table(s) with the current samples ({1} sample(s)).':
+    '시료 목록 표 {0}개를 최신으로 바꿨습니다(시료 {1}개).',
   'The cursor was in the properties or above the title, so the table is at the end of the note.':
     '커서가 머리말 안이나 제목 위에 있어 표를 노트 끝에 넣었습니다.',
   "{0} sample reference(s) in this experiment's notes are not in the sample registry, so they are not in the table: {1}":
@@ -1237,6 +1245,10 @@ const obsidianKo: Record<string, string> = {
   'It is registered as {0}, not {1}.': '{1}이 아니라 {0} 타입으로 등록돼 있습니다.',
   "Saving the note adds it to this experiment's samples as well.": '노트를 저장하면 이 실험 대장에도 들어갑니다.',
   'Sample added to Global samples: {0}': '전역 샘플에 추가했습니다: {0}',
+  'Other experiments have this partbank item too: {0}.': '다른 실험에도 같은 partbank 항목이 있습니다: {0}.',
+  "{1} of the experiment {0} has this partbank item, kept at '{2}'. Write that storage location for this sample too?":
+    "다른 실험 {0}의 {1}에 이 partbank 항목의 보관 위치가 '{2}'(으)로 적혀 있습니다. 이 시료에도 같은 위치를 적을까요?",
+  'Use this location': '이 위치 쓰기',
   'partbank keeps strains, but this vault has no sample type for them. Add the custom sample type "{0}"?':
     'partbank에는 균주가 있지만 이 보관함에는 균주용 시료 타입이 없습니다. 사용자 정의 타입 "{0}"을(를) 추가할까요?',
   'Add {0}': '{0} 추가',

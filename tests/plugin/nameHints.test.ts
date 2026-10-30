@@ -18,6 +18,31 @@ describe('name prompt hints', () => {
     expect(hint('a'.repeat(61)).warn).toBe(true);
   });
 
+  // #480: a second 'VHH 패닝 1차' was made without a word.
+  it('warns when an experiment already has the title, case aside', () => {
+    const existing = [
+      { folder: 'labnote/001_VHH_패닝_1차', title: 'VHH 패닝 1차' },
+      { folder: 'labnote/Group/004_Old_name', title: 'Renamed in README' },
+    ];
+    const hint = experimentTitleHint(host, existing);
+    const same = {
+      text: 'The experiment 001_VHH_패닝_1차 already has this title. Record in that experiment, or give this one another title.',
+      warn: true,
+    };
+    expect(hint(' vhh 패닝 1차 ')).toEqual(same);
+    expect(hint('VHH_패닝_1차')).toEqual(same);
+    expect(hint('renamed in readme').text).toContain('004_Old_name already has');
+    expect(hint('Old name').text).toContain('004_Old_name already has');
+    expect(hint('VHH 패닝 2차')).toEqual(experimentTitleHint(host)('VHH 패닝 2차'));
+  });
+
+  it('compares the folder name uncut, so long titles alike at the start do not match', () => {
+    const long = 'a'.repeat(60);
+    const hint = experimentTitleHint(host, [{ folder: `labnote/001_${long}`, title: `${long} first` }]);
+    expect(hint(`${long} second`).text).not.toContain('already has');
+    expect(hint(`${long} FIRST`).warn).toBe(true);
+  });
+
   it('counts a workflow alias against the room the workflow leaves', () => {
     const hint = workflowAliasHint(host, 'WD010', 'Design');
     const room = 80 - 'WD010_Design_'.length;

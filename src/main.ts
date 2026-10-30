@@ -91,6 +91,7 @@ import {
   offerTableCsvCleanupOnDelete,
   setupResearchAutomationCommand,
   catalogDescription,
+  experimentReadmes,
   experimentTitleHint,
   workflowAliasHint,
   workflowAliasValidator,
@@ -1911,6 +1912,8 @@ export default class LabnotePlugin extends Plugin {
     const copyPath = folder.path;
     const labnoteDir = posix.dirname(copyPath);
     const { title, discussed, status, retryOf } = facts;
+    // The copy still has the original's title, so it would match itself.
+    const others = (await experimentReadmes(this.host)).filter(e => e.folder !== copyPath);
     const newTitle = (
       await this.host.prompt({
         title: this.t('Name this copy of the experiment'),
@@ -1927,7 +1930,7 @@ export default class LabnotePlugin extends Plugin {
           }
           return null;
         },
-        hint: experimentTitleHint(this.host),
+        hint: experimentTitleHint(this.host, others),
       })
     )?.trim();
     if (this.unloaded || folder.path !== copyPath) return;

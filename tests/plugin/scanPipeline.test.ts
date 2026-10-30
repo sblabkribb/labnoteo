@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { zipSync, strToU8 } from 'fflate';
 import { TFile, TFolder } from '../stubs/obsidian';
@@ -79,6 +79,15 @@ function fakeVault(notes: Record<string, string>) {
     metadataCache: {
       getFileCache: (f: TFile) => ({ frontmatter: { labnote_id: readNoteId(text.get(f.path) ?? '') } }),
       getFirstLinkpathDest: (link: string) => fileAt(link),
+      // From the notes as they are now: every page renders the same bytes, so a
+      // fixed value would let a linked image pass for a leftover.
+      get resolvedLinks() {
+        const out: Record<string, Record<string, number>> = {};
+        for (const [path, body] of text) {
+          out[path] = Object.fromEntries([...body.matchAll(/\[\[([^\]|#]+)/g)].map(m => [m[1].trim(), 1]));
+        }
+        return out;
+      },
     },
     fileManager: {
       generateMarkdownLink: (f: TFile, _source: string, _subpath?: string, alias?: string) =>
@@ -346,6 +355,65 @@ describe('ScanPipeline.run', () => {
     expect(s.binary.has(next.imagePath!)).toBe(true);
     expect(s.trashed).toEqual([]);
     expect(listFiledScans(s.text.get(NOTE)!).map(f => f.hash)).toEqual(['bbbbbbbbbbbb']);
+  });
+
+  // #483: undoing the entry with Ctrl+Z left the image, and the next import wrote _2.
+  describe('an image left behind without its entry', () => {
+    const undoEntry = (s: ReturnType<typeof setup>) => s.text.set(NOTE, note);
+
+    it('is used again for the same bytes, without a _2', async () => {
+      const s = setup({ [NOTE]: note }, { 'a.jpg': [page(pagePayload(), 'aaaaaaaaaaaa')] });
+      const [first] = await s.pipeline.run([input('a.jpg')]);
+      undoEntry(s);
+      const [again] = await s.pipeline.run([input('a.jpg')]);
+      expect(again).toMatchObject({ status: 'filed', imagePath: first.imagePath });
+      expect([...s.binary.keys()]).toEqual([first.imagePath]);
+      expect(listFiledScans(s.text.get(NOTE)!).map(f => f.embed)).toEqual([`![[${first.imagePath}]]`]);
+    });
+
+    it('is left alone for other bytes, or when another note links it', async () => {
+      const s = setup(
+        { [NOTE]: note },
+        {
+          'a.jpg': [page(pagePayload(), 'aaaaaaaaaaaa')],
+          'b.jpg': [page(pagePayload(), 'bbbbbbbbbbbb', { render: async () => new Uint8Array([7, 8, 9]).buffer })],
+        }
+      );
+      const [first] = await s.pipeline.run([input('a.jpg')]);
+      undoEntry(s);
+      const [other] = await s.pipeline.run([input('b.jpg')]);
+      expect(other.imagePath).toMatch(/_2\.jpg$/);
+
+      undoEntry(s);
+      s.text.set(`${EXP}/notes.md`, `![[${first.imagePath}]]`);
+      const [linked] = await s.pipeline.run([input('a.jpg')]);
+      expect(linked.imagePath).not.toBe(first.imagePath);
+      expect(s.binary.get(first.imagePath!)).toEqual(new Uint8Array([1, 2, 3]).buffer);
+    });
+
+    it('is not one written earlier in the same import', async () => {
+      const s = setup(
+        { [NOTE]: note },
+        { 'a.jpg': [page(pagePayload(), 'aaaaaaaaaaaa')], 'b.jpg': [page(pagePayload(), 'bbbbbbbbbbbb')] }
+      );
+      const [a, b] = await s.pipeline.run([input('a.jpg'), input('b.jpg')]);
+      expect(b.imagePath).not.toBe(a.imagePath);
+      expect(s.binary.size).toBe(2);
+    });
+
+    it('is not used for the unmatched queue', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-30T09:00:00'));
+      try {
+        const s = setup({ [NOTE]: note }, { 'cat.jpg': [page(undefined, '222222222222')] });
+        const [first] = await s.pipeline.run([input('cat.jpg')]);
+        const [second] = await s.pipeline.run([input('cat.jpg')]);
+        expect(second.unmatchedPath).not.toBe(first.unmatchedPath);
+        expect(s.binary.size).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('undoes a filed scan: removes its lines and trashes its image', async () => {

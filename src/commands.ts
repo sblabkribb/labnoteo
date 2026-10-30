@@ -61,7 +61,9 @@ import {
   experimentTitleLength,
   getExperimentDir,
   sanitizeTitle,
+  retryFamily,
   retryOfLink,
+  retryOfLinkpath,
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
@@ -178,6 +180,72 @@ async function experimentFolderNames(host: LabnoteHost): Promise<string[]> {
   return [...names, ...nested];
 }
 
+/** An experiment folder and what its README says of it (#480, #482). */
+export interface ExperimentReadme {
+  /** Vault path of the folder. */
+  folder: string;
+  /** The README's `title`, else the folder name without its number. */
+  title: string;
+  /** The experiment folder the README's `retry_of` links to. */
+  retryOf?: string;
+}
+
+/**
+ * The experiment folders {@link experimentFolderNames} counts, as paths (one
+ * in an unnumbered grouping folder has no README path by its name alone), with
+ * each README's title and `retry_of`.
+ */
+export async function experimentReadmes(host: Pick<LabnoteHost, 'fs'>): Promise<ExperimentReadme[]> {
+  if (!(await host.fs.exists('labnote'))) return [];
+  const folders: string[] = [];
+  for (const name of await host.fs.list('labnote')) {
+    if (/^\d{3}_/.test(name)) {
+      folders.push(posix.join('labnote', name));
+      continue;
+    }
+    if (name.includes('.')) continue;
+    try {
+      const inner = await host.fs.list(posix.join('labnote', name));
+      folders.push(...inner.filter(n => /^\d{3}_/.test(n)).map(n => posix.join('labnote', name, n)));
+    } catch {
+      // Not a folder.
+    }
+  }
+  const out: ExperimentReadme[] = [];
+  for (const folder of folders) {
+    const readmePath = posix.join(folder, README);
+    const named = posix.basename(folder).replace(/^\d{3}_/, '');
+    let frontMatter: Record<string, unknown> = {};
+    try {
+      if (await host.fs.exists(readmePath)) {
+        frontMatter = parseFrontMatterYaml((await host.fs.read(readmePath)).replace(/\r\n/g, '\n')).frontMatter;
+      }
+    } catch {
+      // Unreadable README: the folder name stands for the title.
+    }
+    const title = typeof frontMatter.title === 'string' && frontMatter.title.trim() ? frontMatter.title.trim() : named;
+    const linkpath = retryOfLinkpath(frontMatter.retry_of);
+    out.push({ folder, title, ...(linkpath ? { retryOf: posix.dirname(linkpath) } : {}) });
+  }
+  return out;
+}
+
+/**
+ * The folder of the experiment in `existing` that already has `title` (#480):
+ * the same README title, or the same folder name, case aside. The folder name
+ * is compared uncut, so titles alike only in their first characters do not match.
+ */
+export function sameTitleExperiment(existing: readonly ExperimentReadme[], title: string): string | undefined {
+  const wanted = title.trim().toLowerCase();
+  if (!wanted) return undefined;
+  const segment = sanitizeTitle(title.trim()).toLowerCase();
+  return existing.find(
+    e =>
+      e.title.trim().toLowerCase() === wanted ||
+      (!!segment && posix.basename(e.folder).replace(/^\d{3}_/, '').toLowerCase() === segment)
+  )?.folder;
+}
+
 /**
  * Warn, without stopping, when a file just made is past Windows' path limit
  * once the vault's own folder is counted (#148): names are capped, but a vault
@@ -218,12 +286,26 @@ export function windowsPathsOver(
 }
 
 /**
- * How much of a new experiment's title fits in its folder name (#213). Never
- * blocks: past the cap only the folder name is cut.
+ * How much of a new experiment's title fits in its folder name (#213), or
+ * which of the `existing` experiments already has it (#480). Never blocks:
+ * past the cap only the folder name is cut.
  */
-export function experimentTitleHint(host: Pick<LabnoteHost, 't'>): (value: string) => PromptHint {
+export function experimentTitleHint(
+  host: Pick<LabnoteHost, 't'>,
+  existing: readonly ExperimentReadme[] = []
+): (value: string) => PromptHint {
   const budget = experimentTitleBudget();
   return value => {
+    const twin = sameTitleExperiment(existing, value);
+    if (twin) {
+      return {
+        text: host.t(
+          'The experiment {0} already has this title. Record in that experiment, or give this one another title.',
+          posix.basename(twin)
+        ),
+        warn: true,
+      };
+    }
     const length = experimentTitleLength(value);
     return {
       text: host.t(
@@ -341,12 +423,14 @@ export function catalogDescription(id: string, description: string): string {
  * Create a new experiment folder (labnote/###_Title) + README scaffold. With
  * `retryOf`, the README's `retry_of` links to that experiment's (#327), and
  * `author` and `project` come from `retryReadme`, that experiment's README (#429).
+ * `readmes` is {@link experimentReadmes}, when the caller has read it already.
  */
 export async function createExperimentCommand(
   app: App,
   host: LabnoteHost,
-  opts: { title?: string; retryOf?: string; retryReadme?: string } = {}
+  opts: { title?: string; retryOf?: string; retryReadme?: string; readmes?: readonly ExperimentReadme[] } = {}
 ): Promise<void> {
+  const readmes = opts.readmes ?? (await experimentReadmes(host));
   const title = await host.prompt({
     title: opts.retryOf
       ? host.t('Retry experiment {0}', posix.basename(opts.retryOf))
@@ -360,7 +444,7 @@ export async function createExperimentCommand(
       }
       return null;
     },
-    hint: experimentTitleHint(host),
+    hint: experimentTitleHint(host, readmes),
   });
   if (!title) return;
 
@@ -386,18 +470,35 @@ export async function createExperimentCommand(
  * The title a retry of `title` starts from: `… 1차` becomes `… 2차`, anything
  * else gets the run suffix. Skips runs whose folder name is in `taken`
  * (experiment folder names), so retrying the first run again after a second
- * does not offer `2차` twice (#366).
+ * does not offer `2차` twice (#366). `familyTitles` are the titles of the
+ * experiments run as one with it ({@link retryFamily}): the run comes after
+ * the highest one they show and after their count, so a retry given another
+ * title still counts (#482).
  */
-export function retryTitle(host: Pick<LabnoteHost, 't'>, title: string, taken: readonly string[] = []): string {
+export function retryTitle(
+  host: Pick<LabnoteHost, 't'>,
+  title: string,
+  taken: readonly string[] = [],
+  familyTitles: readonly string[] = []
+): string {
   const used = new Set(taken.map(n => n.replace(/^\d{3}_/, '')));
   const free = (t: string): boolean => !used.has(sanitizeTitle(t));
   const runOf = (t: string): RegExpExecArray | null => /^(.*\S)\s*(\d+)차$/.exec(t);
-  const given = runOf(title.trim());
-  const first = given ? `${given[1]} ${Number(given[2]) + 1}차` : host.t('{0} (retry)', title.trim());
-  if (free(first)) return first;
-  const run = runOf(first);
-  let n = run ? Number(run[2]) + 1 : 2;
-  const nth = (k: number): string => (run ? `${run[1]} ${k}차` : `${first} ${k}`);
+  const retryOf = (t: string): RegExpExecArray | null => /^(.*\S)\s*\(retry\)(?:\s+(\d+))?$/.exec(t);
+  // `(retry)` is the second run, `(retry) k` run k + 1.
+  const runNumber = (t: string): number => {
+    const run = runOf(t.trim());
+    if (run) return Number(run[2]);
+    const retry = retryOf(t.trim());
+    return retry ? (retry[2] ? Number(retry[2]) + 1 : 2) : 1;
+  };
+  const trimmed = title.trim();
+  const given = runOf(trimmed);
+  const base = given ? given[1] : (retryOf(trimmed)?.[1] ?? trimmed);
+  const suffixed = host.t('{0} (retry)', base);
+  const nth = (k: number): string =>
+    given || runOf(suffixed) ? `${base} ${k}차` : k === 2 ? suffixed : `${suffixed} ${k - 1}`;
+  let n = Math.max(familyTitles.length, ...[trimmed, ...familyTitles].map(runNumber)) + 1;
   while (!free(nth(n))) n++;
   return nth(n);
 }
@@ -413,10 +514,15 @@ export async function retryExperimentCommand(app: App, host: LabnoteHost, folder
   const text = (await host.fs.exists(readmePath)) ? await host.fs.read(readmePath) : '';
   const { frontMatter } = parseFrontMatterYaml(text.replace(/\r\n/g, '\n'));
   const original = typeof frontMatter.title === 'string' && frontMatter.title.trim() ? frontMatter.title : posix.basename(folder).replace(/^\d{3}_/, '');
+  const readmes = await experimentReadmes(host);
+  const titles = new Map(readmes.map(e => [e.folder, e.title]));
+  const family = retryFamily(folder, new Map(readmes.map(e => [e.folder, e.retryOf])));
+  const familyTitles = family.map(f => (f === folder ? original : (titles.get(f) ?? posix.basename(f))));
   await createExperimentCommand(app, host, {
-    title: retryTitle(host, original, await experimentFolderNames(host)),
+    title: retryTitle(host, original, await experimentFolderNames(host), familyTitles),
     retryOf: folder,
     retryReadme: text,
+    readmes,
   });
 }
 

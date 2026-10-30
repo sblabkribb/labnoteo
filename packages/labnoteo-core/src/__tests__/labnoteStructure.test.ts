@@ -28,10 +28,41 @@ import {
   isSampleTrackingOff,
   isSampleTrackingOn,
   suggestExperimentFolderName,
+  retryFamily,
   retryOfLink,
   retryOfLinkpath,
   setRetryOf,
 } from '../lib/labnoteStructure';
+
+// #482: a retry given another title was not counted for the next run.
+describe('retryFamily', () => {
+  const map = (entries: Array<[string, string | undefined]>) => new Map(entries);
+
+  it('climbs to the first run and gathers every retry of it and of its retries', () => {
+    const retryOf = map([
+      ['a', undefined],
+      ['b', 'a'],
+      ['c', 'a'],
+      ['d', 'b'],
+      ['x', undefined],
+    ]);
+    for (const start of ['a', 'b', 'c', 'd']) expect(retryFamily(start, retryOf).sort()).toEqual(['a', 'b', 'c', 'd']);
+    expect(retryFamily('x', retryOf)).toEqual(['x']);
+  });
+
+  it('stops at a link to a folder that is not an experiment', () => {
+    expect(retryFamily('b', map([['b', 'gone'], ['c', 'b']])).sort()).toEqual(['b', 'c']);
+  });
+
+  it('survives a loop', () => {
+    expect(retryFamily('a', map([['a', 'b'], ['b', 'a']])).sort()).toEqual(['a', 'b']);
+    expect(retryFamily('a', map([['a', 'a']]))).toEqual(['a']);
+  });
+
+  it('includes the folder even when no experiment lists it', () => {
+    expect(retryFamily('new', map([['a', undefined]]))).toEqual(['new']);
+  });
+});
 
 // #327
 describe('retry_of', () => {

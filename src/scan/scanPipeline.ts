@@ -177,13 +177,15 @@ export class ScanPipeline {
     const pending: Pending[] = [];
     const batchHashes = new Set<string>();
     const noteText = new Map<string, string>();
+    // Written by this run: unlinked until `flush`, yet not leftovers to reuse (#483).
+    const saved = new Set<string>();
     let done = 0;
     for (const input of inputs) {
       opts.onProgress?.(done, input.name);
       const first = results.length;
       try {
         const rest = await this.deps.decoder.expand(input, async page => {
-          results.push(await this.filePage(page, opts, pending, batchHashes, noteText));
+          results.push(await this.filePage(page, opts, pending, batchHashes, noteText, saved));
           opts.onProgress?.(++done, input.name);
         });
         results.push(...rest);
@@ -211,7 +213,8 @@ export class ScanPipeline {
     opts: RunOptions,
     pending: Pending[],
     batchHashes: Set<string>,
-    noteText: Map<string, string>
+    noteText: Map<string, string>,
+    saved: Set<string>
   ): Promise<ScanResult> {
     const base: ScanResult = { source: page.source, sourcePage: page.sourcePage, status: 'error', hash: page.hash };
     if (page.blank) return { ...base, status: 'blank' };
@@ -252,7 +255,7 @@ export class ScanPipeline {
         .map(s => posix.basename(embedLinkPath(s.embed) ?? '').toLowerCase())
         .filter(Boolean)
     );
-    const stored = await this.store(notePath, payload, unitOpIndex, await page.render(), linked);
+    const stored = await this.store(notePath, payload, unitOpIndex, await page.render(), saved, linked);
     const result: ScanResult = {
       ...base,
       status: 'filed',
@@ -293,12 +296,14 @@ export class ScanPipeline {
     payload: PagePayload,
     unitOpIndex: number,
     jpeg: ArrayBuffer,
+    saved: Set<string>,
     avoid?: ReadonlySet<string>
   ) {
     const { app, t } = this.deps;
     const dir = getExperimentDir(notePath) ?? posix.dirname(notePath);
     const name = scanFileName(payload.noteId, unitOpIndex, payload.page, getSeoulDateString());
-    const file = await saveBinary(app, posix.join(dir, SCANS_SUBFOLDER), name, jpeg, avoid);
+    const file = await saveBinary(app, posix.join(dir, SCANS_SUBFOLDER), name, jpeg, avoid, { skip: saved });
+    saved.add(file.path);
     const width = this.deps.embedWidth();
     const alias = width > 0 ? String(width) : undefined;
     const link = app.fileManager.generateMarkdownLink(file, notePath, undefined, alias);
@@ -429,7 +434,7 @@ export class ScanPipeline {
       render: async () => bytes,
     };
     const pending: Pending[] = [];
-    const result = await this.filePage(decoded, {}, pending, new Set(), new Map());
+    const result = await this.filePage(decoded, {}, pending, new Set(), new Map(), new Set());
     await this.flush(pending);
     if (result.status === 'filed' || result.status === 'duplicate') await app.fileManager.trashFile(image);
     if (result.status === 'unmatched' && result.unmatchedPath) {

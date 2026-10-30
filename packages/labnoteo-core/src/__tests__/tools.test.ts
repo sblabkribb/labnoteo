@@ -831,6 +831,38 @@ describe('create_workflow', () => {
     expect(await fs.read(`${NOTE_DIR}/README.labnote.md`)).toContain(`${wf.id} ${wf.name} pUC19 cloning`);
   });
 
+  // #484: the app's alias prompt warned, MCP made an identical checklist line silently.
+  it('warns, in the preview and the result, of a workflow with the same ID and alias', async () => {
+    const { loadWorkflows, ensureWorkflowResources } = await import('../lib/workflowDataLoader');
+    await ensureWorkflowResources(fs, '.');
+    const wf = (await loadWorkflows(fs, '.')).workflows[0];
+    const args = { documentPath: `${NOTE_DIR}/README.labnote.md`, workflowId: wf.id.toLowerCase(), alias: '상위 8종 검증' };
+    const first = await tool('create_workflow').handler(ctx, args);
+    expect(first.warnings).toBeUndefined();
+    const existing = (first.data as { fileName: string }).fileName;
+
+    const preview = await tool('create_workflow').describe!(ctx, args);
+    expect(preview).toMatchObject({ sameAliasAs: existing });
+    const second = await tool('create_workflow').handler(ctx, args);
+    expect(second.ok).toBe(true);
+    expect(second.warnings).toEqual([expect.stringContaining(`${existing} already has the ID ${wf.id} and the alias "상위 8종 검증"`)]);
+
+    const other = { ...args, alias: '다른 검증' };
+    expect(await tool('create_workflow').describe!(ctx, other)).not.toHaveProperty('sameAliasAs');
+    expect((await tool('create_workflow').handler(ctx, other)).warnings).toBeUndefined();
+  });
+
+  it('warns of a second workflow of the ID without an alias, as the app does', async () => {
+    const { loadWorkflows, ensureWorkflowResources } = await import('../lib/workflowDataLoader');
+    await ensureWorkflowResources(fs, '.');
+    const [wf, otherWf] = (await loadWorkflows(fs, '.')).workflows;
+    const args = { documentPath: `${NOTE_DIR}/README.labnote.md`, workflowId: wf.id };
+    await tool('create_workflow').handler(ctx, args);
+    expect((await tool('create_workflow').handler(ctx, args)).warnings).toEqual([expect.stringContaining('and no alias')]);
+    const another = await tool('create_workflow').describe!(ctx, { ...args, workflowId: otherWf.id });
+    expect(another).not.toHaveProperty('sameAliasAs');
+  });
+
   it('drops an alias of only symbols and refuses a multi-line one', async () => {
     const { loadWorkflows, ensureWorkflowResources } = await import('../lib/workflowDataLoader');
     await ensureWorkflowResources(fs, '.');

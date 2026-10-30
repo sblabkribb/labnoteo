@@ -8,11 +8,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from 'obsidian';
 import { MarkdownView, Notice, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
+import { upsertSampleRecord } from '../../packages/labnoteo-core/src/lib/sampleStorage';
 import {
   changeSampleTypeInteractive,
   createSampleInteractive,
   deleteSampleInteractive,
   editSampleInteractive,
+  insertExperimentSamplesTable,
   insertSampleReference,
   listSampleDefinitions,
   sampleUsages,
@@ -925,6 +927,89 @@ describe('insertSampleReference', () => {
 
     expect(state.text).toBe('#### Input\n- Plasmid-1;pET-28a(+)\n');
     expect(state.revealed).toBe(start + 'Plasmid-1;pET-28a(+)'.length);
+  });
+});
+
+// #450: running the command again put a second table under the first without a word.
+describe('insertExperimentSamplesTable with a table already there', () => {
+  const NOTE = 'labnote/001_Test/001_WD010_Design.labnote.md';
+  const HEAD = '| ID | Alias | Description | Location | Scope | Discarded |\n| --- | --- | --- | --- | --- | --- |';
+  const OLD_KO = '| ID | 별칭 | 설명 | 보관 위치 | 범위 | 폐기 |\n| --- | --- | --- | --- | --- | --- |\n| RNA-1 | old |  |  | 로컬 |  |\n| RNA-9 | 손으로 |  |  | 로컬 |  |';
+  const FRESH = `${HEAD}\n| RNA-1 | siKIF | kd | Freezer-1 | Local |  |\n| RNA-2 | siX |  |  | Local |  |`;
+  const app = {
+    workspace: { getLeavesOfType: () => [] },
+    vault: { getMarkdownFiles: () => [], cachedRead: async () => '' },
+  } as unknown as App;
+
+  function setUp(text: string, cursor = text.length) {
+    const state = { text, revealed: -1 };
+    const target: EditTarget = {
+      path: NOTE,
+      getText: async () => state.text,
+      getCursorOffset: async () => cursor,
+      insertAtCursor: async () => undefined,
+      replaceRange: async (start: number, end: number, t: string) => {
+        state.text = state.text.slice(0, start) + t + state.text.slice(end);
+      },
+      revealOffset: async (offset: number) => {
+        state.revealed = offset;
+      },
+    };
+    const tablePlugin = {
+      ...plugin,
+      settings: { globalSampleFolder: GLOBAL, customSampleTypes: [] },
+      host: { editTarget: () => target },
+      markUserEdit: vi.fn(),
+    } as unknown as LabnotePlugin;
+    return { state, tablePlugin };
+  }
+
+  beforeEach(async () => {
+    vi.mocked(pickModal).mockReset();
+    Notice.reset();
+    await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: 'siKIF', description: 'kd', location: 'Freezer-1' });
+    await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-2', { alias: 'siX', description: null });
+  });
+
+  it('inserts without asking when the note has no sample list table', async () => {
+    const { state, tablePlugin } = setUp('## Samples\n');
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+    expect(pickModal).not.toHaveBeenCalled();
+    expect(state.text).toBe(`## Samples\n\n${FRESH}\n`);
+  });
+
+  it('replaces every table with the current one, in the UI language, leaving the rest', async () => {
+    const doc = `# A\n${OLD_KO}\n\nmiddle\n\n${HEAD}\n| RNA-1 | x |  |  | Local |  |\n\nend\n`;
+    const { state, tablePlugin } = setUp(doc, 0);
+    vi.mocked(pickModal).mockResolvedValueOnce('replace');
+
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+
+    expect(state.text).toBe(`# A\n${FRESH}\n\nmiddle\n\n${FRESH}\n\nend\n`);
+    expect(state.revealed).toBe(`# A\n${FRESH}\n`.length);
+    expect(vi.mocked(pickModal).mock.calls[0][2]?.title).toContain('already has 2 sample list table(s)');
+    expect(tablePlugin.markUserEdit).toHaveBeenCalledWith(NOTE);
+  });
+
+  it('adds one more like before when asked, below the table when the cursor is in its text', async () => {
+    const doc = `# A\n${OLD_KO}\n\nafter\n`;
+    const end = `# A\n${OLD_KO}`.length;
+    const { state, tablePlugin } = setUp(doc, doc.indexOf('old'));
+    vi.mocked(pickModal).mockResolvedValueOnce('add');
+
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+
+    expect(state.text).toBe(`${doc.slice(0, end)}\n\n${FRESH}\n${doc.slice(end)}`);
+  });
+
+  it('leaves the note alone when cancelled or closed', async () => {
+    const doc = `# A\n${OLD_KO}\n`;
+    for (const answer of ['cancel', undefined]) {
+      const { state, tablePlugin } = setUp(doc);
+      vi.mocked(pickModal).mockResolvedValueOnce(answer);
+      expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(false);
+      expect(state.text).toBe(doc);
+    }
   });
 });
 
