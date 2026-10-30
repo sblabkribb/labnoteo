@@ -34,6 +34,10 @@ const obsidianKo: Record<string, string> = {
   'equipment': '장비',
   'software': '소프트웨어',
   'The catalogs are up to date.': '카탈로그가 이미 최신입니다.',
+  '{0} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.':
+    '{0}이(가) 없어서 내장 카탈로그로 다시 만들었습니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git에서 복원한 파일로 바꾸세요.',
+  '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view redraws. If the lab had edited it, replace it with the file from the trash or Git.':
+    '{0}이(가) 삭제되었습니다. 다음에 워크플로를 고르거나 워크플로 뷰가 새로 그려질 때 내장 카탈로그로 다시 만들어집니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git의 파일로 바꾸세요.',
   'The catalogs are up to date. {0} field(s) edited in this vault were kept.':
     '카탈로그가 이미 최신입니다. 이 보관함에서 고친 값 {0}개는 그대로 두었습니다.',
   'Updated the catalogs: {0} added, {1} changed. Commit the changed files in {2}.':

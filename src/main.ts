@@ -7,9 +7,19 @@
  * highlighting, sidebar views, the settings tab and the LLM/MCP layer are added
  * by subsequent modules that all consume the same `LabnoteHost` built here.
  */
-import { MarkdownView, Plugin, Notice, TFile, TFolder, editorInfoField, type WorkspaceLeaf } from 'obsidian';
+import {
+  MarkdownView,
+  Plugin,
+  Notice,
+  TFile,
+  TFolder,
+  editorInfoField,
+  type TAbstractFile,
+  type WorkspaceLeaf,
+} from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import {
+  CATALOG_FILE_NAMES,
   findSampleReferenceAt,
   isDiscussFlagged,
   rebuildUnitOpToc,
@@ -151,7 +161,7 @@ import {
   exportTablesToCsv,
 } from './exportCsv';
 import { openUserGuide } from './userGuide';
-import { catalogUpdateNotice, updateCatalogsCommand } from './catalogUpdate';
+import { CATALOG_DIR, catalogUpdateNotice, updateCatalogsCommand } from './catalogUpdate';
 import { LabnoteSettingTab } from './settingsTab';
 import { automationNameKind, SETUP_DOC_PATH } from './scaffold/assets';
 import { refreshAutomationFiles } from './scaffold/scaffold';
@@ -230,6 +240,9 @@ export default class LabnotePlugin extends Plugin {
   private readonly copiedExperiments = new Set<string>();
   // Alias disagreements between notes already reported this session (#481).
   private readonly aliasConflictsShown = new Set<string>();
+  // Catalog files deleted together, named in one warning (#477).
+  private readonly deletedCatalogs = new Set<string>();
+  private deletedCatalogsTimer: number | undefined;
   // Of those, the folders whose notes already have their own IDs, and those
   // notes (#265): until then the "same note ID" question would be redundant.
   private readonly copyIdsRenewed = new Map<string, Set<string>>();
@@ -1005,6 +1018,7 @@ export default class LabnotePlugin extends Plugin {
 
     this.registerEvent(
       this.app.vault.on('delete', file => {
+        this.collectDeletedCatalogs(file);
         if (!(file instanceof TFile)) return;
         this.copiedWorkflows.delete(file.path);
         if (file.name === 'README.labnote.md') {
@@ -1253,6 +1267,40 @@ export default class LabnotePlugin extends Plugin {
     await this.app.fileManager.renameFile(file, oldPath);
     this.sampleSuggest?.clearCache();
     this.refreshSampleViews();
+  }
+
+  /**
+   * A workflow catalog file was deleted (#477): the next workflow picker or
+   * workflow view redraw makes it again from the built-in catalog, without the
+   * lab's edits. A deleted folder may report each file, only itself, or both,
+   * so the names are gathered and said once.
+   */
+  private collectDeletedCatalogs(file: TAbstractFile): void {
+    const names: readonly string[] = Object.values(CATALOG_FILE_NAMES);
+    const catalogsIn = (f: TAbstractFile): string[] =>
+      f instanceof TFolder
+        ? f.children.flatMap(catalogsIn)
+        : f instanceof TFile && posix.dirname(f.path) === CATALOG_DIR && names.includes(f.name)
+          ? [f.name]
+          : [];
+    const gone = catalogsIn(file);
+    if (gone.length === 0) return;
+    for (const name of gone) this.deletedCatalogs.add(name);
+    window.clearTimeout(this.deletedCatalogsTimer);
+    this.deletedCatalogsTimer = window.setTimeout(() => {
+      const deleted = [...this.deletedCatalogs].filter(
+        name => !this.app.vault.getAbstractFileByPath(posix.join(CATALOG_DIR, name))
+      );
+      this.deletedCatalogs.clear();
+      if (this.unloaded || deleted.length === 0) return;
+      this.host.notify(
+        'warn',
+        this.t(
+          '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view redraws. If the lab had edited it, replace it with the file from the trash or Git.',
+          deleted.map(name => posix.join(CATALOG_DIR, name)).join(', ')
+        )
+      );
+    }, 500);
   }
 
   /**

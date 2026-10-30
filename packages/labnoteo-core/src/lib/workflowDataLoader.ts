@@ -41,11 +41,15 @@ export function getWorkflowFilePath(
  * copying loose files from the extension install directory. This works for
  * both VS Code and Obsidian (which ships no loose files) and avoids the old
  * failure mode where a missing source silently left the tree view empty.
+ *
+ * Resolves the paths of the catalog files it made, so a caller can tell a
+ * deleted catalog made again from the first seeding (#477).
  */
-export async function ensureWorkflowResources(fs: LabnoteFs, workspaceRoot: string): Promise<void> {
+export async function ensureWorkflowResources(fs: LabnoteFs, workspaceRoot: string): Promise<string[]> {
+  const created: string[] = [];
   // Skip if path is invalid (e.g., in test environment)
   if (!workspaceRoot) {
-    return;
+    return created;
   }
 
   try {
@@ -63,12 +67,14 @@ export async function ensureWorkflowResources(fs: LabnoteFs, workspaceRoot: stri
       const destPath = path.join(workspaceWorkflowsDir, file);
       if (!(await fs.exists(destPath))) {
         await fs.write(destPath, JSON.stringify(data, null, 2));
+        created.push(destPath);
       }
     }
   } catch (error) {
     // Silently fail in test/dev environments
     console.error('[workflowDataLoader] Error ensuring workflow resources:', error);
   }
+  return created;
 }
 
 /**

@@ -65,11 +65,8 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
-import {
-  ensureWorkflowResources,
-  loadWorkflows,
-  loadUnitOperations,
-} from '@labnoteo/core/lib/workflowDataLoader';
+import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
+import { ensureVaultCatalogs } from './catalogUpdate';
 import {
   getNextWorkflowNumber,
   workflowAliasBudget,
@@ -1119,7 +1116,7 @@ function catalogKoFields(
 
 /** Present the workflow catalog picker (seeding catalog resources first). */
 async function pickWorkflow(host: LabnoteHost): Promise<WorkflowItem | undefined> {
-  await ensureWorkflowResources(host.fs, VAULT_ROOT);
+  await ensureVaultCatalogs(host);
   const catalog = await loadWorkflows(host.fs, VAULT_ROOT);
   return host.pick(
     catalog.workflows.map<PickItem<WorkflowItem>>(wf => ({
@@ -1282,7 +1279,7 @@ export async function insertUnitOperationCommand(
     return;
   }
 
-  await ensureWorkflowResources(host.fs, VAULT_ROOT);
+  await ensureVaultCatalogs(host);
   const hw = await loadUnitOperations(host.fs, VAULT_ROOT, 'hw');
   const sw = await loadUnitOperations(host.fs, VAULT_ROOT, 'sw');
 
