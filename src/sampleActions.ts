@@ -792,6 +792,27 @@ export async function editSampleInteractive(
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
   const location = clean(locationRaw);
+  // An emptied field is easy to submit by accident and nothing brings it back (#471).
+  const oldDescription = record.descriptions?.[0]?.trim();
+  const clearing = [
+    record.alias?.trim() && !alias ? plugin.t("the alias '{0}'", record.alias.trim()) : '',
+    oldDescription && !description ? plugin.t("the first description '{0}'", oldDescription) : '',
+  ].filter(Boolean);
+  if (
+    clearing.length > 0 &&
+    !(await confirmModal(
+      app,
+      plugin.t(
+        'Remove {0} of {1}? The sample list tables and the sample view lose it too.',
+        clearing.join(plugin.t(' and ')),
+        id
+      ),
+      plugin.t('Remove'),
+      { destructive: true }
+    ))
+  ) {
+    return false;
+  }
   await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
   plugin.refreshSampleViews();
 

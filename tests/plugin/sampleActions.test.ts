@@ -597,6 +597,36 @@ describe('editSampleInteractive alias rewrite', () => {
     expect(confirmModal).not.toHaveBeenCalled();
   });
 
+  // #471: a blank alias was saved at once, and the later question could not bring it back.
+  it('asks before emptying the alias, and saves nothing when declined', async () => {
+    await fs.write(`${FOLDER}/RNA.json`, JSON.stringify({ 'RNA-1': RECORD }));
+    vi.mocked(confirmModal).mockResolvedValueOnce(false);
+
+    expect(await edit(FOLDER, '   ')).toBe(false);
+
+    expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
+      "Remove the alias 'si KIF' of RNA-1? The sample list tables and the sample view lose it too."
+    );
+    expect(JSON.parse(await fs.read(`${FOLDER}/RNA.json`))['RNA-1'].alias).toBe('si KIF');
+  });
+
+  it('empties the alias and the first description once confirmed', async () => {
+    const record = { ...RECORD, descriptions: ['kd', 'from B'] };
+    await fs.write(`${FOLDER}/RNA.json`, JSON.stringify({ 'RNA-1': record }));
+    vi.mocked(confirmModal).mockResolvedValue(true);
+    answer(' ', '', '');
+    const { app, p } = editPlugin();
+
+    expect(await editSampleInteractive(app, p, { folder: FOLDER, type: 'RNA', id: 'RNA-1', record })).toBe(true);
+
+    expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
+      "Remove the alias 'si KIF' and the first description 'kd' of RNA-1? The sample list tables and the sample view lose it too."
+    );
+    const saved = JSON.parse(await fs.read(`${FOLDER}/RNA.json`))['RNA-1'];
+    expect(saved.alias).toBeNull();
+    expect(saved.descriptions).toEqual(['from B']);
+  });
+
   // #385
   it('deletes a sample only a sample list table names, with its rows', async () => {
     const table = [

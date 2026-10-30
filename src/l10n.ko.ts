@@ -621,6 +621,11 @@ const obsidianKo: Record<string, string> = {
   '{0} was added to Global samples because this note is outside an experiment folder.':
     '이 노트는 실험 폴더 밖에 있어 {0}을(를) 전역 샘플에 추가했습니다.',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
+  "the alias '{0}'": "별칭 '{0}'",
+  "the first description '{0}'": "첫 설명 '{0}'",
+  ' and ': ' 및 ',
+  'Remove {0} of {1}? The sample list tables and the sample view lose it too.':
+    '{1}의 {0}을(를) 지울까요? 시료 목록 표와 샘플 뷰에서도 빠집니다.',
   '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.':
     '{0}이(가) 노트마다 다른 별칭으로 정의되어 있습니다: {1}. 샘플은 가장 나중에 바뀐 정의의 별칭을 씁니다. 하나로 맞추려면 "샘플 편집"으로 별칭을 정하고 노트를 함께 고치세요.',
   '{0} is also registered in other experiments ({1}); only this one changed.':
