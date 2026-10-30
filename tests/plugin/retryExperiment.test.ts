@@ -27,6 +27,27 @@ describe('retryTitle', () => {
     expect(retryTitle({ t: ko }, 'GFP 발현', taken)).toBe('GFP 발현 3차');
     expect(retryTitle({ t }, 'GFP', taken)).toBe('GFP (retry) 2');
   });
+
+  // #482
+  it('counts the runs of the family, a retry given another title included', () => {
+    const family = ['세포독성 1차', 'RNA 추출 키트 교체 재시도', '다른 조건'];
+    expect(retryTitle({ t: ko }, '세포독성 1차', [], family)).toBe('세포독성 4차');
+    expect(retryTitle({ t: ko }, '세포독성 1차', ['070_세포독성_4차'], family)).toBe('세포독성 5차');
+    expect(retryTitle({ t: ko }, '세포독성 1차', [], ['세포독성 1차', '키트 교체 6차'])).toBe('세포독성 7차');
+    expect(retryTitle({ t: ko }, 'GFP 발현', [], ['GFP 발현', '재측정'])).toBe('GFP 발현 3차');
+  });
+
+  it('starts from the title of the run retried, a middle one too', () => {
+    expect(retryTitle({ t: ko }, '오가노이드 2차', [], ['오가노이드 1차', '오가노이드 2차'])).toBe('오가노이드 3차');
+    expect(retryTitle({ t: ko }, '키트 교체', [], ['오가노이드 1차', '키트 교체'])).toBe('키트 교체 3차');
+  });
+
+  it('keeps the English run suffix one behind the run: (retry) is the second run', () => {
+    expect(retryTitle({ t }, 'GFP', [], ['GFP'])).toBe('GFP (retry)');
+    expect(retryTitle({ t }, 'GFP', [], ['GFP', 'Other conditions'])).toBe('GFP (retry) 2');
+    expect(retryTitle({ t }, 'GFP (retry)', [], ['GFP', 'GFP (retry)'])).toBe('GFP (retry) 2');
+    expect(retryTitle({ t }, 'GFP (retry) 2', [], ['GFP', 'GFP (retry) 2'])).toBe('GFP (retry) 3');
+  });
 });
 
 describe('retryExperimentCommand', () => {
@@ -65,6 +86,23 @@ describe('retryExperimentCommand', () => {
     const { frontMatter } = parseFrontMatterYaml(readme);
     expect(frontMatter).toMatchObject({ status: 'planned', author: ['김신입', '[[이서연]]'], project: 'ALE-2026' });
     expect(frontMatter.discuss).toBeUndefined();
+  });
+
+  // #482: the tooltip knew two retries, yet the title offered 3차 again.
+  it('counts retries given another title through retry_of', async () => {
+    const link = '[[labnote/130_세포독성_1차/README.labnote|130]]';
+    const fs = new MemFileSystem({
+      'labnote/130_세포독성_1차/README.labnote.md': '---\ntitle: 세포독성 1차\nstatus: failed\n---\n',
+      'labnote/131_RNA_키트_교체/README.labnote.md': `---\ntitle: RNA 키트 교체\nretry_of: '${link}'\n---\n`,
+      'labnote/146_세포독성_3차/README.labnote.md': `---\ntitle: 세포독성 3차\nretry_of: '${link}'\n---\n`,
+    });
+    const prompt = vi.fn(async (opts: { value?: string }) => opts.value);
+    const host = { fs, t: ko, prompt, notify: vi.fn(), openFile: vi.fn(async () => undefined) };
+
+    await retryExperimentCommand({} as App, host as unknown as LabnoteHost, 'labnote/130_세포독성_1차');
+
+    expect(prompt.mock.calls[0][0]).toMatchObject({ value: '세포독성 4차' });
+    expect(await fs.exists('labnote/147_세포독성_4차/README.labnote.md')).toBe(true);
   });
 
   it('leaves author and project empty when the original has none', async () => {

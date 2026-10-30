@@ -61,6 +61,7 @@ import {
   experimentTitleLength,
   getExperimentDir,
   sanitizeTitle,
+  retryFamily,
   retryOfLink,
   retryOfLinkpath,
   setRetryOf,
@@ -469,18 +470,35 @@ export async function createExperimentCommand(
  * The title a retry of `title` starts from: `… 1차` becomes `… 2차`, anything
  * else gets the run suffix. Skips runs whose folder name is in `taken`
  * (experiment folder names), so retrying the first run again after a second
- * does not offer `2차` twice (#366).
+ * does not offer `2차` twice (#366). `familyTitles` are the titles of the
+ * experiments run as one with it ({@link retryFamily}): the run comes after
+ * the highest one they show and after their count, so a retry given another
+ * title still counts (#482).
  */
-export function retryTitle(host: Pick<LabnoteHost, 't'>, title: string, taken: readonly string[] = []): string {
+export function retryTitle(
+  host: Pick<LabnoteHost, 't'>,
+  title: string,
+  taken: readonly string[] = [],
+  familyTitles: readonly string[] = []
+): string {
   const used = new Set(taken.map(n => n.replace(/^\d{3}_/, '')));
   const free = (t: string): boolean => !used.has(sanitizeTitle(t));
   const runOf = (t: string): RegExpExecArray | null => /^(.*\S)\s*(\d+)차$/.exec(t);
-  const given = runOf(title.trim());
-  const first = given ? `${given[1]} ${Number(given[2]) + 1}차` : host.t('{0} (retry)', title.trim());
-  if (free(first)) return first;
-  const run = runOf(first);
-  let n = run ? Number(run[2]) + 1 : 2;
-  const nth = (k: number): string => (run ? `${run[1]} ${k}차` : `${first} ${k}`);
+  const retryOf = (t: string): RegExpExecArray | null => /^(.*\S)\s*\(retry\)(?:\s+(\d+))?$/.exec(t);
+  // `(retry)` is the second run, `(retry) k` run k + 1.
+  const runNumber = (t: string): number => {
+    const run = runOf(t.trim());
+    if (run) return Number(run[2]);
+    const retry = retryOf(t.trim());
+    return retry ? (retry[2] ? Number(retry[2]) + 1 : 2) : 1;
+  };
+  const trimmed = title.trim();
+  const given = runOf(trimmed);
+  const base = given ? given[1] : (retryOf(trimmed)?.[1] ?? trimmed);
+  const suffixed = host.t('{0} (retry)', base);
+  const nth = (k: number): string =>
+    given || runOf(suffixed) ? `${base} ${k}차` : k === 2 ? suffixed : `${suffixed} ${k - 1}`;
+  let n = Math.max(familyTitles.length, ...[trimmed, ...familyTitles].map(runNumber)) + 1;
   while (!free(nth(n))) n++;
   return nth(n);
 }
@@ -496,10 +514,15 @@ export async function retryExperimentCommand(app: App, host: LabnoteHost, folder
   const text = (await host.fs.exists(readmePath)) ? await host.fs.read(readmePath) : '';
   const { frontMatter } = parseFrontMatterYaml(text.replace(/\r\n/g, '\n'));
   const original = typeof frontMatter.title === 'string' && frontMatter.title.trim() ? frontMatter.title : posix.basename(folder).replace(/^\d{3}_/, '');
+  const readmes = await experimentReadmes(host);
+  const titles = new Map(readmes.map(e => [e.folder, e.title]));
+  const family = retryFamily(folder, new Map(readmes.map(e => [e.folder, e.retryOf])));
+  const familyTitles = family.map(f => (f === folder ? original : (titles.get(f) ?? posix.basename(f))));
   await createExperimentCommand(app, host, {
-    title: retryTitle(host, original, await experimentFolderNames(host)),
+    title: retryTitle(host, original, await experimentFolderNames(host), familyTitles),
     retryOf: folder,
     retryReadme: text,
+    readmes,
   });
 }
 

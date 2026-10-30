@@ -386,6 +386,34 @@ export function retryOfLinkpath(value: unknown): string | undefined {
 }
 
 /**
+ * The experiments run as one with `folder` (#482): up its `retry_of` links to
+ * the first run, then every retry of that run and of its retries, `folder`
+ * always among them. `retryOf` has every experiment folder as a key, mapped to
+ * the folder its `retry_of` links to; a link to a folder that is no key, and a
+ * loop, end the walk there.
+ */
+export function retryFamily(folder: string, retryOf: ReadonlyMap<string, string | undefined>): string[] {
+  let root = folder;
+  const climbed = new Set([root]);
+  for (let up = retryOf.get(root); up !== undefined && retryOf.has(up) && !climbed.has(up); up = retryOf.get(up)) {
+    root = up;
+    climbed.add(up);
+  }
+  const family = [root];
+  const seen = new Set(family);
+  for (let i = 0; i < family.length; i++) {
+    for (const [child, parent] of retryOf) {
+      if (parent === family[i] && !seen.has(child)) {
+        seen.add(child);
+        family.push(child);
+      }
+    }
+  }
+  if (!seen.has(folder)) family.push(folder);
+  return family;
+}
+
+/**
  * The README with `retry_of` set to `link`: in place when it has the key,
  * else after `project` (or at the end of the front matter).
  */
