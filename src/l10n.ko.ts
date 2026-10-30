@@ -175,6 +175,8 @@ const obsidianKo: Record<string, string> = {
   'New experiment': '새 실험',
   'Experiment title': '실험 제목',
   'Title is required.': '제목을 입력해야 합니다.',
+  'The experiment {0} already has this title. Record in that experiment, or give this one another title.':
+    '같은 제목의 실험 {0}이(가) 이미 있습니다. 그 실험에 기록하거나 다른 제목을 주세요.',
   'The title has no characters usable in a folder name. Add letters or numbers.':
     '제목에 폴더 이름으로 쓸 수 있는 글자가 없습니다. 글자나 숫자를 넣어 주세요.',
   'Select workflow': '워크플로 선택',

@@ -7,7 +7,7 @@ import type { App } from 'obsidian';
 import type { LabnoteHost } from '@labnoteo/core';
 import { parseFrontMatterYaml } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { retryExperimentCommand, retryTitle, statusNames } from '../../src/commands';
+import { createExperimentCommand, experimentReadmes, retryExperimentCommand, retryTitle, statusNames } from '../../src/commands';
 import obsidianKo from '../../src/l10n.ko';
 
 const t = (key: string, ...args: string[]) => key.replace(/\{(\d+)\}/g, (_, i: string) => args[Number(i)]);
@@ -78,6 +78,41 @@ describe('retryExperimentCommand', () => {
     const { frontMatter } = parseFrontMatterYaml(await fs.read(path));
     expect(frontMatter.author).toBe('');
     expect(frontMatter.project).toBeNull();
+  });
+});
+
+describe('experimentReadmes (#480)', () => {
+  it('reads each experiment README, those in a grouping folder too', async () => {
+    const fs = new MemFileSystem({
+      'labnote/001_GFP/README.labnote.md': '---\ntitle: GFP 발현 1차\nstatus: failed\n---\n',
+      'labnote/002_GFP_2차/README.labnote.md': "---\ntitle: '키트 교체'\nretry_of: '[[labnote/001_GFP/README.labnote|001]]'\n---\n",
+      'labnote/Group/005_Moved/README.labnote.md': '---\ntitle:\n---\n',
+      'labnote/006_No_readme/note.labnote.md': 'body',
+      'labnote/Group/notes.md': 'x',
+    });
+    const readmes = await experimentReadmes({ fs } as unknown as LabnoteHost);
+    expect(readmes.sort((a, b) => a.folder.localeCompare(b.folder))).toEqual([
+      { folder: 'labnote/001_GFP', title: 'GFP 발현 1차' },
+      { folder: 'labnote/002_GFP_2차', title: '키트 교체', retryOf: 'labnote/001_GFP' },
+      { folder: 'labnote/006_No_readme', title: 'No_readme' },
+      { folder: 'labnote/Group/005_Moved', title: 'Moved' },
+    ]);
+  });
+
+  it('is empty without a labnote folder', async () => {
+    expect(await experimentReadmes({ fs: new MemFileSystem({}) } as unknown as LabnoteHost)).toEqual([]);
+  });
+
+  it('gives the create prompt a hint that knows the existing titles', async () => {
+    const fs = new MemFileSystem({ 'labnote/001_VHH/README.labnote.md': '---\ntitle: VHH 패닝 1차\n---\n' });
+    const prompt = vi.fn(async () => undefined);
+    const host = { fs, t, prompt, notify: vi.fn(), openFile: vi.fn(async () => undefined) };
+
+    await createExperimentCommand({} as App, host as unknown as LabnoteHost);
+
+    const { hint } = (prompt.mock.calls[0] as unknown as [{ hint: (v: string) => { text: string; warn?: boolean } }])[0];
+    expect(hint('vhh 패닝 1차')).toMatchObject({ warn: true });
+    expect(hint('vhh 패닝 1차').text).toContain('001_VHH already has this title');
   });
 });
 
