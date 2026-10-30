@@ -348,4 +348,86 @@ describe('NoteIdService', () => {
     await svc.offerDuplicateFixes();
     expect(notices.filter(n => n.includes('not a lab note'))).toHaveLength(1);
   });
+
+  // #443: merging notes left the kept note with the merged one's ID.
+  describe('a changed labnote_id', () => {
+    const answering = (svc: NoteIdService, ok: boolean) => {
+      const asked: string[] = [];
+      (svc as unknown as { host: { confirm: (m: string) => Promise<boolean> } }).host.confirm = async m => (
+        asked.push(m), ok
+      );
+      return asked;
+    };
+
+    it('offers the old ID back after a merge, before the duplicate it makes for a moment', async () => {
+      const { svc, files, fileOf } = service({
+        'kept.labnote.md': { text: note('LN-AAAAAAAA'), ctime: 1 },
+        'merged.labnote.md': { text: note('LN-BBBBBBBB'), ctime: 2 },
+      });
+      svc.rememberIds();
+      const asked = answering(svc, true);
+      files.get('kept.labnote.md')!.text = note('LN-BBBBBBBB');
+
+      expect(await svc.checkIdChange(fileOf('kept.labnote.md'))).toBe(true);
+
+      expect(asked).toEqual([
+        'The labnote_id of {0} changed from {1} to {2} (by merging notes, say). Worksheets already printed as {1} will not find this note. Restore {1}?',
+      ]);
+      expect(readNoteId(files.get('kept.labnote.md')!.text)).toBe('LN-AAAAAAAA');
+      expect(await svc.checkIdChange(fileOf('kept.labnote.md'))).toBe(false);
+      expect(asked).toHaveLength(1);
+    });
+
+    it('keeps the new ID when the question is declined, and does not ask again', async () => {
+      const { svc, files, fileOf } = service({ 'a.labnote.md': { text: note('LN-AAAAAAAA'), ctime: 1 } });
+      svc.rememberIds();
+      const asked = answering(svc, false);
+      files.get('a.labnote.md')!.text = note('LN-CCCCCCCC');
+
+      expect(await svc.checkIdChange(fileOf('a.labnote.md'))).toBe(true);
+      expect(readNoteId(files.get('a.labnote.md')!.text)).toBe('LN-CCCCCCCC');
+      expect(await svc.checkIdChange(fileOf('a.labnote.md'))).toBe(false);
+      expect(asked).toHaveLength(1);
+    });
+
+    it('does not ask about an ID labnoteo gave, nor one another note holds', async () => {
+      const { svc, files, fileOf } = service({
+        'orig.labnote.md': { text: note('LN-AAAAAAAA'), ctime: 1 },
+        'copy.labnote.md': { text: note('LN-AAAAAAAA'), ctime: 5 },
+        'b.labnote.md': { text: note('LN-BBBBBBBB'), ctime: 6 },
+      });
+      svc.rememberIds();
+      const asked = answering(svc, true);
+
+      // A re-numbered duplicate, and a copied experiment's renewed ID.
+      await svc.offerDuplicateFixes();
+      expect(await svc.checkIdChange(fileOf('copy.labnote.md'))).toBe(false);
+      await svc.ensureId(fileOf('b.labnote.md'), { reassign: true });
+      expect(await svc.checkIdChange(fileOf('b.labnote.md'))).toBe(false);
+
+      // A colleague's fix of a duplicate, pulled: the original still holds the old ID.
+      files.set('c.labnote.md', { text: note('LN-AAAAAAAA'), ctime: 7 });
+      expect(await svc.checkIdChange(fileOf('c.labnote.md'))).toBe(false);
+      files.get('c.labnote.md')!.text = note('LN-DDDDDDDD');
+      expect(await svc.checkIdChange(fileOf('c.labnote.md'))).toBe(false);
+
+      expect(asked).toHaveLength(1);
+      expect(asked[0]).toContain('share the note ID');
+    });
+
+    it('follows a renamed note, and compares nothing before the IDs are remembered', async () => {
+      const { svc, files, fileOf } = service({ 'a.labnote.md': { text: note('LN-AAAAAAAA'), ctime: 1 } });
+      const asked = answering(svc, false);
+      files.get('a.labnote.md')!.text = note('LN-CCCCCCCC');
+      expect(await svc.checkIdChange(fileOf('a.labnote.md'))).toBe(false);
+
+      svc.rememberIds();
+      files.set('b.labnote.md', files.get('a.labnote.md')!);
+      files.delete('a.labnote.md');
+      svc.moveKnown('a.labnote.md', 'b.labnote.md');
+      files.get('b.labnote.md')!.text = note('LN-AAAAAAAA');
+      expect(await svc.checkIdChange(fileOf('b.labnote.md'))).toBe(true);
+      expect(asked).toHaveLength(1);
+    });
+  });
 });

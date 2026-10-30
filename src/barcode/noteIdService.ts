@@ -43,6 +43,14 @@ export class NoteIdService {
   /** Duplicates already asked about, by ID and the notes sharing it (#425). */
   private readonly reported = new Set<string>();
   private readonly warnedOutsideLabNotes = new Set<string>();
+  /**
+   * Each lab note's ID as last seen, by path, to tell when it changed (#443).
+   * Undefined until {@link rememberIds}: before the metadata cache has every
+   * note there is nothing to compare with.
+   */
+  private known: Map<string, string> | undefined;
+  /** The changed-ID questions, asked one after another. */
+  private idChangeQueue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly app: App,
@@ -124,8 +132,72 @@ export class NoteIdService {
     const taken = new Set([...this.index().keys(), ...this.index({ outsideLabNotes: true }).keys()]);
     let id = generateNoteId();
     while (taken.has(id)) id = generateNoteId();
-    await this.app.vault.process(file, data => setNoteId(data, id));
+    await this.writeId(file, id);
     return { id };
+  }
+
+  /** Write `id` as the note's `labnote_id`, known first so it is not taken for a change made elsewhere. */
+  private async writeId(file: TFile, id: string): Promise<void> {
+    this.known?.set(file.path, id);
+    await this.app.vault.process(file, data => setNoteId(data, id));
+  }
+
+  /**
+   * Start following each lab note's ID (#443). Called once the metadata cache
+   * has every note; later calls change nothing, or an ID changed in between
+   * would be taken as the one to compare with.
+   */
+  rememberIds(): void {
+    if (this.known) return;
+    this.known = new Map();
+    for (const [id, files] of this.index()) for (const file of files) this.known.set(file.path, id);
+  }
+
+  moveKnown(oldPath: string, newPath: string): void {
+    const id = this.known?.get(oldPath);
+    if (id === undefined) return;
+    this.known!.delete(oldPath);
+    this.known!.set(newPath, id);
+  }
+
+  forget(path: string): void {
+    this.known?.delete(path);
+  }
+
+  /**
+   * The note's `labnote_id` changed to another valid ID (#443): merging notes
+   * keeps the merged one's ID, and worksheets printed under the old ID no
+   * longer find the note. Offer the old ID back, unless another note holds it
+   * (a pulled fix of a duplicate). Resolves true when it asked, so a duplicate
+   * the change made for a moment is not asked about as well.
+   */
+  async checkIdChange(file: TFile): Promise<boolean> {
+    const now = this.idOf(file);
+    if (!this.known || !now || !isBarcodeNote(file.path)) return false;
+    const old = this.known.get(file.path);
+    this.known.set(file.path, now);
+    if (old === undefined || old === now) return false;
+    if (this.filesWithId(old).some(f => f.path !== file.path)) return false;
+    const asked = this.idChangeQueue.then(() => this.offerIdBack(file, old, now));
+    this.idChangeQueue = asked.catch(() => undefined);
+    await asked;
+    return true;
+  }
+
+  private async offerIdBack(file: TFile, old: string, now: string): Promise<void> {
+    const ok = await this.host.confirm(
+      this.host.t(
+        'The labnote_id of {0} changed from {1} to {2} (by merging notes, say). Worksheets already printed as {1} will not find this note. Restore {1}?',
+        file.basename,
+        old,
+        now
+      ),
+      { confirmLabel: this.host.t('Restore ID') }
+    );
+    if (!ok || !(this.app.vault.getAbstractFileByPath(file.path) instanceof TFile)) return;
+    if (this.filesWithId(old).some(f => f.path !== file.path)) return;
+    await this.writeId(file, old);
+    this.host.notify('info', this.host.t('{0} has the note ID {1} again.', file.basename, old));
   }
 
   /**
@@ -142,7 +214,7 @@ export class NoteIdService {
   ): Promise<{ choice: 'restored'; id: string } | { choice: 'new' | 'cancelled' }> {
     const upper = raw.toUpperCase();
     if (isValidNoteId(upper) && !this.filesWithId(upper).some(f => f.path !== file.path)) {
-      await this.app.vault.process(file, data => setNoteId(data, upper));
+      await this.writeId(file, upper);
       this.host.notify(
         'info',
         this.host.t('The labnote_id of {0} was written as "{1}"; restored it as {2}.', file.basename, raw, upper)
@@ -166,7 +238,7 @@ export class NoteIdService {
     );
     if (choice === 'new') return { choice: 'new' };
     if (choice !== 'restore' || !restorable) return { choice: 'cancelled' };
-    await this.app.vault.process(file, data => setNoteId(data, restorable));
+    await this.writeId(file, restorable);
     return { choice: 'restored', id: restorable };
   }
 
@@ -209,7 +281,7 @@ export class NoteIdService {
     );
     if (choice === 'new') return { choice: 'new' };
     if (choice !== 'restore') return { choice: 'cancelled' };
-    await this.app.vault.process(file, data => setNoteId(data, previous));
+    await this.writeId(file, previous);
     return { choice: 'restored', id: previous };
   }
 

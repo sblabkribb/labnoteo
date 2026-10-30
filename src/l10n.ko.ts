@@ -983,6 +983,9 @@ const obsidianKo: Record<string, string> = {
   'The scans in this note are named after the note ID {0}, but {1} has that ID now, so this note gets a new one. Worksheets printed as {0} are filed in {1}.':
     '이 노트의 스캔은 노트 ID {0}의 이름을 달고 있지만 지금은 {1}이(가) 그 ID를 쓰고 있어 새 ID를 발급합니다. {0}(으)로 출력한 기록지는 {1}에 붙습니다.',
   '{0} now has the note ID {1}.': '{0}에 노트 ID {1}을(를) 발급했습니다.',
+  'The labnote_id of {0} changed from {1} to {2} (by merging notes, say). Worksheets already printed as {1} will not find this note. Restore {1}?':
+    '{0}의 labnote_id가 {1}에서 {2}(으)로 바뀌었습니다(노트 합치기 등). 이미 {1}(으)로 출력한 기록지는 이 노트를 찾지 못합니다. {1}(으)로 되돌릴까요?',
+  '{0} has the note ID {1} again.': '{0}의 노트 ID를 {1}(으)로 되돌렸습니다.',
   'Gave the copy {0} its own note ID {1}.': '복사본 {0}에 새 노트 ID {1}을(를) 발급했습니다.',
   'Notes {0} share the note ID {1}, probably because one was copied. Scans of either note would be filed in the wrong one. Give {2} a new ID?':
     '{0} 노트가 같은 노트 ID {1}을(를) 쓰고 있습니다. 하나를 복사했기 때문일 수 있습니다. 이대로 두면 스캔이 다른 노트에 붙을 수 있습니다. {2}에 새 ID를 발급할까요?',
