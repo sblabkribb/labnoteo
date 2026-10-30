@@ -26,7 +26,8 @@
  *     unless the line is a definition or the selection overlaps a reference or
  *     crosses a table cell's `|`; those fall back to the rules for its start.
  *  4. Otherwise -> at the cursor, padding with a space when the adjacent
- *     character would fuse with the id (letters/digits in any script, `_;-`),
+ *     character would fuse with the id (letters/digits in any script, `_;-`)
+ *     or the text before ends in another reference's alias (#464),
  *     or, for a reference with an alias, before any non-blank character: the
  *     alias runs up to whitespace and would swallow it (`pET-28a(+)(samples`).
  */
@@ -121,6 +122,20 @@ function keepsApart(ref: string, after: string): boolean {
   return /[;|]/.test(ref) ? !/\s/.test(after) : ADJACENT.test(after);
 }
 
+/**
+ * Whether `lineBefore` ends in the alias of a reference (#464, #479): text put
+ * right after it is read into that alias, so a space has to come first. An
+ * alias may hold spaces of its own (`pBAD (copy)`), so any non-blank end
+ * after the line's last aliased id counts, not only the tail up to whitespace;
+ * an opening bracket or quote starts new text rather than ending an alias.
+ */
+export function endsAliasedReference(lineBefore: string, types: readonly string[]): boolean {
+  if (lineBefore === '' || /[\s([{<"'“‘]$/.test(lineBefore)) return false;
+  const ranges = findSampleIdRanges(lineBefore, types);
+  const last = ranges[ranges.length - 1];
+  return last !== undefined && /^[;|]/.test(lineBefore.slice(last.end));
+}
+
 /** True when columns `[from, to)` touch a reference's id or its `;alias;desc` tail. */
 function overlapsReference(line: string, from: number, to: number, types: readonly string[]): boolean {
   return findSampleIdRanges(line, types).some(range => {
@@ -195,7 +210,7 @@ export function planReferenceInsert(
     if (!crossesCell && !overlapsReference(line, from, to, types)) {
       const before = pos > 0 ? text[pos - 1] : '';
       const after = selEnd < text.length ? text[selEnd] : '';
-      const lead = before && ADJACENT.test(before) ? ' ' : '';
+      const lead = (before && ADJACENT.test(before)) || endsAliasedReference(line.slice(0, from), types) ? ' ' : '';
       const trail = after && keepsApart(ref, after) ? ' ' : '';
       return { offset: pos, end: selEnd, text: `${lead}${ref}${trail}` };
     }
@@ -221,10 +236,10 @@ export function planReferenceInsert(
     return { offset: lineEnd, text: `${prefix}${ref}` };
   }
 
-  // Rule 4: at the cursor, kept apart from a fusing neighbour before and any text after.
+  // Rule 4: at the cursor, kept apart from a fusing neighbour or an alias before and any text after.
   const before = pos > 0 ? text[pos - 1] : '';
   const after = pos < text.length ? text[pos] : '';
-  const lead = before && ADJACENT.test(before) ? ' ' : '';
+  const lead = (before && ADJACENT.test(before)) || endsAliasedReference(line.slice(0, cursorCol), types) ? ' ' : '';
   const trail = after && keepsApart(ref, after) ? ' ' : '';
   return { offset: pos, text: `${lead}${ref}${trail}` };
 }

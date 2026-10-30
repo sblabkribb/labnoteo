@@ -216,6 +216,7 @@ export {
 // === Sample reference insertion placement (Obsidian sidebar/right-click) ===
 export {
   planReferenceInsert,
+  endsAliasedReference,
   type ReferenceInsert,
 } from './sample/referenceInsert';
 

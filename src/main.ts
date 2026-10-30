@@ -411,7 +411,7 @@ export default class LabnotePlugin extends Plugin {
         this.t('A date cannot be typed into a property or the title from here. Click in the note body, then run this again.')
       );
     } else {
-      insertDateCommand(editor, this.host, now());
+      insertDateCommand(editor, this.host, now(), getSampleDisplayMeta(this.settings.customSampleTypes).types);
     }
     return true;
   }

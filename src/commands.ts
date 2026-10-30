@@ -39,6 +39,7 @@ import {
   parseIssueMarkers,
   planIssueMarkerInsertion,
   planDateInsertion,
+  endsAliasedReference,
   issueSentenceRange,
   lineHasSampleReference,
   DISCUSS_FLAG_KEY,
@@ -664,18 +665,26 @@ export function focusOnNoteHeader(focused: Element | null | undefined): boolean 
  * only fills a key with an empty value; elsewhere there it is refused with a
  * warning, since the text would break the YAML (#106).
  */
-export function insertDateCommand(editor: Editor, host: LabnoteHost, text: string): boolean {
+export function insertDateCommand(
+  editor: Editor,
+  host: LabnoteHost,
+  text: string,
+  types: readonly string[] = []
+): boolean {
   // A table cell has an editor of its own holding just that cell (#303): the
   // front matter and Meta checks below would read the cell as the note.
   if (tableCellHostView(editor)) {
-    editor.replaceSelection(text);
+    const from = editor.getCursor('from');
+    const lineBefore = editor.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
+    editor.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
     return true;
   }
   const plan = planDateInsertion(
     editor.getValue(),
     editor.posToOffset(editor.getCursor('from')),
     editor.posToOffset(editor.getCursor('to')),
-    text
+    text,
+    types
   );
   if ('reason' in plan) {
     host.notify(
