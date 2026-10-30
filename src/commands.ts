@@ -1871,8 +1871,13 @@ export async function syncWorkflowChecklistCommand(
     const list = removable
       .map(s => `- ${s.link} (${host.t(s.reason === 'missing' ? 'file not found' : 'in another folder')})`)
       .join('\n');
+    // The files missing from the checklist are added whatever the answer (#459).
+    const addNote =
+      plan.added.length > 0
+        ? `\n\n${host.t('Added to the README checklist:')}\n${listFileNames(host, plan.added.map(a => a.fileName))}`
+        : '';
     const ok = await host.confirm(
-      `${host.t('These checklist entries do not point to a workflow file in this folder. Remove them from the checklist?')}\n\n${list}`,
+      `${host.t('These checklist entries do not point to a workflow file in this folder. Remove them from the checklist?')}\n\n${list}${addNote}`,
       { confirmLabel: host.t('Remove from checklist'), destructive: true }
     );
     if (ok) remove = removable.map(s => s.link);
