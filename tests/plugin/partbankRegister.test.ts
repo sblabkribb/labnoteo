@@ -3,7 +3,7 @@
  * picked used to look only in Global, so an item this experiment already had
  * was registered a second time under a new ID.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MemFileSystem, type SampleSource } from '@labnoteo/core';
 import { loadSamplesByType, setSampleDiscarded, upsertSampleRecord } from '@labnoteo/core/lib/sampleStorage';
 import { Notice } from '../stubs/obsidian';
@@ -27,17 +27,20 @@ const source: SampleSource = {
 
 let fs: MemFileSystem;
 let plugin: LabnotePlugin;
+let confirm: ReturnType<typeof vi.fn>;
 
 const client = { kind: 'web', origin: WEB, getStocks: async () => [] } as unknown as PartbankClient;
 
 beforeEach(() => {
   fs = new MemFileSystem();
+  confirm = vi.fn(async () => true);
   plugin = {
     fs,
     t: (key: string, ...args: string[]) => args.reduce((acc, a, i) => acc.replace(`{${i}}`, a), key),
     settings: { customSampleTypes: [], globalSampleFolder: GLOBAL },
     samplesChanged: () => undefined,
     sampleTrackingFor: () => true,
+    host: { confirm },
   } as unknown as LabnotePlugin;
   Notice.reset();
 });
@@ -108,6 +111,80 @@ describe('registerPartbankItem (#270)', () => {
   });
 });
 
+// #446: the same tube got a new ID and an empty location in the next experiment, without a word.
+describe('registerPartbankItem in another experiment (#446)', () => {
+  const OTHER = 'labnote/002_Other/resources/labsamples';
+  const THIRD = 'labnote/003_Third/resources/labsamples';
+  const KEPT = '−20°C 냉동고 B / 플라스미드 박스 2, C5';
+  const newLocation = async () => {
+    const records = await loadSamplesByType(fs, LOCAL, 'DNA');
+    return Object.values(records)[0]?.location;
+  };
+
+  it("offers the other experiment's location when partbank has none, and writes it when accepted", async () => {
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', { alias: 'sfGFP', description: null, location: KEPT, source });
+
+    const result = await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+
+    expect(result).toMatchObject({ reused: false, folder: LOCAL, elsewhere: [{ folder: OTHER, id: 'DNA-3' }] });
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm.mock.calls[0][0]).toBe(
+      `DNA-3 of the experiment 002_Other has this partbank item, kept at '${KEPT}'. Write that storage location for this sample too?`
+    );
+    expect(await newLocation()).toBe(KEPT);
+  });
+
+  it('leaves the location empty when declined', async () => {
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', { alias: 'sfGFP', description: null, location: KEPT, source });
+    confirm.mockResolvedValue(false);
+
+    await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+
+    expect(await newLocation()).toBeNull();
+  });
+
+  it('does not ask when partbank gave a location', async () => {
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', { alias: 'sfGFP', description: null, location: KEPT, source });
+    const stocked = {
+      ...client,
+      getStocks: async () => [{ is_owner: true, storage: { name: 'Freezer A' } }],
+    } as unknown as PartbankClient;
+
+    const result = await registerPartbankItem(plugin, stocked, ITEM, { folder: LOCAL, type: 'DNA' });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(await newLocation()).toBe('Freezer A');
+    expect(result?.elsewhere).toEqual([{ folder: OTHER, id: 'DNA-3' }]);
+  });
+
+  it('does not ask when the others disagree on the location or only discarded ones have it', async () => {
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', { alias: 'sfGFP', description: null, location: KEPT, source });
+    await upsertSampleRecord(fs, THIRD, 'DNA', 'DNA-5', { alias: 'sfGFP', description: null, location: 'Freezer C', source });
+    const result = await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(result?.elsewhere).toHaveLength(2);
+
+    fs = new MemFileSystem();
+    (plugin as unknown as { fs: MemFileSystem }).fs = fs;
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', { alias: 'sfGFP', description: null, location: KEPT, source });
+    await setSampleDiscarded(fs, OTHER, 'DNA', 'DNA-3', '2026-10-01');
+    await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('says nothing of samples for other items, or of this experiment and Global', async () => {
+    await upsertSampleRecord(fs, OTHER, 'DNA', 'DNA-3', {
+      alias: 'other',
+      description: null,
+      location: KEPT,
+      source: { ...source, id: '507f1f77bcf86cd799439099' },
+    });
+    const result = await registerPartbankItem(plugin, client, ITEM, { folder: GLOBAL, type: 'DNA', lookIn: OTHER });
+    expect(result?.elsewhere).toBeUndefined();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+});
+
 describe('noticeForRegistration (#270)', () => {
   const result = (folder: string, reused: boolean) => ({
     type: 'DNA',
@@ -154,6 +231,18 @@ describe('noticeForRegistration (#270)', () => {
     expect(Notice.shown).toEqual([
       'Sample added to Global samples: DNA-1',
       'DNA-1 was added to Global samples because this note is outside an experiment folder.',
+    ]);
+  });
+
+  // #446
+  it('names the other experiments with the same partbank item, before the extra', () => {
+    const elsewhere = [
+      { folder: 'labnote/002_Other/resources/labsamples', id: 'DNA-3' },
+      { folder: 'labnote/003_Third/resources/labsamples', id: 'DNA-5' },
+    ];
+    noticeForRegistration(plugin, { ...result(LOCAL, false), elsewhere }, undefined, 'EXTRA');
+    expect(Notice.shown).toEqual([
+      'Sample added: DNA-1 Other experiments have this partbank item too: DNA-3 (002_Other), DNA-5 (003_Third). EXTRA',
     ]);
   });
 });

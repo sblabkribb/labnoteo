@@ -13,6 +13,7 @@ import {
   descriptionForItem,
   findLinkedSample,
   formatStockLocation,
+  isSameSampleSource,
   sampleTypeForItem,
   searchEntitiesForSampleType,
   searchScopeHint,
@@ -21,6 +22,7 @@ import {
   STRAIN_SAMPLE_TYPE,
   type LinkedSample,
   type PartbankItem,
+  type SampleSource,
 } from '@labnoteo/core';
 import {
   canonicalSampleType,
@@ -36,10 +38,12 @@ import {
   type SampleRecord,
 } from '@labnoteo/core/lib/sampleStorage';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
+import * as posix from '@labnoteo/core/posix';
 import type LabnotePlugin from '../main';
 import { loadCatalogSamples } from '../sampleActions';
 import { confirmModal } from '../modals';
 import type { PartbankClient } from './client';
+import { linkedSamplesIn, vaultSampleFolders } from './partbankLocation';
 import { searchPartbankModal } from './partbankSearch';
 
 /** What a registration produced, for the caller to insert or copy. */
@@ -58,6 +62,8 @@ export interface RegisteredPartbankSample {
   requestedType?: string;
   /** For a reused sample marked used up (#387): the date it was marked. */
   discarded?: string;
+  /** For a new sample: other experiments' samples for the same item (#446). */
+  elsewhere?: Array<{ folder: string; id: string }>;
 }
 
 /** The vault's strain type, when it has one: partbank strains need it. */
@@ -182,6 +188,8 @@ export async function registerPartbankItem(
   } catch {
     location = null;
   }
+  const others = await samplesInOtherExperiments(plugin, source, [folder, lookIn]);
+  if (!location) location = await offerLocationFrom(plugin, others);
   await upsertSampleRecord(plugin.fs, folder, type, id, {
     alias,
     description: descriptionForItem(item),
@@ -196,7 +204,53 @@ export async function registerPartbankItem(
     referenceText: buildSampleReferenceText(id, alias),
     folder,
     reused: false,
+    ...(others.length > 0 ? { elsewhere: others.map(o => ({ folder: o.folder, id: o.id })) } : {}),
   };
+}
+
+/**
+ * Samples for the same partbank item in other experiments (#446): not used
+ * (one experiment does not use another's samples), but worth knowing, as a
+ * tube may already be recorded there. `skip` and Global are left out.
+ */
+async function samplesInOtherExperiments(
+  plugin: LabnotePlugin,
+  source: SampleSource,
+  skip: readonly string[]
+): Promise<Awaited<ReturnType<typeof linkedSamplesIn>>> {
+  const left = [...skip, plugin.settings.globalSampleFolder].filter(Boolean);
+  const folders = (await vaultSampleFolders(plugin)).filter(f => !left.some(s => isSameSampleFolder(f, s)));
+  return (await linkedSamplesIn(plugin, folders)).filter(s => s.record.source && isSameSampleSource(s.record.source, source));
+}
+
+/**
+ * The storage location the `others` record, if the user wants it for the new
+ * sample (#446). Asked only when they agree on one: with several, which tube
+ * is meant cannot be told. A discarded sample's location may be stale.
+ */
+async function offerLocationFrom(
+  plugin: LabnotePlugin,
+  others: Awaited<ReturnType<typeof linkedSamplesIn>>
+): Promise<string | null> {
+  const kept = others.filter(o => !o.record.discarded && o.record.location?.trim());
+  const locations = new Set(kept.map(o => o.record.location!.trim()));
+  if (locations.size !== 1) return null;
+  const [location] = locations;
+  const ok = await plugin.host.confirm(
+    plugin.t(
+      "{1} of the experiment {0} has this partbank item, kept at '{2}'. Write that storage location for this sample too?",
+      experimentOf(kept[0].folder),
+      kept[0].id,
+      location
+    ),
+    { confirmLabel: plugin.t('Use this location') }
+  );
+  return ok ? location : null;
+}
+
+/** `001_Exp` for an experiment's samples folder. */
+function experimentOf(folder: string): string {
+  return posix.basename(getExperimentDir(folder) ?? folder);
 }
 
 /**
@@ -341,14 +395,19 @@ export function noticeForRegistration(
     return;
   }
   const landedInGlobal = isSameSampleFolder(result.folder, plugin.settings.globalSampleFolder);
-  show(
-    !landedInGlobal
-      ? plugin.t('Sample added: {0}', result.id)
-      : chosenFolder !== undefined
-        ? plugin.t('Sample added to Global samples: {0}', result.id)
-        : plugin.t(
-            '{0} was added to Global samples because this note is outside an experiment folder.',
-            result.id
-          )
-  );
+  const added = !landedInGlobal
+    ? plugin.t('Sample added: {0}', result.id)
+    : chosenFolder !== undefined
+      ? plugin.t('Sample added to Global samples: {0}', result.id)
+      : plugin.t(
+          '{0} was added to Global samples because this note is outside an experiment folder.',
+          result.id
+        );
+  const elsewhere = result.elsewhere?.length
+    ? plugin.t(
+        'Other experiments have this partbank item too: {0}.',
+        result.elsewhere.map(o => `${o.id} (${experimentOf(o.folder)})`).join(', ')
+      )
+    : '';
+  show([added, elsewhere].filter(Boolean).join(' '));
 }

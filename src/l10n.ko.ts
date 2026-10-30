@@ -1239,6 +1239,10 @@ const obsidianKo: Record<string, string> = {
   'It is registered as {0}, not {1}.': '{1}이 아니라 {0} 타입으로 등록돼 있습니다.',
   "Saving the note adds it to this experiment's samples as well.": '노트를 저장하면 이 실험 대장에도 들어갑니다.',
   'Sample added to Global samples: {0}': '전역 샘플에 추가했습니다: {0}',
+  'Other experiments have this partbank item too: {0}.': '다른 실험에도 같은 partbank 항목이 있습니다: {0}.',
+  "{1} of the experiment {0} has this partbank item, kept at '{2}'. Write that storage location for this sample too?":
+    "다른 실험 {0}의 {1}에 이 partbank 항목의 보관 위치가 '{2}'(으)로 적혀 있습니다. 이 시료에도 같은 위치를 적을까요?",
+  'Use this location': '이 위치 쓰기',
   'partbank keeps strains, but this vault has no sample type for them. Add the custom sample type "{0}"?':
     'partbank에는 균주가 있지만 이 보관함에는 균주용 시료 타입이 없습니다. 사용자 정의 타입 "{0}"을(를) 추가할까요?',
   'Add {0}': '{0} 추가',
