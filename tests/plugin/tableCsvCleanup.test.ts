@@ -232,7 +232,14 @@ describe('re-exporting after a header was renamed (#92)', () => {
 
     await exportTablesToCsv(plugin(), noteFile());
 
-    expect(Notice.shown.at(-1)).toBe(done('Exported 1 CSV file(s) (1 unchanged file(s) left as they were).', 2));
+    // #469: the file written comes first.
+    expect(Notice.shown.at(-1)).toBe(
+      [
+        'Exported 1 CSV file(s) (1 unchanged file(s) left as they were).',
+        `Saved in ${DIR}/: 001_WT020_A.labnote_table2.csv, 001_WT020_A.labnote_table1.csv.`,
+        HINT,
+      ].join(' ')
+    );
   });
 });
 

@@ -401,6 +401,9 @@ const obsidianKo: Record<string, string> = {
     'CSV 파일 {0}개를 내보냈습니다(내용이 같은 {1}개는 그대로 둠).',
   'The CSV files are already up to date ({0}).': 'CSV 파일이 이미 최신입니다({0}개).',
   'Saved in {0}: {1}.': '저장 위치 {0}: {1}.',
+  '(new)': '(새 파일)',
+  'Could not write {0} CSV file(s) because another program (such as Excel) has them open or they are read-only: {1}. Close them and export again.':
+    'CSV {0}개는 다른 프로그램(엑셀 등)이 열고 있거나 읽기 전용이어서 쓰지 못했습니다: {1}. 그 파일을 닫고 다시 내보내세요.',
   'The file explorer shows CSV files only when Settings → Files and links → Show all file types is on.':
     '파일 탐색기에는 설정 → 파일 및 링크 → 모든 파일 확장명 인식이 켜져 있을 때만 CSV 파일이 보입니다.',
   'No tables found in this note.': '이 노트에서 표를 찾을 수 없습니다.',

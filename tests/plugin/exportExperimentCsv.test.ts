@@ -271,3 +271,69 @@ describe('the caret of the note being exported', () => {
     }
   });
 });
+
+// #476: one CSV open in Excel stopped the whole export with an EBUSY error.
+describe('a CSV another program holds', () => {
+  const csvOf = (n: number) => `${DIR}/001_WT020_A.labnote_table${n}.csv`;
+  const busy = (err: string) => Object.assign(new Error(`${err}: resource busy or locked`), { code: err });
+
+  it('writes the other CSVs and says first which one it could not write', async () => {
+    await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}\n${table('c', '3')}`);
+    await fs.write(csvOf(1), '\uFEFFa\n0\n');
+    await fs.write(csvOf(2), '\uFEFFb\n2\n');
+    const write = fs.write.bind(fs);
+    vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
+      if (path === csvOf(1)) throw busy('EBUSY');
+      await write(path, content);
+    });
+
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+
+    expect(await fs.read(csvOf(1))).toBe('\uFEFFa\n0\n');
+    expect(await fs.read(csvOf(3))).toBe('\uFEFFc\n3\n');
+    const notice = Notice.shown.at(-1)!;
+    expect(notice).toMatch(
+      /^⚠️ Could not write 1 CSV file\(s\) because another program \(such as Excel\) has them open or they are read-only: 001_WT020_A\.labnote_table1\.csv\. Close them and export again\. /
+    );
+    expect(notice).toContain('Exported 1 CSV file(s) (1 unchanged file(s) left as they were).');
+    // #469: the file written first, marked new among the unchanged.
+    expect(notice).toContain(`Saved in ${DIR}/: 001_WT020_A.labnote_table3.csv (new), 001_WT020_A.labnote_table2.csv.`);
+  });
+
+  it('neither asks about nor writes a CSV it cannot read', async () => {
+    await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
+    await fs.write(csvOf(1), '\uFEFFrenamed\n0\n');
+    const read = fs.read.bind(fs);
+    vi.spyOn(fs, 'read').mockImplementation(async path => {
+      if (path === csvOf(1)) throw busy('EPERM');
+      return read(path);
+    });
+
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+
+    expect(confirmModal).not.toHaveBeenCalled();
+    expect(await read(csvOf(1))).toBe('\uFEFFrenamed\n0\n');
+    expect(await read(csvOf(2))).toBe('\uFEFFb\n2\n');
+    expect(Notice.shown.at(-1)).toContain('Could not write 1 CSV file(s)');
+    expect(Notice.shown.at(-1)).toContain('Exported 1 CSV file(s).');
+  });
+
+  it('adds up the locked CSVs of every note of the experiment', async () => {
+    await fs.write(README, table('요약', '1'));
+    await fs.write(WF1, table('a', '1'));
+    const write = fs.write.bind(fs);
+    vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
+      if (path.endsWith('_table1.csv')) throw busy('EBUSY');
+      await write(path, content);
+    });
+
+    await exportExperimentTablesToCsv(plugin(), DIR);
+
+    const notice = Notice.shown.at(-1)!;
+    expect(notice).toContain(
+      'Could not write 2 CSV file(s) because another program (such as Excel) has them open or they are read-only: README.labnote_table1.csv, 001_WT020_A.labnote_table1.csv.'
+    );
+    expect(notice).not.toContain('Exported');
+    expect(notice).not.toContain('Saved in');
+  });
+});
