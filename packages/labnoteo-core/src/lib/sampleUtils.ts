@@ -154,6 +154,35 @@ export interface SampleListRow {
  * marker, so the ones inserted before this was added are found too.
  */
 export function findSampleListTables(text: string, headerSets: ReadonlyArray<readonly string[]>): SampleListRow[][] {
+  return scanSampleListTables(text, headerSets).map(t => t.rows);
+}
+
+/** A whole sample list table, in the note's offsets (line break after it excluded). */
+export interface SampleListTableRange {
+  /** Start of the header line. */
+  start: number;
+  /** End of the table's last line. */
+  end: number;
+  /** The header set of `headerSets` it matched. */
+  header: readonly string[];
+}
+
+/**
+ * Every sample list table in `text`, as found by {@link findSampleListTables},
+ * from its header to its last line (#450): the span to replace when the table
+ * is written again.
+ */
+export function findSampleListTableRanges(
+  text: string,
+  headerSets: ReadonlyArray<readonly string[]>
+): SampleListTableRange[] {
+  return scanSampleListTables(text, headerSets).map(({ start, end, header }) => ({ start, end, header }));
+}
+
+function scanSampleListTables(
+  text: string,
+  headerSets: ReadonlyArray<readonly string[]>
+): Array<SampleListTableRange & { rows: SampleListRow[] }> {
   const sets = headerSets.map(h => h.map(c => c.toLowerCase()).join('\u0000'));
   const lines: Array<{ start: number; text: string }> = [];
   for (let at = 0; at <= text.length; ) {
@@ -163,7 +192,7 @@ export function findSampleListTables(text: string, headerSets: ReadonlyArray<rea
     if (nl < 0) break;
     at = nl + 1;
   }
-  const tables: SampleListRow[][] = [];
+  const tables: Array<SampleListTableRange & { rows: SampleListRow[] }> = [];
   let fence: string | undefined;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].text;
@@ -174,7 +203,8 @@ export function findSampleListTables(text: string, headerSets: ReadonlyArray<rea
     }
     if (fence || !line.trimStart().startsWith('|')) continue;
     const header = tableCells(line);
-    if (!sets.includes(header.map(c => c.toLowerCase()).join('\u0000'))) continue;
+    const matched = sets.indexOf(header.map(c => c.toLowerCase()).join('\u0000'));
+    if (matched < 0) continue;
     const rule = lines[i + 1]?.text;
     if (!rule || !tableCells(rule).every(c => /^:?-+:?$/.test(c))) continue;
     const rows: SampleListRow[] = [];
@@ -183,7 +213,8 @@ export function findSampleListTables(text: string, headerSets: ReadonlyArray<rea
       const id = tableCells(lines[j].text)[0];
       if (id) rows.push({ start: lines[j].start, end: lines[j].start + lines[j].text.length, id });
     }
-    tables.push(rows);
+    const last = lines[j - 1];
+    tables.push({ start: lines[i].start, end: last.start + last.text.length, header: headerSets[matched], rows });
     i = j - 1;
   }
   return tables;

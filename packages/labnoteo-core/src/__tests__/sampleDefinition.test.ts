@@ -16,6 +16,7 @@ import {
   buildMarkdownTable,
   escapeMarkdownInline,
   findSampleListTables,
+  findSampleListTableRanges,
   planSampleListRowUpdate,
   planSampleListRowRemoval,
   maskSampleListTables,
@@ -258,6 +259,21 @@ describe('findSampleListTables / planSampleListRowUpdate (#336)', () => {
   it('finds the tables under a known header, outside code', () => {
     const tables = findSampleListTables(md, headers);
     expect(tables.map(rows => rows.map(r => r.id))).toEqual([['DNA-1', 'DNA-2']]);
+  });
+
+  // #450
+  it('spans each table from its header to its last line, with the header it matched', () => {
+    const ranges = findSampleListTableRanges(md, headers);
+    expect(ranges).toHaveLength(1);
+    const lines = md.split('\n');
+    expect(md.slice(ranges[0].start, ranges[0].end)).toBe(lines.slice(1, 5).join('\n'));
+    expect(ranges[0].header).toBe(headers[0]);
+
+    const english = '| ID | Alias | Description | Location | Scope | Discarded |\n| --- | --- | --- | --- | --- | --- |\n\nafter';
+    const [empty] = findSampleListTableRanges(english, headers);
+    expect(english.slice(empty.start, empty.end)).toBe(english.split('\n').slice(0, 2).join('\n'));
+    expect(empty.header).toBe(headers[1]);
+    expect(findSampleListTableRanges('no table', headers)).toEqual([]);
   });
 
   it("rewrites only the sample's row, escaped like a new table", () => {

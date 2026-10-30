@@ -22,6 +22,7 @@ import {
   planSampleListRowUpdate,
   planSampleListRowRemoval,
   maskSampleListTables,
+  findSampleListTableRanges,
   compareSamples,
 } from '@labnoteo/core/lib/sampleUtils';
 import {
@@ -231,13 +232,50 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
     return false;
   }
 
-  const table = buildMarkdownTable(sampleListHeaders(plugin)[0], rows, new Set([0]));
+  // In the UI language, as the scope cells are, whatever an older table used.
+  const table = buildMarkdownTable(headers[0], rows, new Set([0]));
   const text = await target.getText();
+  const tables = findSampleListTableRanges(text, headers);
+  if (tables.length > 0) {
+    // A second table sat silently under the first (#450).
+    const choice = await pickModal<'replace' | 'add' | 'cancel'>(
+      app,
+      [
+        { label: plugin.t('Replace the existing table(s) with the current samples'), value: 'replace' },
+        { label: plugin.t('Insert one more table'), value: 'add' },
+        { label: plugin.t('Cancel'), value: 'cancel' },
+      ],
+      {
+        title: plugin.t(
+          'This note already has {0} sample list table(s). Replacing them loses rows and order changed by hand.',
+          String(tables.length)
+        ),
+      }
+    );
+    if (choice === undefined || choice === 'cancel') return false;
+    if (choice === 'replace') {
+      // From the last table, so the earlier ones keep their offsets.
+      for (const range of [...tables].reverse()) await target.replaceRange(range.start, range.end, table);
+      const below = tables[0].start + table.length + (text[tables[0].end] === '\n' ? 1 : 0);
+      await target.revealOffset?.(below);
+      plugin.markUserEdit(target.path);
+      new Notice(
+        `${plugin.t(
+          'Replaced {0} sample list table(s) with the current samples ({1} sample(s)).',
+          String(tables.length),
+          String(rows.length)
+        )}${leftOut}`
+      );
+      return true;
+    }
+  }
   const cursor = target.getCursorOffset ? await target.getCursorOffset() : text.length;
   // In the front matter or above the title the table would break the
   // properties, so it goes at the end like a sample reference does (#360).
   const atEnd = cursor !== text.length && isOffsetBeforeBody(text, cursor);
-  const at = atEnd ? text.length : cursor;
+  // Inside a sample list table's text, a new table would break it: below it instead.
+  const inside = tables.find(range => cursor > range.start && cursor < range.end);
+  const at = atEnd ? text.length : (inside?.end ?? cursor);
   const before = at === 0 || text[at - 1] === '\n' ? (at > 1 && text[at - 2] !== '\n' ? '\n' : '') : '\n\n';
   const after = at >= text.length || text[at] === '\n' ? '\n' : '\n\n';
   await target.replaceRange(at, at, `${before}${table}${after}`);

@@ -535,6 +535,12 @@ const obsidianKo: Record<string, string> = {
   'Open a note of an experiment to list its samples.': '시료 목록을 넣으려면 실험 안의 노트를 여세요.',
   'This experiment has no samples yet.': '이 실험에는 아직 시료가 없습니다.',
   'Inserted {0} sample(s).': '시료 {0}개를 표로 넣었습니다.',
+  'This note already has {0} sample list table(s). Replacing them loses rows and order changed by hand.':
+    '이 노트에 시료 목록 표가 이미 {0}개 있습니다. 바꾸면 손으로 넣은 줄과 순서는 사라집니다.',
+  'Replace the existing table(s) with the current samples': '기존 표를 최신으로 바꾸기',
+  'Insert one more table': '새 표 하나 더 넣기',
+  'Replaced {0} sample list table(s) with the current samples ({1} sample(s)).':
+    '시료 목록 표 {0}개를 최신으로 바꿨습니다(시료 {1}개).',
   'The cursor was in the properties or above the title, so the table is at the end of the note.':
     '커서가 머리말 안이나 제목 위에 있어 표를 노트 끝에 넣었습니다.',
   "{0} sample reference(s) in this experiment's notes are not in the sample registry, so they are not in the table: {1}":
