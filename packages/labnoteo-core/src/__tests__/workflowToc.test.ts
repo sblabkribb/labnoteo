@@ -4,6 +4,7 @@ import {
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   refreshUnitOpTocEntries,
+  addUnitOpTocEntry,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   minimalReplacement,
@@ -760,6 +761,49 @@ describe('minimalReplacement', () => {
 });
 
 // #258: with automatic sorting off, names and links must still follow the headings.
+// #457: an insert with sorting off adds one entry and leaves the rest in place.
+describe('addUnitOpTocEntry', () => {
+  const note = (toc: string[], headings: string[]): string =>
+    ['## Related Unit Operations', '', ...toc, '', '---', '', ...headings.flatMap(h => [h, '']), ''].join('\n');
+  const tocOf = (md: string) => md.split('\n').filter(l => l.startsWith('- ['));
+  const at = (md: string, heading: string) => md.indexOf(heading);
+
+  it('adds the entry after the block before it, keeping a hand-made order', () => {
+    const md = note(['- [UHW020 B](#uhw020-b)', '- [UHW010 A](#uhw010-a)'], ['### [UHW010 A]', '### [UHW030 C]', '### [UHW020 B]']);
+    expect(tocOf(addUnitOpTocEntry(md, at(md, '### [UHW030 C]')))).toEqual([
+      '- [UHW020 B](#uhw020-b)',
+      '- [UHW010 A](#uhw010-a)',
+      '- [UHW030 C](#uhw030-c)',
+    ]);
+  });
+
+  it('puts a first block before the entry of the block after it', () => {
+    const md = note(['- [UHW020 B](#uhw020-b)', '- [UHW010 A](#uhw010-a)'], ['### [UHW030 C]', '### [UHW010 A]', '### [UHW020 B]']);
+    expect(tocOf(addUnitOpTocEntry(md, at(md, '### [UHW030 C]')))).toEqual([
+      '- [UHW020 B](#uhw020-b)',
+      '- [UHW030 C](#uhw030-c)',
+      '- [UHW010 A](#uhw010-a)',
+    ]);
+  });
+
+  it('keeps blocks of one unit operation in note order among themselves', () => {
+    const md = note(
+      ['- [UHW010 A | late](#uhw010-a-late)', '- [UHW020 B](#uhw020-b)'],
+      ['### [UHW020 B]', '### [UHW010 A] early', '### [UHW010 A] late']
+    );
+    expect(tocOf(refreshUnitOpTocEntries(addUnitOpTocEntry(md, at(md, '### [UHW010 A] early'))))).toEqual([
+      '- [UHW010 A | early](#uhw010-a-early)',
+      '- [UHW010 A | late](#uhw010-a-late)',
+      '- [UHW020 B](#uhw020-b)',
+    ]);
+  });
+
+  it('starts the list when there is none', () => {
+    const md = note([], ['### [UHW010 A]']);
+    expect(tocOf(addUnitOpTocEntry(md, at(md, '### [UHW010 A]')))).toEqual(['- [UHW010 A](#uhw010-a)']);
+  });
+});
+
 describe('refreshUnitOpTocEntries', () => {
   const note = (toc: string[], headings: string[]): string =>
     ['## Related Unit Operations', '', ...toc, '', '---', '', ...headings, ''].join('\n');

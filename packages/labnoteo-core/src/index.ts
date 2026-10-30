@@ -14,6 +14,8 @@ export {
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   refreshUnitOpTocEntries,
+  addUnitOpTocEntry,
+  unitOpSectionLine,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   findUnitOpInsertPointAt,

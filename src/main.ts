@@ -529,7 +529,7 @@ export default class LabnotePlugin extends Plugin {
     this.addCommand({
       id: 'insert-unit-operation',
       name: this.paletteName('Insert unit operation'),
-      callback: () => this.run(() => insertUnitOperationCommand(this.app, this.host)),
+      callback: () => this.run(() => insertUnitOperationCommand(this.app, this.host, { sortToc: this.settings.autoSyncUnitOpToc })),
     });
 
     this.addCommand({
@@ -777,7 +777,7 @@ export default class LabnotePlugin extends Plugin {
             item
               .setTitle(this.t('Insert unit operation'))
               .setIcon('plus')
-              .onClick(() => this.run(() => insertUnitOperationCommand(this.app, this.host)))
+              .onClick(() => this.run(() => insertUnitOperationCommand(this.app, this.host, { sortToc: this.settings.autoSyncUnitOpToc })))
           );
         } else if (file.name.toLowerCase() === 'readme.labnote.md') {
           menu.addItem(item =>

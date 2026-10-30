@@ -32,6 +32,13 @@ export interface InsertUnitOperationInput {
    * {@link findUnitOpInsertPointAt} at the cursor.
    */
   at?: UnitOpInsertPoint;
+  /**
+   * Run once the block is in, before the notice: the caller's table of
+   * contents update. Resolving `true` says the note has a TOC it updated, so
+   * a block placed for want of a unit operation section is not reported as
+   * leaving the TOC alone (#455).
+   */
+  afterInsert?: () => Promise<boolean>;
 }
 
 /**
@@ -119,6 +126,7 @@ export async function insertUnitOperation(
 
   const at = input.at ?? (await unitOpInsertPointAtCursor(target));
   await target.replaceRange(at.offset, at.offset, template);
+  const tocUpdated = input.afterInsert ? await input.afterInsert() : false;
   const where =
     at.place === 'after'
       ? host.t('(after {0})', at.after ?? '')
@@ -127,9 +135,13 @@ export async function insertUnitOperation(
         : at.place === 'end'
           ? host.t('(after the last unit operation)')
           : at.place === 'noSection'
-            ? at.beforeConclusions
-              ? host.t('(before the conclusions: no unit operation section was found, so the table of contents was not updated)')
-              : host.t('(at the end of the note: no unit operation section was found, so the table of contents was not updated)')
+            ? tocUpdated
+              ? at.beforeConclusions
+                ? host.t('(before the conclusions)')
+                : host.t('(at the end of the note)')
+              : at.beforeConclusions
+                ? host.t('(before the conclusions: no unit operation section was found, so the table of contents was not updated)')
+                : host.t('(at the end of the note: no unit operation section was found, so the table of contents was not updated)')
             : '';
   const who =
     own && author && own !== author

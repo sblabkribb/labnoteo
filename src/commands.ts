@@ -27,6 +27,9 @@ import {
   insertUnitOperation,
   workflowPathProblem,
   rebuildUnitOpToc,
+  refreshUnitOpTocEntries,
+  addUnitOpTocEntry,
+  unitOpSectionLine,
   locateInsertedUnitOpHeading,
   unitOpInsertPointAtCursor,
   EXPERIMENT_STATUSES,
@@ -1200,12 +1203,15 @@ export async function insertWorkflowLinkCommand(
  * that section's TOC so its entries follow the document order of the actual
  * `### [..]` headings. Finally, move the cursor/focus to the just-inserted
  * heading. Shared by the command and the workflow sidebar's context menu, which
- * uses the cursor of the editor last active.
+ * uses the cursor of the editor last active. With `sortToc` off (the "Auto-sync
+ * unit operation TOC" setting), the new entry is added without reordering the
+ * others (#457).
  */
 export async function insertUnitOpAndUpdateToc(
   host: LabnoteHost,
   input: InsertUnitOperationInput,
-  askAlias?: (input: InsertUnitOperationInput) => Promise<string | undefined>
+  askAlias?: (input: InsertUnitOperationInput) => Promise<string | undefined>,
+  opts: { sortToc: boolean } = { sortToc: true }
 ): Promise<boolean> {
   // Asked only where the insert will go ahead: `insertUnitOperation` refuses a
   // note that is no workflow, which would come after the alias was typed.
@@ -1222,13 +1228,14 @@ export async function insertUnitOpAndUpdateToc(
   const at = before ? await unitOpInsertPointAtCursor(before) : undefined;
   const insertOffset = at?.offset ?? -1;
 
-  const ok = await insertUnitOperation(host, { ...input, alias, at });
-  if (!ok) return false;
-
-  const target = host.editTarget();
-  if (target) {
+  // The TOC follows before the notice, which says whether there was one (#455).
+  const afterInsert = async (): Promise<boolean> => {
+    const target = host.editTarget();
+    if (!target) return false;
     const md = await target.getText();
-    const updated = rebuildUnitOpToc(md);
+    const heading = insertOffset >= 0 ? md.indexOf('### [', insertOffset) : -1;
+    const updated =
+      opts.sortToc || heading === -1 ? rebuildUnitOpToc(md) : refreshUnitOpTocEntries(addUnitOpTocEntry(md, heading));
     if (updated !== md) {
       await target.replaceRange(0, md.length, updated);
     }
@@ -1238,12 +1245,18 @@ export async function insertUnitOpAndUpdateToc(
       const off = locateInsertedUnitOpHeading(md, insertOffset, updated);
       if (off >= 0) await target.revealOffset(off);
     }
-  }
-  return true;
+    return unitOpSectionLine(updated) !== -1;
+  };
+
+  return insertUnitOperation(host, { ...input, alias, at, afterInsert });
 }
 
 /** Insert a unit-operation block after the one the cursor is in + update the workflow TOC. */
-export async function insertUnitOperationCommand(app: App, host: LabnoteHost): Promise<void> {
+export async function insertUnitOperationCommand(
+  app: App,
+  host: LabnoteHost,
+  opts: { sortToc: boolean } = { sortToc: true }
+): Promise<void> {
   const opened = host.editTarget();
   if (!opened) {
     host.notify('warn', host.t('Please open a workflow file.'));
@@ -1289,7 +1302,8 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
       equipment: op.equipment,
       software: op.software,
     },
-    unitOpAliasPrompt(app, host)
+    unitOpAliasPrompt(app, host),
+    opts
   );
 }
 
