@@ -291,13 +291,19 @@ describe('create_sample / get_sample / list_samples', () => {
     expect(await fs.exists(`${NOTE_DIR}/resources/labsamples/Equip.json`)).toBe(true);
   });
 
-  it('canonicalises custom types from the context and still accepts unknown ones', async () => {
+  it('canonicalises custom types from the context', async () => {
     const custom = { ...ctx, customTypes: ['배지'] };
     const known = await tool('create_sample').handler(custom, { type: '배지', id: '배지-2', documentPath: NOTE_PATH });
     expect(known.data).toMatchObject({ id: '배지-2', type: '배지' });
-    const unknown = await tool('create_sample').handler(ctx, { type: 'Gizmo', documentPath: NOTE_PATH });
-    expect(unknown.ok).toBe(true);
-    expect((unknown.data as { id: string }).id).toMatch(/^Gizmo-\d/);
+  });
+
+  // #447: a type missing from the settings was saved where nothing reads it.
+  it('refuses a type missing from the settings without writing', async () => {
+    const before = fs.snapshot();
+    const unknown = await tool('create_sample').handler(ctx, { type: 'Strain', alias: 'BL21', documentPath: NOTE_PATH });
+    expect(unknown.ok).toBe(false);
+    expect(unknown.error).toContain('Unknown sample type "Strain". Known types: DNA');
+    expect(fs.snapshot()).toEqual(before);
   });
 
   // #64: a vault-root note's local folder is the global one.

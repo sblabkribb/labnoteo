@@ -473,9 +473,16 @@ async function resolveSampleCreate(
     if (outside) return { error: outside.error! };
   }
   if (!rawType || !documentPath) return { error: 'type and documentPath are required' };
-  // Unknown types are still accepted, as before; known ones take their
-  // canonical spelling so `equip` and `Equip` share one file and id prefix.
-  const type = canonicalSampleType(rawType, getSampleDisplayMeta(ctx.customTypes).types) ?? rawType;
+  // A type missing from the settings would be saved where no view or lookup
+  // reads it (#447), so it is refused as `get_sample` refuses it. Known ones
+  // take their canonical spelling so `equip` and `Equip` share one file and id prefix.
+  const knownTypes = getSampleDisplayMeta(ctx.customTypes).types;
+  const type = canonicalSampleType(rawType, knownTypes);
+  if (!type) {
+    return {
+      error: `Unknown sample type "${rawType}". Known types: ${knownTypes.join(', ')}. A new type must first be added to the sample types in the Labnote settings.`,
+    };
+  }
   const rawId = str(args, 'id');
   const id = rawId === undefined ? undefined : normalizeSampleId(type, rawId);
   if (rawId !== undefined && !id) {
