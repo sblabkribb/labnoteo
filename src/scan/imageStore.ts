@@ -65,23 +65,65 @@ async function ensureFolder(app: App, folder: string): Promise<void> {
   }
 }
 
-/** Write `bytes` as `folder/name` (renamed when taken) and return the file. */
+/**
+ * Write `bytes` as `folder/name` (renamed when taken) and return the file.
+ * With `reuseUnlinked`, a file the name or its `_N` variants already hold with
+ * the same bytes is returned instead when no note links it and it is not in
+ * `reuseUnlinked.skip` (written by this import, whose links are not in yet):
+ * the image left behind when an entry was undone in the editor (#483).
+ */
 export async function saveBinary(
   app: App,
   folder: string,
   name: string,
   bytes: ArrayBuffer,
-  avoid?: ReadonlySet<string>
+  avoid?: ReadonlySet<string>,
+  reuseUnlinked?: { skip: ReadonlySet<string> }
 ): Promise<TFile> {
   const dir = normalizePath(folder);
   await ensureFolder(app, dir);
   // `avoid`: lower-case names still linked from a note though their file is gone.
-  const finalName = freeName(
-    name,
-    candidate =>
-      app.vault.getAbstractFileByPath(posix.join(dir, candidate)) !== null || !!avoid?.has(candidate.toLowerCase())
-  );
+  const taken = (candidate: string): boolean =>
+    app.vault.getAbstractFileByPath(posix.join(dir, candidate)) !== null || !!avoid?.has(candidate.toLowerCase());
+  const finalName = freeName(name, taken);
+  if (reuseUnlinked) {
+    const leftover = await unlinkedTwin(app, dir, name, finalName, bytes, avoid, reuseUnlinked.skip);
+    if (leftover) return leftover;
+  }
   return app.vault.createBinary(posix.join(dir, finalName), bytes);
+}
+
+/** The names {@link freeName} passed over before `free`, holding `bytes` and linked from no note. */
+async function unlinkedTwin(
+  app: App,
+  dir: string,
+  name: string,
+  free: string,
+  bytes: ArrayBuffer,
+  avoid: ReadonlySet<string> | undefined,
+  skip: ReadonlySet<string>
+): Promise<TFile | undefined> {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  const linked = Object.values(app.metadataCache.resolvedLinks ?? {});
+  for (let i = 1; ; i++) {
+    const candidate = i === 1 ? name : `${stem}_${i}${ext}`;
+    if (candidate === free) return undefined;
+    const path = posix.join(dir, candidate);
+    const file = app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile) || avoid?.has(candidate.toLowerCase()) || skip.has(path)) continue;
+    if (linked.some(links => path in links)) continue;
+    if (sameBytes(await app.vault.readBinary(file), bytes)) return file;
+  }
+}
+
+function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
 }
 
 /** Why a page went to the unmatched queue; kept in its file name (#349). */
