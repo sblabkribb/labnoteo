@@ -60,6 +60,10 @@ Create a new `.labnote.md` experiment note.
 - As you type the title, it shows how many characters go into the folder name (`n/60`) and turns
   the warning colour past 60. Creating is not blocked: only the title part of the folder name is
   cut at 60, and the README title keeps it all.
+- When the title matches another experiment's README `title` or folder name (the part after the
+  number), case aside, it says `The experiment 001_… already has this title` in the warning colour
+  instead: record in that experiment, or give this one another title. Creating is not blocked. The
+  title prompts of `Retry this experiment` and of a copied experiment folder warn the same way.
 - On Windows, it warns when the path including the vault folder reaches 260 characters.
 
 ### Change experiment status
@@ -90,6 +94,9 @@ otherwise ` (retry)` is added, ` 2차` in the Korean UI; a run that already has 
 and can be edited; the new experiment is `planned` and keeps the original's `author` and `project`
 as written there (a `[[name]]` link stays a link).
 
+- The run counts every experiment linked by `retry_of`, retries given another title included: with
+  `… 1차` and two renamed retries it offers `… 4차` (in English, `(retry)` is the second run and
+  `(retry) 3` the fourth).
 - Its README gets `retry_of` with a link to the original README (`[[labnote/061_…/README.labnote|061]]`),
   so Obsidian keeps it pointing there when folders are renumbered.
 - In the workflow view the retry's tooltip says `Retry of: 061` and the original's says
@@ -440,6 +447,12 @@ discarded columns, leaving the cursor below the table. With a Live Preview table
 goes below that table; run from the front matter or above the first heading, it goes at the end of
 the note, with a notice. Use `Export tables to CSV` for a CSV.
 
+When the note already has a sample list table, it asks first. **Replace the existing table(s) with
+the current samples** writes every sample list table of the note again from the registries (rows
+and order changed by hand are lost) and leaves the text around them alone; **Insert one more table**
+inserts as before (below the table when the cursor is in its text); `Cancel` changes nothing. The
+new table's header and scope cells are in the UI language. Tables in other notes are left alone.
+
 References the note makes that no registry has are left out of the table, and the notice names them.
 
 Outside the ID column, `#`, `[`, `]`, `*`, `_`, a backtick, `<`, `$`, `~~`, `==` and `%%` get a
@@ -552,6 +565,11 @@ and inserts `ID;alias`.
   an experiment. The KID is kept with the link rather than as the sample ID, and shows in the
   sample definition window. The description holds the KID, the name and partbank's description up
   to 1000 characters, cut between words beyond that (for samples registered from 0.125.0 on).
+- One experiment does not use another's samples, so **an item registered only in other
+  experiments** gets a new ID here, and the notice adds `Other experiments have this partbank item
+  too: DNA-3 (002_…)`. When partbank gives no storage location and those experiments' samples (the
+  ones not marked discarded) record a single one, you are asked whether to write it for this sample
+  too; when they disagree, you are not asked.
 
 ### Refresh storage location from partbank
 
@@ -685,6 +703,11 @@ before scanning new printouts.
 A page the note already has, but whose image was deleted, is filed again in place of the entry left
 behind, and the result says so. A new scan never takes the name of a missing image a note still
 links, so **delete earlier scan** removes the earlier image, not the new one.
+
+Taking an entry out with Ctrl+Z in the editor leaves its image in `images/scans/`. Importing the
+same photo again on the same day uses that file again, instead of writing `name_2.jpg`, as long as
+it holds the same bytes and no note links it; on another day the file name's date differs and a new
+file is written. To remove a scan for good, use **undo** in the results, or delete the file.
 
 ### Process scan folder now
 

@@ -89,6 +89,8 @@ Claude Code, Codex, Cursor 등)는 아래 규칙을 따라 작업합니다.
 - MCP `create_workflow`의 `alias`는 앱에서 `Create workflow` 뒤에 넣는 별칭과 같습니다. 파일 이름·제목·체크리스트
   라벨에서 카탈로그 이름 뒤에 붙습니다. `#`(제목 링크가 끊김)와 `*`, 영문·숫자 사이가 아닌 `_`(읽기
   화면에서 기울임으로 보임)는 거부되니 띄어쓰기로 바꾸세요(`pUC19_v2`처럼 영문·숫자 사이의 `_`는 됨).
+  같은 ID·별칭의 워크플로가 이미 있으면 결과의 `warnings`가 그 파일을 알려 줍니다. 같은 워크플로를
+  또 만든 것인지 사용자에게 말하고, 다른 것이면 별칭을 구분해 주세요.
 - MCP `update_section`은 절 본문 **전체를 바꿉니다**(하위 제목 포함). 바꾸지 않을 절은
   호출하지 마세요. 빈 `content`는 거부되며, 절을 일부러 비울 때만 `content: ""`와
   `clear: true`를 함께 보냅니다. 결과의 `removedLines`·`removedSubheadings`·`previousBody`로
