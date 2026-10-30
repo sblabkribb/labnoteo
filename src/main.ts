@@ -48,6 +48,7 @@ import {
 } from '@labnoteo/core/lib/workflowStructure';
 import {
   saveSamplesFromDocument,
+  type SampleAliasConflict,
   resolveLocalSampleFolder,
   noteLabsamplesFolder,
   hasReferenceCatalog,
@@ -230,6 +231,8 @@ export default class LabnotePlugin extends Plugin {
   // Experiment folders copied with "Make a copy" whose fix is being offered (#223);
   // the files created along with them are part of that copy, not copies of their own.
   private readonly copiedExperiments = new Set<string>();
+  // Alias disagreements between notes already reported this session (#481).
+  private readonly aliasConflictsShown = new Set<string>();
   // Of those, the folders whose notes already have their own IDs, and those
   // notes (#265): until then the "same note ID" question would be redundant.
   private readonly copyIdsRenewed = new Map<string, Set<string>>();
@@ -2780,7 +2783,7 @@ export default class LabnotePlugin extends Plugin {
   private async syncSamples(file: TFile): Promise<void> {
     try {
       const content = await this.app.vault.read(file);
-      await saveSamplesFromDocument(
+      const conflicts = await saveSamplesFromDocument(
         this.fs,
         file.path,
         content,
@@ -2788,12 +2791,35 @@ export default class LabnotePlugin extends Plugin {
         this.settings.customSampleTypes,
         sampleListHeaders(this)
       );
+      this.noticeAliasConflicts(conflicts);
       // Freshly-written definitions should show up in autocomplete right away.
       this.sampleSuggest?.clearCache();
       // The note itself goes to partbank through its own modify listener.
       this.refreshSampleViews({ fromNoteSync: true });
     } catch (err) {
       console.warn('[labnoteo] sample sync failed:', err);
+    }
+  }
+
+  /**
+   * Say once per session that notes define one sample with different aliases
+   * (#481): the registry keeps the alias last changed in a definition, and the
+   * other notes go on showing theirs.
+   */
+  private noticeAliasConflicts(conflicts: readonly SampleAliasConflict[]): void {
+    for (const c of conflicts) {
+      const aliases = [c.alias, ...c.others.map(([, a]) => a)].map(a => a.trim().toLowerCase()).sort();
+      const key = `${c.type}|${c.id.toLowerCase()}|${aliases.join('|')}`;
+      if (this.aliasConflictsShown.has(key)) continue;
+      this.aliasConflictsShown.add(key);
+      this.host.notify(
+        'warn',
+        this.t(
+          '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.',
+          c.id,
+          [[c.source, c.alias] as const, ...c.others].map(([note, alias]) => `${alias} (${note})`).join(', ')
+        )
+      );
     }
   }
 

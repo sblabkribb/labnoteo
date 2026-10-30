@@ -617,6 +617,8 @@ const obsidianKo: Record<string, string> = {
   '{0} was added to Global samples because this note is outside an experiment folder.':
     '이 노트는 실험 폴더 밖에 있어 {0}을(를) 전역 샘플에 추가했습니다.',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
+  '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.':
+    '{0}이(가) 노트마다 다른 별칭으로 정의되어 있습니다: {1}. 샘플은 가장 나중에 바뀐 정의의 별칭을 씁니다. 하나로 맞추려면 "샘플 편집"으로 별칭을 정하고 노트를 함께 고치세요.',
   '{0} is also registered in other experiments ({1}); only this one changed.':
     '{0}은(는) 다른 실험의 대장에도 있습니다({1}). 이번 편집은 이 실험의 기록만 바꿨습니다.',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
