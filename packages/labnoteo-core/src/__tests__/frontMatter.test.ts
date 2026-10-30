@@ -10,7 +10,13 @@
 // bugs are pinned with `it.fails(...)`: they pass now *because* the assertion
 // throws against current behaviour, and Phase 1-2 (yaml.dump for scalars +
 // line-anchored closing fence) will flip them to normal `it(...)`.
-import { parseFrontMatterYaml, planDateInsertion, serializeFrontMatterEntry, setFrontMatterKeys } from '../sections/frontMatter';
+import {
+  isDateLikeKey,
+  parseFrontMatterYaml,
+  planDateInsertion,
+  serializeFrontMatterEntry,
+  setFrontMatterKeys,
+} from '../sections/frontMatter';
 import { isInFrontMatter, isOffsetBeforeBody } from '../sections/documentHead';
 
 // #106: the date commands typed straight into the YAML.
@@ -52,6 +58,36 @@ describe('date insertion and the front matter', () => {
     for (const line of [1, 0, 6, 5]) {
       expect(planDateInsertion(DOC, at(line, 1), at(line, 1), '2026-10-18')).toEqual({ reason: 'frontMatter' });
     }
+  });
+
+  // #444: an empty `author:` took the date, and `tags:` with its list below broke the YAML.
+  it('fills only date keys, and names the key it refused', () => {
+    const doc = ['---', 'author:', "project: ''", 'tags:', '  - a', 'created_date:', 'end_date:', '---', ''].join('\n');
+    const lineAt = (line: number): number =>
+      doc
+        .split('\n')
+        .slice(0, line)
+        .reduce((n, l) => n + l.length + 1, 0);
+    for (const [line, key] of [
+      [1, 'author'],
+      [2, 'project'],
+      [3, 'tags'],
+    ] as const) {
+      expect(planDateInsertion(doc, lineAt(line), lineAt(line), '2026-10-18')).toEqual({ reason: 'notDateKey', key });
+    }
+    for (const [line, key] of [
+      [5, 'created_date'],
+      [6, 'end_date'],
+    ] as const) {
+      expect(planDateInsertion(doc, lineAt(line), lineAt(line), '2026-10-18')).toMatchObject({
+        text: `${key}: 2026-10-18`,
+      });
+    }
+  });
+
+  it('takes date and time keys of any case as date keys', () => {
+    for (const key of ['created_date', 'End_Date', 'start_time', 'DATE']) expect(isDateLikeKey(key)).toBe(true);
+    for (const key of ['author', 'project', 'tags', 'status']) expect(isDateLikeKey(key)).toBe(false);
   });
 
   // #479: a date right after `ID;alias` was read into the alias.

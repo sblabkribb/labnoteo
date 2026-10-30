@@ -692,7 +692,12 @@ export function insertDateCommand(
       'warn',
       plan.reason === 'metaDate'
         ? host.t('This Start_date/End_date already has a value. Use the 📅 picker next to it to change the date.')
-        : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
+        : plan.reason === 'notDateKey'
+          ? host.t(
+              '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
+              plan.key
+            )
+          : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
     );
     return false;
   }

@@ -84,6 +84,23 @@ describe('insertDateCommand', () => {
       if (!hadElement) delete g.HTMLElement;
     }
   });
+
+  // #444
+  it('leaves a front matter key that is not a date as it is, and says why', () => {
+    const notices: string[] = [];
+    const warnHost = {
+      notify: (_level: string, message: string) => notices.push(message),
+      t: (s: string, ...args: string[]) => args.reduce((acc, a, i) => acc.replace(`{${i}}`, a), s),
+    } as unknown as LabnoteHost;
+    const e = fakeEditor('---\nauthor:\n---\n', 11);
+
+    expect(insertDateCommand(e.editor, warnHost, '2026-10-24')).toBe(false);
+
+    expect(e.text()).toBe('---\nauthor:\n---\n');
+    expect(notices).toEqual([
+      'author is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
+    ]);
+  });
 });
 
 // #405: with a property focused, the date went to the body's last cursor line.
