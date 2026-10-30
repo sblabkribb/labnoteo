@@ -54,6 +54,16 @@ describe('date insertion and the front matter', () => {
     }
   });
 
+  // #479: a date right after `ID;alias` was read into the alias.
+  it('keeps a body date apart from a reference alias before it', () => {
+    const doc = '# X\nDNA-1;T7-frag1\n실험일\n';
+    const afterRef = doc.indexOf('\n실험일');
+    const afterWord = doc.indexOf('일\n') + 1;
+    expect(planDateInsertion(doc, afterRef, afterRef, 'D', ['DNA'])).toEqual({ from: afterRef, to: afterRef, text: ' D' });
+    expect(planDateInsertion(doc, afterWord, afterWord, 'D', ['DNA'])).toEqual({ from: afterWord, to: afterWord, text: 'D' });
+    expect(planDateInsertion(doc, afterRef, afterRef, 'D')).toEqual({ from: afterRef, to: afterRef, text: 'D' });
+  });
+
   it('treats an unclosed --- block as body', () => {
     const doc = '---\ntitle: x\n';
     expect(planDateInsertion(doc, 8, 8, 'D')).toEqual({ from: 8, to: 8, text: 'D' });

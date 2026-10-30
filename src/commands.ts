@@ -27,6 +27,9 @@ import {
   insertUnitOperation,
   workflowPathProblem,
   rebuildUnitOpToc,
+  refreshUnitOpTocEntries,
+  addUnitOpTocEntry,
+  unitOpSectionLine,
   locateInsertedUnitOpHeading,
   unitOpInsertPointAtCursor,
   EXPERIMENT_STATUSES,
@@ -37,8 +40,10 @@ import {
   isDiscussFlagged,
   parseFrontMatterYaml,
   parseIssueMarkers,
+  MAX_ISSUE_TOPIC,
   planIssueMarkerInsertion,
   planDateInsertion,
+  endsAliasedReference,
   issueSentenceRange,
   lineHasSampleReference,
   DISCUSS_FLAG_KEY,
@@ -664,18 +669,26 @@ export function focusOnNoteHeader(focused: Element | null | undefined): boolean 
  * only fills a key with an empty value; elsewhere there it is refused with a
  * warning, since the text would break the YAML (#106).
  */
-export function insertDateCommand(editor: Editor, host: LabnoteHost, text: string): boolean {
+export function insertDateCommand(
+  editor: Editor,
+  host: LabnoteHost,
+  text: string,
+  types: readonly string[] = []
+): boolean {
   // A table cell has an editor of its own holding just that cell (#303): the
   // front matter and Meta checks below would read the cell as the note.
   if (tableCellHostView(editor)) {
-    editor.replaceSelection(text);
+    const from = editor.getCursor('from');
+    const lineBefore = editor.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
+    editor.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
     return true;
   }
   const plan = planDateInsertion(
     editor.getValue(),
     editor.posToOffset(editor.getCursor('from')),
     editor.posToOffset(editor.getCursor('to')),
-    text
+    text,
+    types
   );
   if ('reason' in plan) {
     host.notify(
@@ -801,6 +814,19 @@ export async function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost
   const { edit, cursor } = plan;
   editor.replaceRange(edit.insert, editor.offsetToPos(edit.from), editor.offsetToPos(edit.to));
   editor.setCursor(editor.offsetToPos(cursor));
+  // GitHub takes titles up to 256 characters, the experiment ID included (#475).
+  const topic = parseIssueMarkers(edit.insert).markers[0]?.title ?? '';
+  const length = Array.from(topic).length;
+  if (length > MAX_ISSUE_TOPIC) {
+    host.notify(
+      'warn',
+      host.t(
+        'The topic sentence is {0} characters long. The issue title takes about {1}, so it will be shortened there; the whole sentence goes in the issue body.',
+        String(length),
+        String(MAX_ISSUE_TOPIC)
+      )
+    );
+  }
   return true;
 }
 
@@ -1191,12 +1217,15 @@ export async function insertWorkflowLinkCommand(
  * that section's TOC so its entries follow the document order of the actual
  * `### [..]` headings. Finally, move the cursor/focus to the just-inserted
  * heading. Shared by the command and the workflow sidebar's context menu, which
- * uses the cursor of the editor last active.
+ * uses the cursor of the editor last active. With `sortToc` off (the "Auto-sync
+ * unit operation TOC" setting), the new entry is added without reordering the
+ * others (#457).
  */
 export async function insertUnitOpAndUpdateToc(
   host: LabnoteHost,
   input: InsertUnitOperationInput,
-  askAlias?: (input: InsertUnitOperationInput) => Promise<string | undefined>
+  askAlias?: (input: InsertUnitOperationInput) => Promise<string | undefined>,
+  opts: { sortToc: boolean } = { sortToc: true }
 ): Promise<boolean> {
   // Asked only where the insert will go ahead: `insertUnitOperation` refuses a
   // note that is no workflow, which would come after the alias was typed.
@@ -1213,13 +1242,14 @@ export async function insertUnitOpAndUpdateToc(
   const at = before ? await unitOpInsertPointAtCursor(before) : undefined;
   const insertOffset = at?.offset ?? -1;
 
-  const ok = await insertUnitOperation(host, { ...input, alias, at });
-  if (!ok) return false;
-
-  const target = host.editTarget();
-  if (target) {
+  // The TOC follows before the notice, which says whether there was one (#455).
+  const afterInsert = async (): Promise<boolean> => {
+    const target = host.editTarget();
+    if (!target) return false;
     const md = await target.getText();
-    const updated = rebuildUnitOpToc(md);
+    const heading = insertOffset >= 0 ? md.indexOf('### [', insertOffset) : -1;
+    const updated =
+      opts.sortToc || heading === -1 ? rebuildUnitOpToc(md) : refreshUnitOpTocEntries(addUnitOpTocEntry(md, heading));
     if (updated !== md) {
       await target.replaceRange(0, md.length, updated);
     }
@@ -1229,12 +1259,18 @@ export async function insertUnitOpAndUpdateToc(
       const off = locateInsertedUnitOpHeading(md, insertOffset, updated);
       if (off >= 0) await target.revealOffset(off);
     }
-  }
-  return true;
+    return unitOpSectionLine(updated) !== -1;
+  };
+
+  return insertUnitOperation(host, { ...input, alias, at, afterInsert });
 }
 
 /** Insert a unit-operation block after the one the cursor is in + update the workflow TOC. */
-export async function insertUnitOperationCommand(app: App, host: LabnoteHost): Promise<void> {
+export async function insertUnitOperationCommand(
+  app: App,
+  host: LabnoteHost,
+  opts: { sortToc: boolean } = { sortToc: true }
+): Promise<void> {
   const opened = host.editTarget();
   if (!opened) {
     host.notify('warn', host.t('Please open a workflow file.'));
@@ -1280,7 +1316,8 @@ export async function insertUnitOperationCommand(app: App, host: LabnoteHost): P
       equipment: op.equipment,
       software: op.software,
     },
-    unitOpAliasPrompt(app, host)
+    unitOpAliasPrompt(app, host),
+    opts
   );
 }
 
@@ -1315,8 +1352,11 @@ export function unitOpAliasPrompt(
  * main.ts) for a command that renames workflow files in bulk.
  */
 export interface ReadmeSyncControl {
-  /** Wait for the folder's pending and running syncs to be applied. */
-  flushNow(dir: string): Promise<void>;
+  /**
+   * Wait for the folder's pending and running syncs to be applied. Resolves to
+   * how many checklist entries of deleted notes this removed, when it says.
+   */
+  flushNow(dir: string): Promise<number | void>;
   /** Queue the folder's rename/delete events without writing the README. */
   hold(dir: string): void;
   /** Wait until no modal is open and Obsidian has applied confirmed link edits. */
@@ -1766,7 +1806,9 @@ export async function syncWorkflowChecklistCommand(
     return;
   }
 
-  await readmeSync.flushNow(labnoteDir);
+  // Entries of deleted notes still waiting for the auto-sync go here; they are
+  // counted as removed rather than reported as a checklist that already matched (#468).
+  const pruned = (await readmeSync.flushNow(labnoteDir)) || 0;
   let readme = await host.fs.read(readmePath);
   let { names, notes } = await readWorkflowFolder(host, labnoteDir);
   let titles = workflowLabels(notes);
@@ -1834,8 +1876,13 @@ export async function syncWorkflowChecklistCommand(
     const list = removable
       .map(s => `- ${s.link} (${host.t(s.reason === 'missing' ? 'file not found' : 'in another folder')})`)
       .join('\n');
+    // The files missing from the checklist are added whatever the answer (#459).
+    const addNote =
+      plan.added.length > 0
+        ? `\n\n${host.t('Added to the README checklist:')}\n${listFileNames(host, plan.added.map(a => a.fileName))}`
+        : '';
     const ok = await host.confirm(
-      `${host.t('These checklist entries do not point to a workflow file in this folder. Remove them from the checklist?')}\n\n${list}`,
+      `${host.t('These checklist entries do not point to a workflow file in this folder. Remove them from the checklist?')}\n\n${list}${addNote}`,
       { confirmLabel: host.t('Remove from checklist'), destructive: true }
     );
     if (ok) remove = removable.map(s => s.link);
@@ -1956,15 +2003,17 @@ export async function syncWorkflowChecklistCommand(
   ) {
     host.notify(
       'info',
-      host.t(
-        plan.stale.length > 0 ||
-          plan.relabel.length > 0 ||
-          plan.duplicates.length > 0 ||
-          retitles.length > 0 ||
-          experimenters.length > 0
-          ? 'No changes made.'
-          : 'The workflow checklist already matches the folder.'
-      )
+      pruned > 0
+        ? host.t('Workflow checklist updated: {0} added, {1} removed.', '0', String(pruned))
+        : host.t(
+            plan.stale.length > 0 ||
+              plan.relabel.length > 0 ||
+              plan.duplicates.length > 0 ||
+              retitles.length > 0 ||
+              experimenters.length > 0
+              ? 'No changes made.'
+              : 'The workflow checklist already matches the folder.'
+          )
     );
     clashNotice();
     return;
@@ -1990,7 +2039,11 @@ export async function syncWorkflowChecklistCommand(
     );
   });
   const parts = [
-    host.t('Workflow checklist updated: {0} added, {1} removed.', String(plan.added.length), String(remove.length)),
+    host.t(
+      'Workflow checklist updated: {0} added, {1} removed.',
+      String(plan.added.length),
+      String(remove.length + pruned)
+    ),
   ];
   if (movedBack > 0) parts.push(host.t('{0} note(s) moved back to the experiment folder.', String(movedBack)));
   if (notesUpdated > 0) parts.push(host.t('{0} note(s) updated.', String(notesUpdated)));
@@ -2127,7 +2180,8 @@ export interface SampleCleanupOpts {
  * After workflow files were deleted in the file explorer, remove their README
  * checklist entries (surgically — preserving order + any manual links) and drop
  * the deleted notes from each sample's `sources`. The samples themselves are
- * kept, so sample data survives a note deletion.
+ * kept, so sample data survives a note deletion. Returns how many checklist
+ * entries were removed.
  */
 export async function syncReadmeAndSamplesOnDelete(
   app: App,
@@ -2135,18 +2189,24 @@ export async function syncReadmeAndSamplesOnDelete(
   labnoteDir: string,
   deletedPaths: string[],
   opts: SampleCleanupOpts = {}
-): Promise<void> {
+): Promise<number> {
   // 1) README: drop each deleted entry in one read-modify-write. The README may
   //    itself be gone (whole-folder delete); then there is nothing to prune.
   const readmePath = posix.join(labnoteDir, README);
+  let removed = 0;
   if (await host.fs.exists(readmePath)) {
-    await processNoteThroughVault(app, host, readmePath, content => {
+    const written = await processNoteThroughVault(app, host, readmePath, content => {
+      removed = 0;
       for (const p of deletedPaths) {
         const res = removeWorkflowFromReadme(content, posix.basename(p));
-        if (res.changed) content = res.content;
+        if (res.changed) {
+          content = res.content;
+          removed++;
+        }
       }
       return content;
     });
+    if (!written) removed = 0;
   }
 
   // 2) Samples: a deleted document defines nothing, so pass empty text — every
@@ -2165,4 +2225,5 @@ export async function syncReadmeAndSamplesOnDelete(
       console.warn('[labnoteo] sample cleanup during workflow delete failed:', err);
     }
   }
+  return removed;
 }

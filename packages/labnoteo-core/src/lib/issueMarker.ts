@@ -28,6 +28,29 @@ export const ISSUE_MARKER_KEYWORD = '@issue';
 /** Prefix of every generated marker ID. */
 export const ISSUE_MARKER_ID_PREFIX = 'ISS';
 
+/** Longest issue title GitHub accepts. */
+export const MAX_ISSUE_TITLE = 256;
+
+/**
+ * A topic longer than this is shortened in the issue title, whatever the
+ * experiment identifier in front of it (#475); the plugin warns past it.
+ */
+export const MAX_ISSUE_TOPIC = 200;
+
+/**
+ * Issue title `[identifier] topic`, the topic cut with `…` so the whole stays
+ * within {@link MAX_ISSUE_TITLE} characters (#475). The `[identifier]` token
+ * is kept whole: an existing issue is found by it. Counted in code points, so
+ * a cut never splits a character.
+ */
+export function issueTitle(identifier: string, topic: string): string {
+  const head = `[${identifier}] `;
+  const title = head + topic;
+  if (Array.from(title).length <= MAX_ISSUE_TITLE) return title;
+  const room = Math.max(0, MAX_ISSUE_TITLE - Array.from(head).length - 1);
+  return head + Array.from(topic).slice(0, room).join('') + '…';
+}
+
 /** A well-formed marker found in a note. */
 export interface IssueMarker {
   /** Stable ID, e.g. `ISS-mkd8x3k`. */

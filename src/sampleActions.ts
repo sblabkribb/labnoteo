@@ -543,11 +543,18 @@ export async function createSampleInteractive(
       location: location ?? undefined,
     });
     plugin.refreshSampleViews();
-    new Notice(plugin.t('Sample updated: {0}', id));
-    if (discarded) new Notice(plugin.t('{0} was marked discarded on {1}.', id, discarded));
     const merged = (await loadSamplesByType(plugin.fs, existing.folder, type))[id];
     const mergedAlias = merged?.alias ?? null;
     const mergedDesc = merged?.descriptions?.[0] ?? null;
+    // The sample list tables follow the registry as after "Edit sample" (#463).
+    const changed =
+      (existing.record.alias ?? null) !== mergedAlias ||
+      (existing.record.descriptions?.[0] ?? null) !== mergedDesc ||
+      (existing.record.location ?? null) !== (merged?.location ?? null);
+    const tables = changed ? await updateSampleListTables(app, plugin, { folder: existing.folder, type, id }) : 0;
+    const tablesNote = tables > 0 ? plugin.t('Updated the sample list table in {0} note(s).', String(tables)) : undefined;
+    new Notice([plugin.t('Sample updated: {0}', id), tablesNote].filter(Boolean).join(' '));
+    if (discarded) new Notice(plugin.t('{0} was marked discarded on {1}.', id, discarded));
     return {
       id,
       alias: mergedAlias,

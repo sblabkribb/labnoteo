@@ -505,7 +505,8 @@ export class WorkflowTreeView extends ItemView {
               equipment: op.equipment,
               software: op.software,
             },
-            unitOpAliasPrompt(this.app, this.plugin.host)
+            unitOpAliasPrompt(this.app, this.plugin.host),
+            { sortToc: this.plugin.settings.autoSyncUnitOpToc }
           )
         )
     );

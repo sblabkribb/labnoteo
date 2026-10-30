@@ -336,6 +336,8 @@ const obsidianKo: Record<string, string> = {
   'Issue topic sentence': '이슈 주제 문장',
   'This sentence becomes the issue title. Keep the sentence from this line or type another.':
     '이 문장이 이슈 제목이 됩니다. 이 줄의 문장을 그대로 두거나 다른 문장을 입력하세요.',
+  'The topic sentence is {0} characters long. The issue title takes about {1}, so it will be shortened there; the whole sentence goes in the issue body.':
+    '주제 문장이 {0}자입니다. 이슈 제목에는 약 {1}자까지 들어가므로 제목에서는 줄여 쓰고, 전체 문장은 이슈 본문에 넣습니다.',
   'Enter the topic sentence of the issue.': '이슈의 주제 문장을 입력하세요.',
   'Flagged for discussion. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.':
     '논의 표시를 설정했습니다. 이 보관함은 아직 git 저장소가 아니라 이슈가 생성되지 않습니다. 먼저 {0}의 저장소 연결을 마치세요.',
@@ -463,6 +465,8 @@ const obsidianKo: Record<string, string> = {
     '별칭에는 "#"를 쓸 수 없습니다. 제목으로 가는 링크가 끊어집니다.',
   'An alias cannot contain "*", or "_" next to anything but ASCII letters and digits: the reading view shows part of it in italics. Use a space; the file name gets "_" for it anyway.':
     '별칭에는 "*"와, 영문·숫자 사이가 아닌 "_"를 쓸 수 없습니다. 읽기 화면에서 일부가 기울임으로 보입니다. 공백을 쓰세요. 파일 이름에는 어차피 "_"로 들어갑니다.',
+  '(before the conclusions)': '(결론 절 앞)',
+  '(at the end of the note)': '(노트 끝)',
   '(before the conclusions: no unit operation section was found, so the table of contents was not updated)':
     '(결론 절 앞: 유닛 오퍼레이션 절을 찾지 못해 목차는 갱신하지 않았습니다)',
   '(at the end of the note: no unit operation section was found, so the table of contents was not updated)':
@@ -617,6 +621,8 @@ const obsidianKo: Record<string, string> = {
   '{0} was added to Global samples because this note is outside an experiment folder.':
     '이 노트는 실험 폴더 밖에 있어 {0}을(를) 전역 샘플에 추가했습니다.',
   'Sample updated: {0}': '샘플이 수정되었습니다: {0}',
+  '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.':
+    '{0}이(가) 노트마다 다른 별칭으로 정의되어 있습니다: {1}. 샘플은 가장 나중에 바뀐 정의의 별칭을 씁니다. 하나로 맞추려면 "샘플 편집"으로 별칭을 정하고 노트를 함께 고치세요.',
   '{0} is also registered in other experiments ({1}); only this one changed.':
     '{0}은(는) 다른 실험의 대장에도 있습니다({1}). 이번 편집은 이 실험의 기록만 바꿨습니다.',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
@@ -956,6 +962,10 @@ const obsidianKo: Record<string, string> = {
   'This note has no labnote_id, but its scans show it was printed as {0}. Restore that ID? With a new ID, worksheets already printed will not find this note.':
     '이 노트에는 labnote_id가 없지만, 붙어 있는 스캔을 보면 전에 {0}(으)로 출력되었습니다. 그 ID를 되살릴까요? 새 ID를 쓰면 이미 출력한 기록지는 이 노트를 찾지 못합니다.',
   'Restore ID': 'ID 되살리기',
+  'The labnote_id of {0} was written as "{1}"; restored it as {2}.':
+    '{0}의 labnote_id가 "{1}"(으)로 적혀 있어 {2}(으)로 되돌렸습니다.',
+  'The labnote_id of this note, "{0}", is not a note ID (LN- and 8 letters or digits). Give it a new one? Worksheets printed under the old ID will not find this note.':
+    '이 노트의 labnote_id "{0}"은(는) 노트 ID 형식(LN-와 영문·숫자 8자)이 아닙니다. 새 ID를 받을까요? 새 ID를 받으면 예전 ID로 출력한 기록지는 이 노트를 찾지 못합니다.',
   'The scans in this note are named after the note ID {0}, but {1} has that ID now, so this note gets a new one. Worksheets printed as {0} are filed in {1}.':
     '이 노트의 스캔은 노트 ID {0}의 이름을 달고 있지만 지금은 {1}이(가) 그 ID를 쓰고 있어 새 ID를 발급합니다. {0}(으)로 출력한 기록지는 {1}에 붙습니다.',
   '{0} now has the note ID {1}.': '{0}에 노트 ID {1}을(를) 발급했습니다.',

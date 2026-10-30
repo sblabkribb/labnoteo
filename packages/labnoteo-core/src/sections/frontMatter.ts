@@ -1,6 +1,7 @@
 import * as yaml from 'js-yaml';
 import { isInFrontMatter } from './documentHead';
 import { findMetaDateFieldInLine } from '../lib/dateUtils';
+import { endsAliasedReference } from '../sample/referenceInsert';
 
 /** Result of {@link parseFrontMatterYaml}. */
 export interface FrontMatterParse {
@@ -258,17 +259,27 @@ export type DateInsertion =
  * the YAML, so it is refused. A unit op's `- Start_date:`/`- End_date:` line
  * follows the same rule (#167): an empty value is filled inside its quotes,
  * and a line that has one is refused rather than given a second date.
+ *
+ * With the sample `types`, a body date right after a reference's alias is
+ * kept apart from it by a space, which would otherwise read it in (#479).
  */
-export function planDateInsertion(doc: string, from: number, to: number, text: string): DateInsertion {
+export function planDateInsertion(
+  doc: string,
+  from: number,
+  to: number,
+  text: string,
+  types?: readonly string[]
+): DateInsertion {
   if (from > to) [from, to] = [to, from];
   const lineStart = doc.lastIndexOf('\n', from - 1) + 1;
   const nl = doc.indexOf('\n', from);
   let lineEnd = nl === -1 ? doc.length : nl;
   if (!isInFrontMatter(doc, from) && !isInFrontMatter(doc, to)) {
-    if (to > lineEnd) return { from, to, text };
+    const pad = types && endsAliasedReference(doc.slice(lineStart, from), types) ? ' ' : '';
+    if (to > lineEnd) return { from, to, text: `${pad}${text}` };
     if (doc[lineEnd - 1] === '\r') lineEnd--;
     const meta = findMetaDateFieldInLine(doc.slice(lineStart, lineEnd));
-    if (!meta) return { from, to, text };
+    if (!meta) return { from, to, text: `${pad}${text}` };
     if (meta.value.trim() !== '') return { reason: 'metaDate' };
     const valueFrom = lineStart + meta.valueStart;
     const valueTo = lineStart + meta.valueEnd;

@@ -10,7 +10,7 @@
 import { TFile, type App } from 'obsidian';
 import type { LabnoteHost } from '@labnoteo/core';
 import { listFiledScans, parseFrontMatterYaml } from '@labnoteo/core';
-import { generateNoteId, isValidNoteId, NOTE_ID_KEY, readNoteId, setNoteId } from '@labnoteo/core/lib/noteId';
+import { generateNoteId, isValidNoteId, NOTE_ID_KEY, readNoteId, readRawNoteId, setNoteId } from '@labnoteo/core/lib/noteId';
 import { noteIdFromFiledScanEmbed } from '../scan/imageStore';
 
 /** Notes that get a barcode: lab notes (`*.labnote.md`). */
@@ -116,7 +116,8 @@ export class NoteIdService {
       return { reason: 'unreadable' };
     }
     if (!opts.reassign) {
-      const offer = await this.offerPreviousId(file, content);
+      const raw = readRawNoteId(content);
+      const offer = raw === undefined ? await this.offerPreviousId(file, content) : await this.offerFixedId(file, content, raw);
       if (offer.choice === 'restored') return { id: offer.id };
       if (offer.choice === 'cancelled') return { reason: 'cancelled' };
     }
@@ -125,6 +126,48 @@ export class NoteIdService {
     while (taken.has(id)) id = generateNoteId();
     await this.app.vault.process(file, data => setNoteId(data, id));
     return { id };
+  }
+
+  /**
+   * A `labnote_id` edited out of the ID format (#478). One that only lost its
+   * capitals is the ID it was, so it is written back as such; anything else is
+   * not replaced without asking, since worksheets printed under the old ID
+   * would no longer find the note. Restoring the ID its scans name is offered
+   * first, as for a deleted line.
+   */
+  private async offerFixedId(
+    file: TFile,
+    content: string,
+    raw: string
+  ): Promise<{ choice: 'restored'; id: string } | { choice: 'new' | 'cancelled' }> {
+    const upper = raw.toUpperCase();
+    if (isValidNoteId(upper) && !this.filesWithId(upper).some(f => f.path !== file.path)) {
+      await this.app.vault.process(file, data => setNoteId(data, upper));
+      this.host.notify(
+        'info',
+        this.host.t('The labnote_id of {0} was written as "{1}"; restored it as {2}.', file.basename, raw, upper)
+      );
+      return { choice: 'restored', id: upper };
+    }
+    const previous = previousNoteIdFromScans(content);
+    const restorable = previous && !this.filesWithId(previous).some(f => f.path !== file.path) ? previous : undefined;
+    const choice = await this.host.pick<'restore' | 'new' | 'cancel'>(
+      [
+        ...(restorable ? [{ label: this.host.t('Restore ID'), description: restorable, value: 'restore' as const }] : []),
+        { label: this.host.t('Give a new ID'), value: 'new' },
+        { label: this.host.t('Cancel'), value: 'cancel' },
+      ],
+      {
+        title: this.host.t(
+          'The labnote_id of this note, "{0}", is not a note ID (LN- and 8 letters or digits). Give it a new one? Worksheets printed under the old ID will not find this note.',
+          raw
+        ),
+      }
+    );
+    if (choice === 'new') return { choice: 'new' };
+    if (choice !== 'restore' || !restorable) return { choice: 'cancelled' };
+    await this.app.vault.process(file, data => setNoteId(data, restorable));
+    return { choice: 'restored', id: restorable };
   }
 
   /**

@@ -52,6 +52,19 @@ describe('insertDateCommand', () => {
     expect(e.cursor()).toBe(26);
   });
 
+  // #479: the date ran into the alias before it (`T7-frag12026-10-30`).
+  it('keeps the date apart from a reference alias right before the cursor', () => {
+    const line = '조립 투입: DNA-1793303364170;T7-frag1';
+    const e = fakeEditor(`# Note\n\n${line}\n`, 8 + line.length);
+    expect(insertDateCommand(e.editor, host, '2026-10-30', ['DNA'])).toBe(true);
+    expect(e.text()).toBe(`# Note\n\n${line} 2026-10-30\n`);
+    expect(e.cursor()).toBe(8 + line.length + 11);
+
+    const plain = fakeEditor('# Note\n\n실험일\n', 11);
+    insertDateCommand(plain.editor, host, '2026-10-30', ['DNA']);
+    expect(plain.text()).toBe('# Note\n\n실험일2026-10-30\n');
+  });
+
   it('types into a table cell as it is, without reading the cell as a note (#303)', () => {
     // A cell editor's DOM sits inside the note's editor.
     const outer = { closest: () => outer };

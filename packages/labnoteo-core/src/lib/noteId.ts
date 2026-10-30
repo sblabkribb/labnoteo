@@ -42,14 +42,23 @@ const KEY_LINE_RE = new RegExp(`^${NOTE_ID_KEY}\\s*:(.*)$`);
 
 /** The note's `labnote_id` when it is a valid ID; any other value counts as none. */
 export function readNoteId(content: string): string | undefined {
+  const value = readRawNoteId(content);
+  return isValidNoteId(value) ? value : undefined;
+}
+
+/**
+ * The note's `labnote_id` value as written, valid or not (#478), unquoted and
+ * trimmed; undefined without the line or with an empty value.
+ */
+export function readRawNoteId(content: string): string | undefined {
   const lines = content.split(/\r?\n/);
   const fm = frontMatterLines(lines);
   if (!fm) return undefined;
   for (let i = 1; i < fm.close; i++) {
     const m = KEY_LINE_RE.exec(lines[i]);
     if (!m) continue;
-    const value = m[1].trim().replace(/^(['"])(.*)\1$/, '$2');
-    return isValidNoteId(value) ? value : undefined;
+    const value = m[1].trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+    return value || undefined;
   }
   return undefined;
 }

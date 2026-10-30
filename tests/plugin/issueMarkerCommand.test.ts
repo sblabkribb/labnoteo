@@ -90,3 +90,21 @@ describe('insertIssueMarkerCommand in a note that is not read for markers', () =
     expect(await insertIssueMarkerCommand(editor, host, 'labnote/002_ALE/001_WD010_A.labnote.md')).toBe(true);
   });
 });
+
+// #475: the topic window called the sentence the issue title without measuring it.
+describe('insertIssueMarkerCommand with a long topic', () => {
+  it.each([
+    [201, 1],
+    [200, 0],
+  ])('warns about a %i-character topic that the title will shorten (%i warning)', async (length, warnings) => {
+    const { editor, text } = fakeEditor('', 0);
+    const notes: string[] = [];
+    const { host } = hostAnswering(() => '가'.repeat(length));
+    Object.assign(host, { notify: (_: string, m: string) => notes.push(m) });
+
+    expect(await insertIssueMarkerCommand(editor, host)).toBe(true);
+
+    expect(text()).toContain('가'.repeat(length));
+    expect(notes.filter(n => n.startsWith('The topic sentence is'))).toHaveLength(warnings);
+  });
+});

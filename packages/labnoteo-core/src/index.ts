@@ -14,6 +14,8 @@ export {
   appendUnitOpToWorkflowToc,
   rebuildUnitOpToc,
   refreshUnitOpTocEntries,
+  addUnitOpTocEntry,
+  unitOpSectionLine,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   findUnitOpInsertPointAt,
@@ -151,6 +153,9 @@ export {
   stripIssueMarkers,
   neutralizeIssueMarkers,
   findEnclosingHeading,
+  issueTitle,
+  MAX_ISSUE_TITLE,
+  MAX_ISSUE_TOPIC,
   type IssueMarkerInsertion,
   type IssueMarker,
   type MalformedIssueMarker,
@@ -216,6 +221,7 @@ export {
 // === Sample reference insertion placement (Obsidian sidebar/right-click) ===
 export {
   planReferenceInsert,
+  endsAliasedReference,
   type ReferenceInsert,
 } from './sample/referenceInsert';
 

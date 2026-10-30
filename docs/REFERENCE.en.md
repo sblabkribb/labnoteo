@@ -20,7 +20,8 @@ name alone.
 Insert the current date. Inside the front matter it only fills a line with an empty value such as
 `end_date: ''`; on a line that has a value it inserts nothing and warns. On an empty
 `Start_date`/`End_date` line of a unit operation's `#### Meta` it fills that value (with a value
-already there, it points to the 📅 picker).
+already there, it points to the 📅 picker). Right after a sample reference with an alias
+(`DNA-…;T7-frag1`), a space goes in first, so the date is not read as part of the alias.
 
 While a table cell is being edited, the date goes in at the cursor in that cell. In reading view
 the command is still listed and says to switch to the editing view and place the cursor first.
@@ -120,6 +121,10 @@ opens its own Issue (requires Setup research automation).
   highlighted.
 - With nothing selected it asks for the topic in a box prefilled with the sentence on the cursor's
   line; leaving it empty or cancelling inserts nothing.
+- GitHub takes issue titles up to 256 characters. A title that would be longer with the experiment
+  and marker IDs in front is cut with `…`, and the whole sentence goes in the issue body. A topic
+  over 200 characters gets a notice when the marker goes in, and `validate` warns about it (the
+  check still passes).
 - If text follows the selection, the selection starts partway into the line's text, or the cursor
   is mid-line, the line is kept as is and the marker goes at its end. Only a selection of one
   line's whole text is replaced by the marker.
@@ -197,6 +202,10 @@ put, with a notice.
 List moved-in or copied workflows in the README checklist and, after asking, remove entries whose
 file is gone. Also on the README and experiment-folder right-click menus.
 
+- The question about entries to remove also lists the files it adds, which go in whatever the
+  answer. Entries of deleted notes the automatic cleanup had not removed yet are removed first and
+  counted in the result, instead of the checklist being called a match.
+
 - A workflow moved into a subfolder of the experiment (`images/` …) is not removed but moved back
   to the experiment folder after asking.
 - Entries whose label no longer matches the file name are shown as `old label → new label` and
@@ -225,8 +234,9 @@ the alias goes into no file name. The same characters are refused as in Create w
   is between the TOC and it, and at the end elsewhere. The notice says where.
 - The unit-operation section is `## Related Unit Operations`, its Korean name, or (after the
   heading was renamed) the first `##` section holding unit-operation blocks or TOC entries. With
-  none, the block goes before `## Conclusions and Discussion`, or at the end of the note, and the
-  notice says the TOC was not updated.
+  none, the block goes before `## Conclusions and Discussion`, or at the end of the note. When the
+  `##` section above it then takes the TOC, the notice gives only the place (`(before the
+  conclusions)`); it says the TOC was not updated only when no section could hold one.
 - The new block's Experimenter is the note's own `experimenter`, or the README `author` when the
   note names nobody. When the two differ, the notice says which one was used.
 - Run where it can't go (a README, a note without the number, a subfolder of the experiment, an
@@ -245,7 +255,8 @@ the alias goes into no file name. The same characters are refused as in Create w
 - With **Auto-sync unit operation TOC** on, the TOC is reordered to match the headings. Turned
   off, the order stays as you arranged it, but renaming a unit operation still updates the entry's
   name and link, and deleting a block removes its entry (cutting one does not, since it is usually
-  pasted back elsewhere).
+  pasted back elsewhere). Inserting a unit operation with it off adds only the new entry, after the
+  entry of the block before it in the note (entries of one unit operation keep note order).
 - A note or `@issue` marker written after a TOC entry's link stays on that line when the TOC is
   rebuilt, and `[`/`]` in an alias are written `\[`/`\]` in the TOC, so an unmatched one does not
   break the link.
@@ -424,8 +435,9 @@ Outside the ID column, `#`, `[`, `]`, `*`, `_`, a backtick, `<`, `$`, `~~`, `==`
 backslash (`freezer \#B3`), so a location such as `#B3` shows as written instead of turning into a
 tag, link or emphasis. `Export tables to CSV` drops those backslashes.
 
-Once the table is in, `Edit sample`, `Mark as discarded`, `Unmark discarded` and moving between Local
-and Global rewrite that sample's row in the sample list tables of the notes that list it, and the
+Once the table is in, `Edit sample`, `Mark as discarded`, `Unmark discarded`, moving between Local
+and Global, and re-entering a known ID through autocomplete's manual entry with a changed alias,
+description or location rewrite that sample's row in the sample list tables of the notes that list it, and the
 notice counts the notes changed. Tables are found by their header (`ID | Alias | Description |
 Location | Scope | Discarded`, or the Korean one), so tables inserted earlier are kept up to date
 too; a table whose header you changed, and every other row, are left alone. When a sample gets its
@@ -446,6 +458,12 @@ refused; lone brackets such as `[uninoculated]` show as written and are accepted
 registered before a rule are left as they are. For one already holding `[text](target)`, reading
 view sees the alias only up to the link, and that alone no longer marks the reference with the
 "registry calls this sample" warning.
+
+A note's `@type;ID;alias` definition sets the registry alias when the definition is new or its
+alias changed, not on every save, so an unrelated edit of a note with an older alias does not take
+the alias back, not even after "Edit sample" changed it and a note was left with the old one. When
+two notes define one sample with different aliases, the registry keeps the alias changed last and a
+notice, once a session, names the aliases and their notes; settle on one with "Edit sample".
 
 ### Discarded samples
 
@@ -599,6 +617,12 @@ Give a note without one a `labnote_id`. This is not a content change, so `last_u
 When another note has the same ID, a new one is given after asking. Front matter that cannot be
 read is left unchanged, with a notice.
 
+- A `labnote_id` edited out of the ID format is not replaced silently, here or when printing,
+  showing the barcode or filing a scan: one that only lost its capitals (`ln-r4w7tz04`) is written
+  back as `LN-R4W7TZ04` with a notice, and any other value is replaced only after asking (with the
+  ID its scans name offered first), since worksheets printed under the old ID would no longer find
+  the note.
+
 - Lab notes sharing an ID (usually a copy) are pointed out with an offer to give the newest one a
   new ID. With three or more, you are asked again about the ones still sharing it. A set you
   decline is not asked about again that session, unless another note joins it.
@@ -708,8 +732,9 @@ README, which has the next command.
 - In a note outside the template the whole note is sent and the summary goes after the cursor's
   line as `> [!note] AI summary (model, date)`.
 - In a workflow note with no results written yet — its `Results & Discussions`, `QC Metrics`,
-  `Discussion` and `Conclusions and Discussion` empty or still holding the template wording, and
-  no section of the researcher's own — it stops instead of asking the model, so nothing is
+  `Discussion` and `Conclusions and Discussion` empty, still holding the template wording or only
+  a bare list mark (`- `, `- [ ]`) left after deleting it, and no section of the researcher's
+  own — it stops instead of asking the model, so nothing is
   invented. A section you added yourself counts as results, and a note outside the template is
   summarized as before.
 - The template's `- (…)` wording and summaries inserted earlier are left out of what the model

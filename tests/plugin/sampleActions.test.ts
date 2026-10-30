@@ -334,8 +334,20 @@ describe('createSampleInteractive with a manually entered existing id', () => {
     location: 'Freezer-1',
   };
 
+  const README = 'labnote/001_Test/README.labnote.md';
+  const TABLE_HEAD = '| ID | Alias | Description | Location | Scope | Discarded |\n| --- | --- | --- | --- | --- | --- |\n';
+  const notes = new Map<string, string>();
+  const app = {
+    workspace: { getLeavesOfType: () => [] },
+    vault: {
+      getMarkdownFiles: () => [...notes.keys()].map(p => new TFile(p)),
+      cachedRead: (f: TFile) => fs.read(f.path),
+      getFileByPath: () => null,
+    },
+  } as unknown as App;
+
   const manual = () =>
-    createSampleInteractive(new App(), plugin, {
+    createSampleInteractive(app, plugin, {
       type: 'RNA',
       folder: FOLDER,
       mode: 'manual',
@@ -343,7 +355,37 @@ describe('createSampleInteractive with a manually entered existing id', () => {
     });
 
   beforeEach(() => {
+    notes.clear();
     (plugin as unknown as { settings: object }).settings = { globalSampleFolder: GLOBAL };
+    (plugin as unknown as { host: object }).host = { fs };
+  });
+
+  // #463: "Edit sample" fixed the table, the same change typed here did not.
+  it("rewrites the sample's row in the sample list tables when a value changed", async () => {
+    await fs.write(REGISTRY, JSON.stringify({ 'RNA-7': STORED }));
+    notes.set(README, '');
+    await fs.write(README, `${TABLE_HEAD}| RNA-7 | siKIF | knockdown | Freezer-1 | Local |  |\n`);
+    Notice.reset();
+    answer('RNA-7', 'siKIF', '', 'Freezer-9');
+
+    await manual();
+
+    expect(await fs.read(README)).toContain('| RNA-7 | siKIF | knockdown | Freezer-9 | Local |  |');
+    expect(Notice.shown).toContain('Sample updated: RNA-7 Updated the sample list table in 1 note(s).');
+  });
+
+  it('leaves the tables alone when nothing changed', async () => {
+    await fs.write(REGISTRY, JSON.stringify({ 'RNA-7': STORED }));
+    notes.set(README, '');
+    const before = `${TABLE_HEAD}| RNA-7 | old row | x | y | Local |  |\n`;
+    await fs.write(README, before);
+    Notice.reset();
+    answer('RNA-7', 'siKIF', '', 'Freezer-1');
+
+    await manual();
+
+    expect(await fs.read(README)).toBe(before);
+    expect(Notice.shown).toContain('Sample updated: RNA-7');
   });
 
   it('prefills the stored values and merges what was entered', async () => {

@@ -39,6 +39,16 @@ describe('hasRecordedResults', () => {
     expect(hasRecordedResults(md)).toBe(true);
   });
 
+  // #473: deleting only the hint left a bare `- ` that passed for a result.
+  it('says no when only bare list marks are left in place of the hint', () => {
+    const hint = '- (Any results and discussions. Link file path if needed)';
+    for (const bare of ['- ', '-', '* ', '1. ', '- [ ] ', '- [x]']) {
+      expect(hasRecordedResults(note(m => m.replace(hint, bare)))).toBe(false);
+    }
+    expect(extractResultSections(note(m => m.replace(hint, '- ')))).toBe('');
+    expect(hasRecordedResults(note(m => m.replace(hint, '- [x] 수율 확인')))).toBe(true);
+  });
+
   it('says yes for a software unit operation with QC Metrics or Discussion written in', () => {
     const sw = createWorkflowContent({ id: 'WD010', name: 'Design', description: 'desc' }, 'Dr. Kim') +
       buildSwUnitOpMarkdown({ opId: 'USW010', opName: 'Align', opDescription: 'step' }, META);

@@ -86,11 +86,14 @@ function sections(md: string): HeadingSection[] {
 /** The `---` the template puts between the note and its unit operations. */
 const RULE_RE = /^(-{3,}|\*{3,}|_{3,})$/;
 
+/** A list mark with nothing after it, left when the template hint is deleted (#473). */
+const BARE_LIST_MARK_RE = /^(?:[-*+]|\d+[.)])(?:\s+\[[ xX]?\])?$/;
+
 /** Whether anything is written under a heading, the template's own lines aside. */
 function written(body: readonly string[]): boolean {
   return body.some(line => {
     const text = line.trim();
-    return text !== '' && !RULE_RE.test(text) && !PLACEHOLDERS.has(text);
+    return text !== '' && !RULE_RE.test(text) && !BARE_LIST_MARK_RE.test(text) && !PLACEHOLDERS.has(text);
   });
 }
 

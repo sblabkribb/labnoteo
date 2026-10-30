@@ -1,5 +1,5 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleStorage.test.ts.
-import { planReferenceInsert } from '../sample/referenceInsert';
+import { endsAliasedReference, planReferenceInsert } from '../sample/referenceInsert';
 
 const TYPES = ['DNA', 'RNA', 'Other'] as const;
 const REF = 'DNA-1;pUC19';
@@ -133,6 +133,30 @@ describe('planReferenceInsert', () => {
     // #302: the alias ran into the template hint after it.
     it('keeps an aliased reference apart from the text after it', () => {
       expect(apply('- (samples)', 2, 'Plasmid-1;pET-28a(+)')).toBe('- Plasmid-1;pET-28a(+) (samples)');
+    });
+
+    // #464: an alias ending in `)` took the next reference in.
+    it('pads after a reference whose alias ends in punctuation or holds a space', () => {
+      const line = 'DNA-1792685811601-93;pBAD\\promoter (copy)';
+      expect(apply(line, line.length, 'DNA-2;araBAD')).toBe(`${line} DNA-2;araBAD`);
+      expect(apply('DNA-7;pET-28a(+)', 16, 'DNA-2;x')).toBe('DNA-7;pET-28a(+) DNA-2;x');
+    });
+
+    it('does not pad after a reference followed by a space or other text', () => {
+      expect(apply('DNA-7;pUC19 (', 13, 'DNA-1')).toBe('DNA-7;pUC19 (DNA-1');
+      expect(apply('투입:', 3, 'DNA-1')).toBe('투입:DNA-1');
+    });
+  });
+
+  describe('endsAliasedReference', () => {
+    it('is true only right after an aliased reference', () => {
+      expect(endsAliasedReference('DNA-1;T7-frag1', TYPES)).toBe(true);
+      expect(endsAliasedReference('조립 DNA-1;pBAD (copy)', TYPES)).toBe(true);
+      expect(endsAliasedReference('DNA-1;T7-frag1 ', TYPES)).toBe(false);
+      expect(endsAliasedReference('DNA-1;T7-frag1 (', TYPES)).toBe(false);
+      expect(endsAliasedReference('DNA-1', TYPES)).toBe(false);
+      expect(endsAliasedReference('메모: 37도', TYPES)).toBe(false);
+      expect(endsAliasedReference('', TYPES)).toBe(false);
     });
   });
 

@@ -17,8 +17,8 @@ const WORKFLOW = [
   '',
 ].join('\n');
 
-function makeHost(path: string) {
-  let doc = WORKFLOW;
+function makeHost(path: string, initial = WORKFLOW, cursor?: (doc: string) => number) {
+  let doc = initial;
   const notes: string[] = [];
   const target: EditTarget = {
     path,
@@ -27,6 +27,7 @@ function makeHost(path: string) {
     replaceRange: async (start, end, text) => {
       doc = doc.slice(0, start) + text + doc.slice(end);
     },
+    ...(cursor ? { getCursorOffset: async () => cursor(doc) } : {}),
   };
   const host = {
     fs: new MemFileSystem(),
@@ -70,6 +71,92 @@ describe('insertUnitOpAndUpdateToc with an alias prompt', () => {
     expect(notes).toEqual([
       'README.labnote.md is the experiment overview and holds no unit operations. Open one of its workflow notes (###_….labnote.md), or make one with "Create workflow".',
     ]);
+  });
+});
+
+// #457: with sorting off, inserting reordered the entries arranged by hand.
+describe('insertUnitOpAndUpdateToc with TOC sorting off', () => {
+  const PATH = 'labnote/001_E/001_WB140_Colony.labnote.md';
+  const NOTE = [
+    '## [WB140 Colony]',
+    '',
+    '## Related Unit Operations',
+    '',
+    '- [UHW380 Microplate Reading | OD600](#uhw380-microplate-reading-od600)',
+    '- [UHW300 LC-MS | PCD1](#uhw300-lc-ms-pcd1)',
+    '',
+    '---',
+    '',
+    '### [UHW300 LC-MS] PCD1',
+    '',
+    '#### Results & Discussions',
+    '',
+    '---',
+    '',
+    '### [UHW380 Microplate Reading] OD600',
+    '',
+    '#### Results & Discussions',
+    '',
+    '## Conclusions and Discussion',
+    '',
+  ].join('\n');
+  const toc = (md: string) => md.split('\n').filter(l => l.startsWith('- ['));
+
+  it('adds the new entry after the block before it, keeping the hand-made order', async () => {
+    const { host, doc } = makeHost(PATH, NOTE, d => d.indexOf('#### Results', d.indexOf('PCD1\n')));
+    const op = { opId: 'UHW290', opName: 'LC-MS-MS', opType: 'hw' as const };
+
+    expect(await insertUnitOpAndUpdateToc(host, op, async () => '아미노산', { sortToc: false })).toBe(true);
+
+    expect(toc(doc())).toEqual([
+      '- [UHW380 Microplate Reading | OD600](#uhw380-microplate-reading-od600)',
+      '- [UHW300 LC-MS | PCD1](#uhw300-lc-ms-pcd1)',
+      '- [UHW290 LC-MS-MS | 아미노산](#uhw290-lc-ms-ms-아미노산)',
+    ]);
+  });
+
+  it('does not rename the entry of a block of the same unit operation after the new one', async () => {
+    const { host, doc } = makeHost(PATH, NOTE, d => d.indexOf('---', d.indexOf('OD600](')));
+    const op = { opId: 'UHW380', opName: 'Microplate Reading', opType: 'hw' as const };
+
+    await insertUnitOpAndUpdateToc(host, op, async () => 'OD450', { sortToc: false });
+
+    expect(toc(doc())).toEqual([
+      '- [UHW380 Microplate Reading | OD450](#uhw380-microplate-reading-od450)',
+      '- [UHW380 Microplate Reading | OD600](#uhw380-microplate-reading-od600)',
+      '- [UHW300 LC-MS | PCD1](#uhw300-lc-ms-pcd1)',
+    ]);
+  });
+
+  it('still sorts with the setting on', async () => {
+    const { host, doc } = makeHost(PATH, NOTE, d => d.indexOf('#### Results', d.indexOf('PCD1\n')));
+    const op = { opId: 'UHW290', opName: 'LC-MS-MS', opType: 'hw' as const };
+
+    await insertUnitOpAndUpdateToc(host, op, async () => 'aa', { sortToc: true });
+
+    expect(toc(doc()).map(l => l.slice(3, 9))).toEqual(['UHW300', 'UHW290', 'UHW380']);
+  });
+});
+
+// #455: the notice said the TOC was left alone while a renamed section got one.
+describe('insertUnitOpAndUpdateToc notice under a renamed unit operation section', () => {
+  it('does not say the table of contents was not updated when it was', async () => {
+    const renamed = WORKFLOW.replace('## Related Unit Operations', '## 단위 공정 목록');
+    const { host, doc, notes } = makeHost('labnote/001_E/001_WD040_X.labnote.md', renamed, d => d.length);
+
+    await insertUnitOpAndUpdateToc(host, OP, async () => '조건 배정표');
+
+    expect(doc()).toContain('## 단위 공정 목록\n\n- [UHW180 Incubation | 조건 배정표]');
+    expect(notes).toEqual(['Unit operation inserted: UHW180 Incubation (before the conclusions)']);
+  });
+
+  it('still says so when no section could take the entry', async () => {
+    const bare = '# Design\n\n## Conclusions and Discussion\n';
+    const { host, notes } = makeHost('labnote/001_E/001_WD010_Design.labnote.md', bare, () => 0);
+
+    await insertUnitOpAndUpdateToc(host, OP, async () => 'x');
+
+    expect(notes[0]).toContain('no unit operation section was found, so the table of contents was not updated');
   });
 });
 

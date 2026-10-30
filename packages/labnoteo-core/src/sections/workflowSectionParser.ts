@@ -647,6 +647,54 @@ export function rebuildUnitOpToc(md: string): string {
 const tocEntryOpId = (text: string): string | undefined => /^\s*- \[([A-Z]+\d+)\s/.exec(text)?.[1];
 
 /**
+ * The TOC with an entry for the `### [..]` heading at `headingOffset` added,
+ * leaving the order of the other entries as it is — for an insert with
+ * sorting turned off (#457). Among blocks of the same opId the entry takes its
+ * place in note order, since {@link refreshUnitOpTocEntries} pairs those
+ * entries with their headings by position; otherwise it goes right after the
+ * entry of the block before it in the note, else right before the next
+ * block's, else after the last entry. Unchanged when the section or the
+ * heading is not found.
+ */
+export function addUnitOpTocEntry(md: string, headingOffset: number): string {
+  const scan = scanUnitOpToc(md);
+  if (!scan) return md;
+  const { lines, newline, headingIdx, entryIdxs, entries, entryOpIds } = scan;
+  const headings: number[] = [];
+  for (let j = headingIdx + 1; j < lines.length; j++) {
+    if (!lines[j].fenced && UNIT_OP_HEADING_PATTERN.test(lines[j].text)) headings.push(j);
+  }
+  const k = headings.findIndex(j => lines[j].start <= headingOffset && headingOffset <= lines[j].end);
+  if (k === -1) return md;
+  // The TOC line of heading `h`: the nth entry of its opId, n counted without the new heading.
+  const entryOf = (h: number): number | undefined => {
+    const opId = entryOpIds[h];
+    const nth = entryOpIds.slice(0, h).filter((o, i) => i !== k && o === opId).length;
+    return entryIdxs.filter(j => tocEntryOpId(lines[j].text) === opId)[nth];
+  };
+  const line = entries[k];
+  const after = (idx: number): string => applyTextEdits(md, [{ from: lines[idx].end, to: lines[idx].end, insert: newline + line }]);
+  const before = (idx: number): string => applyTextEdits(md, [{ from: lines[idx].start, to: lines[idx].start, insert: line + newline }]);
+  const opId = entryOpIds[k];
+  const sameBefore = entryOpIds.slice(0, k).lastIndexOf(opId);
+  const sameAfter = entryOpIds.indexOf(opId, k + 1);
+  const sameBeforeEntry = sameBefore !== -1 ? entryOf(sameBefore) : undefined;
+  if (sameBeforeEntry !== undefined) return after(sameBeforeEntry);
+  const sameAfterEntry = sameAfter !== -1 ? entryOf(sameAfter) : undefined;
+  if (sameAfterEntry !== undefined) return before(sameAfterEntry);
+  const prev = k > 0 ? entryOf(k - 1) : undefined;
+  if (prev !== undefined) return after(prev);
+  const next = k + 1 < entries.length ? entryOf(k + 1) : undefined;
+  if (next !== undefined) return before(next);
+  if (entryIdxs.length > 0) {
+    const last = lines[entryIdxs[entryIdxs.length - 1]];
+    return applyTextEdits(md, [{ from: last.end, to: last.end, insert: newline + line }]);
+  }
+  const edit = tocEdit(md, { ...scan, entries: [line], entryOpIds: [entryOpIds[k]] });
+  return edit ? applyTextEdits(md, [edit]) : md;
+}
+
+/**
  * The TOC entries rewritten from the headings they point at, in the order the
  * note already has them (#258). Each entry is paired with the nth `### [..]`
  * heading of the same opId, so a renamed unit operation gets its new name and

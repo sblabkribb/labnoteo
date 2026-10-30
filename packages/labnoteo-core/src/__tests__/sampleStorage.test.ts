@@ -780,6 +780,7 @@ describe('saveSamplesFromDocument + loadSamplesByType (MemFileSystem round-trip)
       sources: ['note.labnote.md'],
       location: null,
       descriptionSources: { 'note.labnote.md': 'my plasmid' },
+      aliasSources: { 'note.labnote.md': 'pUC19' },
     });
   });
 
@@ -1430,6 +1431,62 @@ describe('descriptionSources (#172)', () => {
     await saveSamplesFromDocument(fs, DOC, '@DNA;DNA-1;pUC19');
     const rec = (await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1'];
     expect(rec.descriptions).toEqual(['kept']);
+  });
+});
+
+describe('aliasSources (#481)', () => {
+  const DOC = 'labnote/001_Exp/note.labnote.md';
+  const README = 'labnote/001_Exp/README.labnote.md';
+  const FOLDER = 'labnote/001_Exp/resources/labsamples';
+  const alias = async (fs: MemFileSystem) => (await loadSamplesByType(fs, FOLDER, 'Plasmid'))['Plasmid-7701'];
+
+  it('keeps the alias when a note with another definition is saved unchanged', async () => {
+    const fs = new MemFileSystem();
+    await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA;첫 정의');
+    await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;pVB;둘째 정의');
+    expect((await alias(fs)).alias).toBe('pVB');
+    await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA;첫 정의\n메모: 반응 온도 37℃');
+    expect((await alias(fs)).alias).toBe('pVB');
+    await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;pVB;둘째 정의\nObjective 한 줄');
+    expect((await alias(fs)).alias).toBe('pVB');
+    expect((await alias(fs)).aliasSources).toEqual({ 'note.labnote.md': 'pVA', 'README.labnote.md': 'pVB' });
+  });
+
+  it("takes a note's alias again once its definition changes", async () => {
+    const fs = new MemFileSystem();
+    await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA');
+    await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;pVB');
+    await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVC');
+    expect((await alias(fs)).alias).toBe('pVC');
+  });
+
+  it('reports the notes that define another alias, not those that agree', async () => {
+    const fs = new MemFileSystem();
+    expect(await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA')).toEqual([]);
+    expect(await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;pVB')).toEqual([
+      {
+        type: 'Plasmid',
+        id: 'Plasmid-7701',
+        alias: 'pVB',
+        source: 'README.labnote.md',
+        others: [['note.labnote.md', 'pVA']],
+      },
+    ]);
+    await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;PVA ');
+    expect(await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA')).toEqual([]);
+  });
+
+  it('forgets the alias of a note that no longer defines the sample, and follows renames', async () => {
+    const fs = new MemFileSystem();
+    await saveSamplesFromDocument(fs, DOC, '@Plasmid;Plasmid-7701;pVA');
+    await saveSamplesFromDocument(fs, README, '@Plasmid;Plasmid-7701;pVB');
+    await removeSourcesForDocument(fs, DOC, 'Plasmid-7701;pVA 를 썼다');
+    expect((await alias(fs)).aliasSources).toEqual({ 'README.labnote.md': 'pVB' });
+    const { records } = renameSampleSources(
+      await loadSamplesByType(fs, FOLDER, 'Plasmid'),
+      new Map([['README.labnote.md', 'README2.labnote.md']])
+    );
+    expect(records['Plasmid-7701'].aliasSources).toEqual({ 'README2.labnote.md': 'pVB' });
   });
 });
 

@@ -250,6 +250,9 @@ MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 �
   어디서 찾았는지 알려 줍니다. `search_samples`(읽기 전용)는 타입을 몰라도 ID·별칭·보관 위치·설명에서
   `query`를 찾아(대소문자 무시) 타입·범위·실험 폴더·폐기 날짜(`discarded`)와 함께 돌려줍니다.
   `get_sample`·`list_samples`에 모르는 타입을 주면 쓸 수 있는 타입 목록과 함께 오류를 돌려줍니다.
+  `create_sample`도 설정에 없는 타입(예: `Strain`)이면 아무것도 쓰지 않고 같은 오류를 돌려줍니다. 그런
+  타입으로 만든 샘플은 샘플 뷰와 조회 도구 어디에서도 보이지 않기 때문입니다. 새 타입은 먼저 설정 →
+  Labnote Assistant → `사용자 정의 샘플 타입`에 더하세요.
 - **ID 대소문자와 비슷한 ID**: `get_sample`의 `id`, `get_unit_operation`의 `opId`, `create_workflow`의
   `workflowId`는 대소문자와 앞뒤 공백을 무시하고 찾습니다(`dna-1` → `DNA-1`, `uhw010` → `UHW010`).
   결과에는 저장된 ID를 돌려줍니다. 그래도 없으면 오류 끝에 `Did you mean: UHW250, …?`처럼 비슷한

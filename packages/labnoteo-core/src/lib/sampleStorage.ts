@@ -67,6 +67,13 @@ export interface SampleRecord {
    */
   descriptionSources?: Record<string, string>;
   /**
+   * Which note (basename) defines which alias with its `@type;` definition
+   * (#481). A note's definition sets the alias when it is new or changed, not
+   * on every save, so two notes defining different aliases no longer take
+   * turns overwriting it.
+   */
+  aliasSources?: Record<string, string>;
+  /**
    * The external item this sample stands for, when it was registered from one
    * (partbank today). Lookups that need a stable key — "refresh the storage
    * location", "open in partbank" — read it; `null` or absent means the sample
@@ -106,6 +113,11 @@ function assertSafeSampleType(type: string): void {
 function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord {
   const r = (rec && typeof rec === 'object' ? rec : {}) as Partial<SampleRecord>;
   const source = normalizeSampleSource(r.source);
+  const stringMap = (v: unknown): Record<string, string> | undefined =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === 'string'))
+      : undefined;
+  const aliasSources = stringMap(r.aliasSources);
   return {
     type: typeof r.type === 'string' && r.type ? r.type : fallbackType,
     alias: typeof r.alias === 'string' ? r.alias : null,
@@ -126,6 +138,7 @@ function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord
           ),
         }
       : {}),
+    ...(aliasSources ? { aliasSources } : {}),
     ...(source ? { source } : {}),
   };
 }
@@ -163,6 +176,7 @@ function mergeCaseCollidingIds(
       if (!target.sources.includes(s)) target.sources.push(s);
     }
     if (!target.alias && rec.alias) target.alias = rec.alias;
+    if (rec.aliasSources) target.aliasSources = { ...rec.aliasSources, ...target.aliasSources };
     if (!target.location && rec.location) target.location = rec.location;
     if (!target.source && rec.source) target.source = rec.source;
   }
@@ -393,6 +407,21 @@ export function buildSampleDatabase(
   return db;
 }
 
+/**
+ * A definition whose alias differs from what other notes define for the same
+ * sample (#481): `alias` from note `source`, `others` as `[note, alias]`.
+ */
+export interface SampleAliasConflict {
+  type: string;
+  id: string;
+  alias: string;
+  source: string;
+  others: [string, string][];
+}
+
+/** Aliases that differ only in case or surrounding spaces are the same alias. */
+const aliasKey = (alias: string): string => alias.trim().toLowerCase();
+
 /** Key of a `(type, id)` pair in {@link mergeSampleDatabases}' `referenceOnly` set. */
 export function sampleReferenceKey(type: string, id: string): string {
   return `${type}|${id.toLowerCase()}`;
@@ -418,7 +447,12 @@ export function sampleReferenceKey(type: string, id: string): string {
 export function mergeSampleDatabases(
   existing: SampleDatabase,
   newData: SampleDatabase,
-  opts: { referenceOnly?: ReadonlySet<string>; seedable?: ReadonlySet<string> } = {}
+  opts: {
+    referenceOnly?: ReadonlySet<string>;
+    seedable?: ReadonlySet<string>;
+    /** Collects definitions whose alias differs from another note's definition (#481). */
+    aliasConflicts?: SampleAliasConflict[];
+  } = {}
 ): SampleDatabase {
   const merged: SampleDatabase = JSON.parse(JSON.stringify(existing));
 
@@ -441,9 +475,22 @@ export function mergeSampleDatabases(
         const existingRecord = target[existingId];
 
         if (!referenceOnly) {
-          // New alias overwrites (if provided)
+          const source = record.sources[0];
+          // A note's alias goes in when its definition is new or changed, so an
+          // unrelated save of a note with another alias does not take it back (#481).
           if (record.alias) {
-            existingRecord.alias = record.alias;
+            if (!source || existingRecord.aliasSources?.[source] !== record.alias) {
+              existingRecord.alias = record.alias;
+            }
+            if (source) {
+              const others = Object.entries(existingRecord.aliasSources ?? {}).filter(
+                ([s, a]) => s !== source && aliasKey(a) !== aliasKey(record.alias!)
+              );
+              if (others.length > 0) {
+                opts.aliasConflicts?.push({ type, id: existingId, alias: record.alias, source, others });
+              }
+              existingRecord.aliasSources = { ...existingRecord.aliasSources, [source]: record.alias };
+            }
           }
 
           // Put current document's descriptions first so sidebar shows latest (descriptions[0])
@@ -451,7 +498,6 @@ export function mergeSampleDatabases(
           let kept = existingRecord.descriptions || [];
           // A description this note put in before and has since changed goes,
           // unless another note still writes it (#172).
-          const source = record.sources[0];
           const written = source ? existingRecord.descriptionSources?.[source] : undefined;
           if (source && fromNew.length > 0 && written !== undefined && !fromNew.includes(written)) {
             const sharedBy = Object.entries(existingRecord.descriptionSources ?? {}).some(
@@ -478,10 +524,13 @@ export function mergeSampleDatabases(
         // references to an unknown id never create registry entries.
         if (!referenceOnly || (opts.seedable?.has(sampleReferenceKey(type, id)) ?? false)) {
           const source = record.sources[0];
-          target[id] =
-            !referenceOnly && source && record.descriptions.length > 0
-              ? { ...record, descriptionSources: { [source]: record.descriptions[0] } }
-              : { ...record };
+          target[id] = {
+            ...record,
+            ...(!referenceOnly && source && record.descriptions.length > 0
+              ? { descriptionSources: { [source]: record.descriptions[0] } }
+              : {}),
+            ...(!referenceOnly && source && record.alias ? { aliasSources: { [source]: record.alias } } : {}),
+          };
         }
       }
     }
@@ -1119,7 +1168,7 @@ export async function saveSamplesByType(
  * `location` and `source` follow the same preserve-when-omitted rule (pass
  * `null` to clear). `alias` is overwritten; `description` replaces only the
  * first description (the one the edit prompt shows), keeping those other notes
- * added. Every other field — `discarded`, `descriptionSources` — is kept (#188).
+ * added. Every other field — `discarded`, `descriptionSources`, `aliasSources` — is kept (#188).
  */
 export async function upsertSampleRecord(
   fs: LabnoteFs,
@@ -1367,6 +1416,7 @@ export async function moveSampleFolder(
  * Save samples extracted from a document to JSON files
  * Merges with existing data. Samples that exist in Global are not re-added to Local
  * (so after Move to Global, saving the document does not re-add the sample to Local).
+ * Returns the definitions whose alias differs from another note's (#481).
  */
 export async function saveSamplesFromDocument(
   fs: LabnoteFs,
@@ -1375,7 +1425,8 @@ export async function saveSamplesFromDocument(
   globalLabsamplesFolder?: string,
   additionalTypes?: string[],
   sampleListHeaders: ReadonlyArray<readonly string[]> = []
-): Promise<void> {
+): Promise<SampleAliasConflict[]> {
+  const conflicts: SampleAliasConflict[] = [];
   const labsamplesFolder = noteLabsamplesFolder(documentPath, globalLabsamplesFolder);
   const sourceFile = path.basename(documentPath);
 
@@ -1387,7 +1438,7 @@ export async function saveSamplesFromDocument(
   );
 
   if (samples.length === 0) {
-    return;
+    return conflicts;
   }
 
   // Build new database from extracted samples
@@ -1449,11 +1500,13 @@ export async function saveSamplesFromDocument(
       }
     }
 
+    let typeConflicts: SampleAliasConflict[] = [];
     const merge = (existing: Record<string, SampleRecord>): Record<string, SampleRecord> => {
+      typeConflicts = [];
       const merged = mergeSampleDatabases(
         { [type]: existing },
         { [type]: newDb[type] },
-        { referenceOnly, seedable }
+        { referenceOnly, seedable, aliasConflicts: typeConflicts }
       );
       if (globalIds) {
         for (const id of globalIds) {
@@ -1470,7 +1523,9 @@ export async function saveSamplesFromDocument(
     // the file anyway left an empty `{}` registry in the experiment (#82).
     if (!(await fs.exists(filePath)) && Object.keys(merge({})).length === 0) continue;
     await fs.modify(filePath, (raw) => JSON.stringify(merge(parseSampleRecords(raw)), null, 2));
+    conflicts.push(...typeConflicts.filter((c) => !globalIds?.has(c.id)));
   }
+  return conflicts;
 }
 
 /**
@@ -1508,8 +1563,10 @@ export async function removeSourcesForDocument(
   // in this set is a candidate for source removal in scopes whose existing
   // record has this document listed as a source.
   const liveDefs = new Set<string>();
+  const liveDefinitions = new Set<string>();
   for (const sample of extractSampleInfoFromText(maskAiCallouts(documentText), additionalTypes)) {
     liveDefs.add(`${sample.type}|${sample.id}`);
+    if (sample.definition) liveDefinitions.add(`${sample.type}|${sample.id}`);
   }
 
   const allTypes: string[] = [
@@ -1552,6 +1609,11 @@ export async function removeSourcesForDocument(
           // erase data the user explicitly entered through the UI.
           if (record.sources.length === 0) continue;
           if (!record.sources.includes(documentBasename)) continue;
+          // A note that only references the sample now defines no alias for it (#481).
+          if (!liveDefinitions.has(`${type}|${id}`) && record.aliasSources && documentBasename in record.aliasSources) {
+            delete record.aliasSources[documentBasename];
+            mutated = true;
+          }
           if (liveDefs.has(`${type}|${id}`)) continue;
 
           // Drop only the usage record; keep the sample itself even when this
@@ -1787,6 +1849,12 @@ export function renameSampleSources(
     if (record.descriptionSources && Object.keys(record.descriptionSources).some((s) => renames.has(s))) {
       record.descriptionSources = Object.fromEntries(
         Object.entries(record.descriptionSources).map(([s, d]) => [renames.get(s) ?? s, d])
+      );
+      changed = true;
+    }
+    if (record.aliasSources && Object.keys(record.aliasSources).some((s) => renames.has(s))) {
+      record.aliasSources = Object.fromEntries(
+        Object.entries(record.aliasSources).map(([s, a]) => [renames.get(s) ?? s, a])
       );
       changed = true;
     }

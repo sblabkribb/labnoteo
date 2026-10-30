@@ -110,6 +110,27 @@ describe('syncWorkflowChecklistCommand', () => {
     expect(accepted.calls.at(-1)).toBe('notify Workflow checklist updated: 0 added, 2 removed.');
   });
 
+  // #468: the entries the flush removed were reported as a checklist that already matched.
+  it('counts the entries of deleted notes the pending auto-sync removed', async () => {
+    const h = harness(
+      { [README]: readme([`- [ ] [WD030 Design](./${REGISTERED})`]), [`${DIR}/${REGISTERED}`]: 'x' },
+      true
+    );
+    h.sync.flushNow = async () => 1;
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+    expect(h.calls.at(-1)).toBe('notify Workflow checklist updated: 0 added, 1 removed.');
+  });
+
+  // #459: the question named only the entries to drop, yet unlisted files were added too.
+  it('names the files it adds along with the entries it asks to drop', async () => {
+    const md0 = readme(['- [ ] [WT080](./011_WT080_X.labnote.md)']);
+    const h = harness({ [README]: md0, [`${DIR}/011_WT050_Y.labnote.md`]: 'x' }, true);
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+    expect(h.prompts[0]).toContain('- 011_WT080_X.labnote.md (file not found)');
+    expect(h.prompts[0]).toContain('Added to the README checklist:\n011_WT050_Y.labnote.md');
+    expect(h.calls.at(-1)).toBe('notify Workflow checklist updated: 1 added, 1 removed.');
+  });
+
   it('shortens a vault-absolute link to this folder, keeping its checkbox and label (#102)', async () => {
     const h = harness(
       {

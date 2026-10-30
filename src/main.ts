@@ -48,6 +48,7 @@ import {
 } from '@labnoteo/core/lib/workflowStructure';
 import {
   saveSamplesFromDocument,
+  type SampleAliasConflict,
   resolveLocalSampleFolder,
   noteLabsamplesFolder,
   hasReferenceCatalog,
@@ -217,7 +218,7 @@ export default class LabnotePlugin extends Plugin {
   // Per experiment: the last queued Local registry rename of note names (#149).
   private readonly sampleSourceRenames = new Map<string, Promise<void>>();
   // The latest README flush per folder, so a new one runs after it, never beside it.
-  private readonly readmeSyncInFlight = new Map<string, Promise<void>>();
+  private readonly readmeSyncInFlight = new Map<string, Promise<unknown>>();
   // Set on unload: a flush still waiting for a modal to close must not write.
   private unloaded = false;
   // Workflow notes renamed out of the `###_*.labnote.md` format: current path →
@@ -230,6 +231,8 @@ export default class LabnotePlugin extends Plugin {
   // Experiment folders copied with "Make a copy" whose fix is being offered (#223);
   // the files created along with them are part of that copy, not copies of their own.
   private readonly copiedExperiments = new Set<string>();
+  // Alias disagreements between notes already reported this session (#481).
+  private readonly aliasConflictsShown = new Set<string>();
   // Of those, the folders whose notes already have their own IDs, and those
   // notes (#265): until then the "same note ID" question would be redundant.
   private readonly copyIdsRenewed = new Map<string, Set<string>>();
@@ -411,7 +414,7 @@ export default class LabnotePlugin extends Plugin {
         this.t('A date cannot be typed into a property or the title from here. Click in the note body, then run this again.')
       );
     } else {
-      insertDateCommand(editor, this.host, now());
+      insertDateCommand(editor, this.host, now(), getSampleDisplayMeta(this.settings.customSampleTypes).types);
     }
     return true;
   }
@@ -526,7 +529,7 @@ export default class LabnotePlugin extends Plugin {
     this.addCommand({
       id: 'insert-unit-operation',
       name: this.paletteName('Insert unit operation'),
-      callback: () => this.run(() => insertUnitOperationCommand(this.app, this.host)),
+      callback: () => this.run(() => insertUnitOperationCommand(this.app, this.host, { sortToc: this.settings.autoSyncUnitOpToc })),
     });
 
     this.addCommand({
@@ -774,7 +777,7 @@ export default class LabnotePlugin extends Plugin {
             item
               .setTitle(this.t('Insert unit operation'))
               .setIcon('plus')
-              .onClick(() => this.run(() => insertUnitOperationCommand(this.app, this.host)))
+              .onClick(() => this.run(() => insertUnitOperationCommand(this.app, this.host, { sortToc: this.settings.autoSyncUnitOpToc })))
           );
         } else if (file.name.toLowerCase() === 'readme.labnote.md') {
           menu.addItem(item =>
@@ -2482,12 +2485,12 @@ export default class LabnotePlugin extends Plugin {
    * Flush the folder's queue once any earlier flush of it has finished. The
    * queue is taken only then, so events an earlier flush put back stay in order.
    */
-  private startReadmeFlush(dir: string): Promise<void> {
-    const prev = this.readmeSyncInFlight.get(dir) ?? Promise.resolve();
+  private startReadmeFlush(dir: string): Promise<number> {
+    const prev: Promise<unknown> = this.readmeSyncInFlight.get(dir) ?? Promise.resolve();
     const run = prev.then(async () => {
       const q = this.readmeSyncQueue.get(dir);
       this.readmeSyncQueue.delete(dir);
-      if (q) await this.flushReadmeSync(dir, q);
+      return q ? this.flushReadmeSync(dir, q) : 0;
     });
     this.readmeSyncInFlight.set(dir, run);
     void run.finally(() => {
@@ -2524,7 +2527,7 @@ export default class LabnotePlugin extends Plugin {
     return {
       flushNow: async dir => {
         this.cancelReadmeSyncTimer(dir);
-        await this.startReadmeFlush(dir);
+        return this.startReadmeFlush(dir);
       },
       hold: dir => {
         this.readmeSyncHolds.add(dir);
@@ -2546,21 +2549,25 @@ export default class LabnotePlugin extends Plugin {
     };
   }
 
-  /** Apply all queued deletes (prune + sample cleanup) then renames (reorder). */
+  /**
+   * Apply all queued deletes (prune + sample cleanup) then renames (reorder).
+   * Returns how many checklist entries of deleted notes were removed.
+   */
   private async flushReadmeSync(
     dir: string,
     q: { renames: { from: string; to: string }[]; deletes: string[] }
-  ): Promise<void> {
+  ): Promise<number> {
     const settled = await this.settleModals();
-    if (this.unloaded) return;
+    if (this.unloaded) return 0;
     if (!settled || this.readmeSyncHolds.has(dir)) {
       this.requeueReadmeSync(dir, q);
       this.scheduleReadmeSync(dir);
-      return;
+      return 0;
     }
+    let removed = 0;
     try {
       if (q.deletes.length > 0) {
-        await syncReadmeAndSamplesOnDelete(
+        removed = await syncReadmeAndSamplesOnDelete(
           this.app,
           this.host,
           dir,
@@ -2579,6 +2586,7 @@ export default class LabnotePlugin extends Plugin {
     } catch (err) {
       console.warn('[labnoteo] README auto-sync failed:', err);
     }
+    return removed;
   }
 
   /** Register the two sidebar views + commands/ribbon to open them. */
@@ -2780,7 +2788,7 @@ export default class LabnotePlugin extends Plugin {
   private async syncSamples(file: TFile): Promise<void> {
     try {
       const content = await this.app.vault.read(file);
-      await saveSamplesFromDocument(
+      const conflicts = await saveSamplesFromDocument(
         this.fs,
         file.path,
         content,
@@ -2788,12 +2796,35 @@ export default class LabnotePlugin extends Plugin {
         this.settings.customSampleTypes,
         sampleListHeaders(this)
       );
+      this.noticeAliasConflicts(conflicts);
       // Freshly-written definitions should show up in autocomplete right away.
       this.sampleSuggest?.clearCache();
       // The note itself goes to partbank through its own modify listener.
       this.refreshSampleViews({ fromNoteSync: true });
     } catch (err) {
       console.warn('[labnoteo] sample sync failed:', err);
+    }
+  }
+
+  /**
+   * Say once per session that notes define one sample with different aliases
+   * (#481): the registry keeps the alias last changed in a definition, and the
+   * other notes go on showing theirs.
+   */
+  private noticeAliasConflicts(conflicts: readonly SampleAliasConflict[]): void {
+    for (const c of conflicts) {
+      const aliases = [c.alias, ...c.others.map(([, a]) => a)].map(a => a.trim().toLowerCase()).sort();
+      const key = `${c.type}|${c.id.toLowerCase()}|${aliases.join('|')}`;
+      if (this.aliasConflictsShown.has(key)) continue;
+      this.aliasConflictsShown.add(key);
+      this.host.notify(
+        'warn',
+        this.t(
+          '{0} is defined with different aliases: {1}. The sample keeps the alias of the definition changed last; use "Edit sample" to settle on one and fix the notes together.',
+          c.id,
+          [[c.source, c.alias] as const, ...c.others].map(([note, alias]) => `${alias} (${note})`).join(', ')
+        )
+      );
     }
   }
 

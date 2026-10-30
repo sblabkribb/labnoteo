@@ -81,7 +81,7 @@ describe('README checklist sync writes onto the latest content', () => {
     const latest = readme(entries, '요약 글 — 새로 쓴 문장');
     const { app, processed } = makeApp(() => latest);
 
-    await syncReadmeAndSamplesOnDelete(app, makeHost(fs), DIR, [`${DIR}/002_WB030_B.labnote.md`]);
+    expect(await syncReadmeAndSamplesOnDelete(app, makeHost(fs), DIR, [`${DIR}/002_WB030_B.labnote.md`])).toBe(1);
 
     expect(processed).toEqual([
       readme(['- [ ] [A](./001_WD070_A.labnote.md)'], '요약 글 — 새로 쓴 문장'),
