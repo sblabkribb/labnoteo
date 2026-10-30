@@ -336,6 +336,22 @@ describe('buildApprovalMessage', () => {
         `File: 002_WT110_Micro-scale_Parallel_Cell_Fermentation.labnote.md. It is also added to the checklist in ${readmePath}.`
     );
   });
+
+  // #484
+  it('says, as the app does, when create_workflow repeats an ID and alias', () => {
+    const readmePath = 'labnote/043_X/README.labnote.md';
+    const message = buildApprovalMessage(t, 'Allow?', readmePath, {
+      kind: 'workflowCreate',
+      workflowId: 'WT030',
+      workflowName: 'Wet Validation',
+      fileName: '003_WT030_Wet_Validation_상위_8종.labnote.md',
+      readmePath,
+      sameAliasAs: '002_WT030_Wet_Validation_상위_8종.labnote.md',
+    });
+    expect(message.split('\n').at(-1)).toBe(
+      '002_WT030_Wet_Validation_상위_8종.labnote.md already has this ID and alias, so the two would read the same in the README checklist. Give this one its own alias to tell them apart.'
+    );
+  });
 });
 
 // #144: concurrent writes are asked about one by one, each previewed after the earlier ones.

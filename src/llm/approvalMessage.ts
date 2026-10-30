@@ -36,13 +36,19 @@ export function erasesRecordedLines(preview?: ToolPreview): boolean {
 
 // Two calls on one experiment otherwise read the same (#124).
 function describeWorkflowCreate(t: Translator, p: WorkflowCreatePreview): string {
-  return t(
+  const head = t(
     'This creates catalog workflow {0} {1}. File: {2}. It is also added to the checklist in {3}.',
     p.workflowId,
     p.workflowName,
     p.fileName,
     p.readmePath
   );
+  // The same words as the app's alias prompt (#484).
+  if (!p.sameAliasAs) return head;
+  return `${head}\n${t(
+    '{0} already has this ID and alias, so the two would read the same in the README checklist. Give this one its own alias to tell them apart.',
+    p.sameAliasAs
+  )}`;
 }
 
 function describeSectionEdit(t: Translator, p: SectionEditPreview): string {
