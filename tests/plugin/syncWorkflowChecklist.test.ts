@@ -110,6 +110,17 @@ describe('syncWorkflowChecklistCommand', () => {
     expect(accepted.calls.at(-1)).toBe('notify Workflow checklist updated: 0 added, 2 removed.');
   });
 
+  // #468: the entries the flush removed were reported as a checklist that already matched.
+  it('counts the entries of deleted notes the pending auto-sync removed', async () => {
+    const h = harness(
+      { [README]: readme([`- [ ] [WD030 Design](./${REGISTERED})`]), [`${DIR}/${REGISTERED}`]: 'x' },
+      true
+    );
+    h.sync.flushNow = async () => 1;
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+    expect(h.calls.at(-1)).toBe('notify Workflow checklist updated: 0 added, 1 removed.');
+  });
+
   // #459: the question named only the entries to drop, yet unlisted files were added too.
   it('names the files it adds along with the entries it asks to drop', async () => {
     const md0 = readme(['- [ ] [WT080](./011_WT080_X.labnote.md)']);

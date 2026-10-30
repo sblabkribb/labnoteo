@@ -1352,8 +1352,11 @@ export function unitOpAliasPrompt(
  * main.ts) for a command that renames workflow files in bulk.
  */
 export interface ReadmeSyncControl {
-  /** Wait for the folder's pending and running syncs to be applied. */
-  flushNow(dir: string): Promise<void>;
+  /**
+   * Wait for the folder's pending and running syncs to be applied. Resolves to
+   * how many checklist entries of deleted notes this removed, when it says.
+   */
+  flushNow(dir: string): Promise<number | void>;
   /** Queue the folder's rename/delete events without writing the README. */
   hold(dir: string): void;
   /** Wait until no modal is open and Obsidian has applied confirmed link edits. */
@@ -1803,7 +1806,9 @@ export async function syncWorkflowChecklistCommand(
     return;
   }
 
-  await readmeSync.flushNow(labnoteDir);
+  // Entries of deleted notes still waiting for the auto-sync go here; they are
+  // counted as removed rather than reported as a checklist that already matched (#468).
+  const pruned = (await readmeSync.flushNow(labnoteDir)) || 0;
   let readme = await host.fs.read(readmePath);
   let { names, notes } = await readWorkflowFolder(host, labnoteDir);
   let titles = workflowLabels(notes);
@@ -1998,15 +2003,17 @@ export async function syncWorkflowChecklistCommand(
   ) {
     host.notify(
       'info',
-      host.t(
-        plan.stale.length > 0 ||
-          plan.relabel.length > 0 ||
-          plan.duplicates.length > 0 ||
-          retitles.length > 0 ||
-          experimenters.length > 0
-          ? 'No changes made.'
-          : 'The workflow checklist already matches the folder.'
-      )
+      pruned > 0
+        ? host.t('Workflow checklist updated: {0} added, {1} removed.', '0', String(pruned))
+        : host.t(
+            plan.stale.length > 0 ||
+              plan.relabel.length > 0 ||
+              plan.duplicates.length > 0 ||
+              retitles.length > 0 ||
+              experimenters.length > 0
+              ? 'No changes made.'
+              : 'The workflow checklist already matches the folder.'
+          )
     );
     clashNotice();
     return;
@@ -2032,7 +2039,11 @@ export async function syncWorkflowChecklistCommand(
     );
   });
   const parts = [
-    host.t('Workflow checklist updated: {0} added, {1} removed.', String(plan.added.length), String(remove.length)),
+    host.t(
+      'Workflow checklist updated: {0} added, {1} removed.',
+      String(plan.added.length),
+      String(remove.length + pruned)
+    ),
   ];
   if (movedBack > 0) parts.push(host.t('{0} note(s) moved back to the experiment folder.', String(movedBack)));
   if (notesUpdated > 0) parts.push(host.t('{0} note(s) updated.', String(notesUpdated)));
@@ -2169,7 +2180,8 @@ export interface SampleCleanupOpts {
  * After workflow files were deleted in the file explorer, remove their README
  * checklist entries (surgically — preserving order + any manual links) and drop
  * the deleted notes from each sample's `sources`. The samples themselves are
- * kept, so sample data survives a note deletion.
+ * kept, so sample data survives a note deletion. Returns how many checklist
+ * entries were removed.
  */
 export async function syncReadmeAndSamplesOnDelete(
   app: App,
@@ -2177,18 +2189,24 @@ export async function syncReadmeAndSamplesOnDelete(
   labnoteDir: string,
   deletedPaths: string[],
   opts: SampleCleanupOpts = {}
-): Promise<void> {
+): Promise<number> {
   // 1) README: drop each deleted entry in one read-modify-write. The README may
   //    itself be gone (whole-folder delete); then there is nothing to prune.
   const readmePath = posix.join(labnoteDir, README);
+  let removed = 0;
   if (await host.fs.exists(readmePath)) {
-    await processNoteThroughVault(app, host, readmePath, content => {
+    const written = await processNoteThroughVault(app, host, readmePath, content => {
+      removed = 0;
       for (const p of deletedPaths) {
         const res = removeWorkflowFromReadme(content, posix.basename(p));
-        if (res.changed) content = res.content;
+        if (res.changed) {
+          content = res.content;
+          removed++;
+        }
       }
       return content;
     });
+    if (!written) removed = 0;
   }
 
   // 2) Samples: a deleted document defines nothing, so pass empty text — every
@@ -2207,4 +2225,5 @@ export async function syncReadmeAndSamplesOnDelete(
       console.warn('[labnoteo] sample cleanup during workflow delete failed:', err);
     }
   }
+  return removed;
 }

@@ -218,7 +218,7 @@ export default class LabnotePlugin extends Plugin {
   // Per experiment: the last queued Local registry rename of note names (#149).
   private readonly sampleSourceRenames = new Map<string, Promise<void>>();
   // The latest README flush per folder, so a new one runs after it, never beside it.
-  private readonly readmeSyncInFlight = new Map<string, Promise<void>>();
+  private readonly readmeSyncInFlight = new Map<string, Promise<unknown>>();
   // Set on unload: a flush still waiting for a modal to close must not write.
   private unloaded = false;
   // Workflow notes renamed out of the `###_*.labnote.md` format: current path →
@@ -2485,12 +2485,12 @@ export default class LabnotePlugin extends Plugin {
    * Flush the folder's queue once any earlier flush of it has finished. The
    * queue is taken only then, so events an earlier flush put back stay in order.
    */
-  private startReadmeFlush(dir: string): Promise<void> {
-    const prev = this.readmeSyncInFlight.get(dir) ?? Promise.resolve();
+  private startReadmeFlush(dir: string): Promise<number> {
+    const prev: Promise<unknown> = this.readmeSyncInFlight.get(dir) ?? Promise.resolve();
     const run = prev.then(async () => {
       const q = this.readmeSyncQueue.get(dir);
       this.readmeSyncQueue.delete(dir);
-      if (q) await this.flushReadmeSync(dir, q);
+      return q ? this.flushReadmeSync(dir, q) : 0;
     });
     this.readmeSyncInFlight.set(dir, run);
     void run.finally(() => {
@@ -2527,7 +2527,7 @@ export default class LabnotePlugin extends Plugin {
     return {
       flushNow: async dir => {
         this.cancelReadmeSyncTimer(dir);
-        await this.startReadmeFlush(dir);
+        return this.startReadmeFlush(dir);
       },
       hold: dir => {
         this.readmeSyncHolds.add(dir);
@@ -2549,21 +2549,25 @@ export default class LabnotePlugin extends Plugin {
     };
   }
 
-  /** Apply all queued deletes (prune + sample cleanup) then renames (reorder). */
+  /**
+   * Apply all queued deletes (prune + sample cleanup) then renames (reorder).
+   * Returns how many checklist entries of deleted notes were removed.
+   */
   private async flushReadmeSync(
     dir: string,
     q: { renames: { from: string; to: string }[]; deletes: string[] }
-  ): Promise<void> {
+  ): Promise<number> {
     const settled = await this.settleModals();
-    if (this.unloaded) return;
+    if (this.unloaded) return 0;
     if (!settled || this.readmeSyncHolds.has(dir)) {
       this.requeueReadmeSync(dir, q);
       this.scheduleReadmeSync(dir);
-      return;
+      return 0;
     }
+    let removed = 0;
     try {
       if (q.deletes.length > 0) {
-        await syncReadmeAndSamplesOnDelete(
+        removed = await syncReadmeAndSamplesOnDelete(
           this.app,
           this.host,
           dir,
@@ -2582,6 +2586,7 @@ export default class LabnotePlugin extends Plugin {
     } catch (err) {
       console.warn('[labnoteo] README auto-sync failed:', err);
     }
+    return removed;
   }
 
   /** Register the two sidebar views + commands/ribbon to open them. */
