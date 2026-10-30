@@ -32,8 +32,9 @@ export interface UnitOpReorderFilterOptions {
 
 export interface DocChangeKind {
   /**
-   * Typed, pasted, dropped or deleted by the user. File reloads (`set`),
-   * undo/redo and programmatic edits carry no such event and are excluded.
+   * Typed, pasted, dropped or deleted by the user, or a checkbox ticked in
+   * Live Preview. File reloads (`set`), undo/redo and programmatic edits carry
+   * no such event and are excluded.
    */
   userEdit: boolean;
   /** A user edit that changed the front matter `last_updated_date` value. */
@@ -59,8 +60,35 @@ function lastUpdatedOf(doc: Text): string | undefined {
   return end === -1 ? undefined : readLastUpdatedDate(doc.sliceString(0, end));
 }
 
+/** A task list mark, up to the character inside its brackets. */
+const TASK_MARK_RE = /^\s*(?:[-*+]|\d+[.)])\s+\[$/;
+
+/**
+ * A checkbox ticked or cleared in Live Preview (#472): Obsidian writes the one
+ * character inside `[ ]` with no input event, so it is told apart by its shape.
+ * File reloads and undo/redo stay out, as they do for typing.
+ */
+function isTaskToggle(tr: Transaction): boolean {
+  if (tr.isUserEvent('set') || tr.isUserEvent('undo') || tr.isUserEvent('redo')) return false;
+  let count = 0;
+  let toggle = false;
+  tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    count++;
+    if (toA - fromA !== 1 || inserted.length !== 1) return;
+    const doc = tr.startState.doc;
+    const line = doc.lineAt(fromA);
+    const mark = doc.sliceString(fromA, toA);
+    toggle =
+      TASK_MARK_RE.test(line.text.slice(0, fromA - line.from)) &&
+      doc.sliceString(toA, toA + 1) === ']' &&
+      /^[ xX]$/.test(mark) &&
+      /^[ xX]$/.test(inserted.toString());
+  });
+  return count === 1 && toggle;
+}
+
 function classify(tr: Transaction): DocChangeKind {
-  const userEdit = tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('move');
+  const userEdit = tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('move') || isTaskToggle(tr);
   if (!userEdit) return { userEdit, dateEdited: false };
   const fmEnd = frontMatterEnd(tr.startState.doc);
   let inFrontMatter = false;

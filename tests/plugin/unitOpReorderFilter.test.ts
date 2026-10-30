@@ -231,6 +231,47 @@ describe('createUnitOpReorderFilter', () => {
       expect(kindOf({ ...typeBody, userEvent })).toEqual({ userEdit: false, dateEdited: false });
     });
 
+    // #472: ticking a README checklist box did not count as an edit.
+    describe('a checkbox ticked in Live Preview', () => {
+      const TASKS = `${NOTE}- [ ] [WL001 a](./001_WL001_a.labnote.md)\n1. [x] done\n`;
+      function kindOn(doc: string, spec: TransactionSpec) {
+        let kind: unknown;
+        EditorState.create({
+          doc,
+          extensions: [
+            createUnitOpReorderFilter({
+              isEnabled: () => true,
+              getFilePath: () => WORKFLOW_PATH,
+              onDocChange: (_p, _h, k) => (kind = k),
+            }),
+          ],
+        }).update(spec);
+        return kind;
+      }
+      const box = TASKS.indexOf('- [ ]') + 3;
+      const done = TASKS.indexOf('1. [x]') + 4;
+
+      it('counts as a user edit, either way', () => {
+        expect(kindOn(TASKS, { changes: { from: box, to: box + 1, insert: 'x' } })).toEqual({ userEdit: true, dateEdited: false });
+        expect(kindOn(TASKS, { changes: { from: done, to: done + 1, insert: ' ' } })).toEqual({ userEdit: true, dateEdited: false });
+      });
+
+      it('does not count a reload, an undo, another one-character change or a second change', () => {
+        const toggle = { from: box, to: box + 1, insert: 'x' };
+        expect(kindOn(TASKS, { changes: toggle, userEvent: 'set' })).toEqual({ userEdit: false, dateEdited: false });
+        expect(kindOn(TASKS, { changes: toggle, userEvent: 'undo' })).toEqual({ userEdit: false, dateEdited: false });
+        const label = TASKS.indexOf('WL001');
+        expect(kindOn(TASKS, { changes: { from: label, to: label + 1, insert: 'X' } })).toEqual({
+          userEdit: false,
+          dateEdited: false,
+        });
+        expect(kindOn(TASKS, { changes: [toggle, { from: done, to: done + 1, insert: ' ' }] })).toEqual({
+          userEdit: false,
+          dateEdited: false,
+        });
+      });
+    });
+
     it('flags typing that changes last_updated_date', () => {
       const at = NOTE.indexOf('2026-10-01') + '2026-10-0'.length;
       const spec = { changes: { from: at, to: at + 1, insert: '5' }, userEvent: 'input.type' };
