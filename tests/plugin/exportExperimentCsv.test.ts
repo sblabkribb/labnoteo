@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { App, TFile as VaultFile } from 'obsidian';
-import { Notice, Platform, TFile } from '../stubs/obsidian';
+import { MarkdownView, Notice, Platform, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
 import { exportExperimentTablesToCsv, exportTablesToCsv } from '../../src/exportCsv';
 import { confirmModal } from '../../src/modals';
@@ -204,5 +204,70 @@ describe('a CSV path Excel cannot open (#348)', () => {
     await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
 
     expect(Notice.shown.at(-1)).not.toContain('Excel cannot open');
+  });
+});
+
+// #470: in source mode, writing a new CSV left the caret above the front matter.
+describe('the caret of the note being exported', () => {
+  type Sel = { anchor: { line: number; ch: number }; head: { line: number; ch: number } };
+  const at = (line: number, ch: number): Sel => ({ anchor: { line, ch }, head: { line, ch } });
+
+  function viewWith(text: () => string) {
+    let selections = [at(4, 3)];
+    const editor = {
+      getValue: text,
+      listSelections: () => selections,
+      setSelections: (s: Sel[]) => (selections = s),
+      getScrollInfo: () => ({ left: 0, top: 120 }),
+      scrollTo: vi.fn(),
+    };
+    const view = Object.assign(new MarkdownView(), { file: new TFile(WF1), editor });
+    (app.workspace as unknown) = { getActiveViewOfType: () => view };
+    return { editor, jump: () => (selections = [at(0, 0)]), selections: () => selections };
+  }
+
+  it('puts back a caret that jumped to the top while the CSV was written', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(WF1, table('a', '1'));
+      const v = viewWith(() => 'note');
+      const write = fs.write.bind(fs);
+      vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
+        await write(path, content);
+        if (path.endsWith('.csv')) setTimeout(v.jump, 300);
+      });
+
+      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(v.selections()).toEqual([at(4, 3)]);
+      expect(v.editor.scrollTo).toHaveBeenCalledWith(0, 120);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves the caret alone once the note is being typed in', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(WF1, table('a', '1'));
+      let text = 'note';
+      const v = viewWith(() => text);
+      const write = fs.write.bind(fs);
+      vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
+        await write(path, content);
+        if (path.endsWith('.csv')) {
+          text = 'typed';
+          v.jump();
+        }
+      });
+
+      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(v.selections()).toEqual([at(0, 0)]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
