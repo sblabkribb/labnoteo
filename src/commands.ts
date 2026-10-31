@@ -68,6 +68,7 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
+import { getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
 import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
 import { ensureVaultCatalogs } from './catalogUpdate';
 import {
@@ -2051,8 +2052,10 @@ export async function syncWorkflowChecklistCommand(
 
   // Notes naming no experimenter take the README author (#83); a named one stays (#404).
   const author = parseExperimenterFromReadme(readme);
+  // One clock for the question and the write, so both see the same End_dates as past (#445).
+  const now = getSeoulDateTimeString();
   const experimenters = [...notes].flatMap(([name, content]) => {
-    const sync = content === undefined ? undefined : planWorkflowExperimenterSync(content, author);
+    const sync = content === undefined ? undefined : planWorkflowExperimenterSync(content, author, now);
     return sync ? [{ name, ...sync }] : [];
   });
   if (experimenters.length > 0) {
@@ -2065,6 +2068,15 @@ export async function syncWorkflowChecklistCommand(
             : []),
           ...(e.skippedEmptyLines > 0
             ? [host.t('{0} left empty because the unit operation is finished; fill it in yourself', String(e.skippedEmptyLines))]
+            : []),
+          ...(e.futureLines > 0
+            ? [
+                host.t(
+                  '{0} filled although the unit operation has an End_date, as {1} has not come yet',
+                  String(e.futureLines),
+                  e.futureEndDates.join(', ')
+                ),
+              ]
             : []),
         ].join(', ');
         return `- ${e.name}: ${e.from || host.t('(empty)')} → ${e.to} (${counts})`;
@@ -2080,7 +2092,7 @@ export async function syncWorkflowChecklistCommand(
           app,
           host,
           posix.join(labnoteDir, name),
-          content => planWorkflowExperimenterSync(content, author)?.content ?? content
+          content => planWorkflowExperimenterSync(content, author, now)?.content ?? content
         );
         if (changed) updatedNotes.add(name);
       }
