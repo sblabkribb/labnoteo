@@ -87,6 +87,8 @@ import {
   planWorkflowRenumber,
   workflowChecklistOrder,
   isMisnumberedWorkflowFileName,
+  lacksWorkflowId,
+  unnamedWorkflowIds,
   planRenumberMoves,
   planTableCsvMoves,
   siblingTableCsvs,
@@ -1511,7 +1513,22 @@ export async function renumberWorkflowsCommand(
   const readmePlanned = readmeBefore === undefined ? undefined : relinkMissing(readmeBefore);
   // The checklist is where the researcher orders the experiment (#289).
   const order = readmePlanned === undefined ? [] : workflowChecklistOrder(readmePlanned, existing, labnoteDir);
-  const renames = planWorkflowRenumber(existing, order);
+  // A listed note whose name lost its number and ID gets the ID back from
+  // its title or checklist label (#456); one with none is named in a warning.
+  const unnamed = new Map<string, string | undefined>();
+  for (const name of order.filter(lacksWorkflowId)) {
+    const p = posix.join(labnoteDir, name);
+    unnamed.set(name, (await host.fs.exists(p)) ? await host.fs.read(p) : undefined);
+  }
+  const ids = unnamedWorkflowIds(order, readmePlanned ?? '', unnamed, labnoteDir);
+  const renames = planWorkflowRenumber(existing, order, ids.hints);
+  const skippedNote =
+    ids.skipped.length === 0
+      ? ''
+      : host.t(
+          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
+          ids.skipped.join(', ')
+        );
   // Files the checklist does not list are renumbered too, so register them in
   // the same run; otherwise one takes 001 and the overview starts at 002 (#56).
   const syncPlan =
@@ -1533,7 +1550,7 @@ export async function renumberWorkflowsCommand(
         );
   if (renames.length === 0 && unlisted === 0 && relinked === 0) {
     if (syncPlan && !syncPlan.hasSection) host.notify('warn', noSection);
-    else if (missingNote) host.notify('warn', missingNote);
+    else if (missingNote || skippedNote) host.notify('warn', [skippedNote, missingNote].filter(Boolean).join('\n\n'));
     else host.notify('info', host.t('Workflow numbering already follows the README checklist.'));
     return;
   }
@@ -1576,14 +1593,17 @@ export async function renumberWorkflowsCommand(
         )}\n${listFileNames(
           host,
           renames.map(r =>
-            isMisnumberedWorkflowFileName(r.from)
+            isMisnumberedWorkflowFileName(r.from) || lacksWorkflowId(r.from)
               ? host.t('{0} → {1} (name format fixed)', r.from, r.to)
               : `${r.from} → ${r.to}`
           )
         )}`;
   const sectionNote = syncPlan && !syncPlan.hasSection ? `\n\n${noSection}` : '';
   const missingPart = missingNote ? `\n\n${missingNote}` : '';
-  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}`))) return;
+  const skippedPart = skippedNote ? `\n\n${skippedNote}` : '';
+  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}`))) {
+    return;
+  }
 
   await readmeSync.flushNow(labnoteDir);
   readmeSync.hold(labnoteDir);
@@ -2098,6 +2118,18 @@ export async function syncWorkflowChecklistCommand(
   const clashNotice = (): void => {
     if (plan.numberClashes.length > 0) host.notify('warn', workflowNumberClashNotice(host, plan.numberClashes));
     if (plan.unlinkable.length > 0) host.notify('warn', unlinkableWorkflowNotice(host, plan.unlinkable));
+    // Listed, yet no workflow command counts it (#456).
+    const unnamed = workflowChecklistOrder(readme, names, labnoteDir).filter(lacksWorkflowId);
+    if (unnamed.length > 0) {
+      host.notify(
+        'warn',
+        host.t(
+          'The README checklist lists {0}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "{1}" to name it.',
+          unnamed.join(', '),
+          host.t('Renumber workflows')
+        )
+      );
+    }
   };
 
   if (

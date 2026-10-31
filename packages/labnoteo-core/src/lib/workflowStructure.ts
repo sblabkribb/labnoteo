@@ -725,6 +725,59 @@ export function isMisnumberedWorkflowFileName(fileName: string): boolean {
 }
 
 /**
+ * A `.labnote.md` whose name has neither its number nor its catalog ID
+ * (`병렬 관류 배양 2차.labnote.md`, #456), so no workflow name rule reads it.
+ */
+export function lacksWorkflowId(fileName: string): boolean {
+  return (
+    fileName.endsWith('.labnote.md') &&
+    fileName !== 'README.labnote.md' &&
+    !parseWorkflowFileName(fileName) &&
+    !parseMisnumberedWorkflowFileName(fileName) &&
+    !parseUnnumberedWorkflowFileName(fileName)
+  );
+}
+
+const WORKFLOW_ID_RE = /(?:^|[^A-Za-z0-9])([A-Z]{2}\d{3})(?![0-9])/;
+
+/** The name part a renumbered {@link lacksWorkflowId} file gets: its name, sanitized. */
+function unnamedWorkflowSafeName(fileName: string): string {
+  return sanitizeWorkflowName(fileName.slice(0, -'.labnote.md'.length));
+}
+
+/**
+ * The catalog IDs for the checklist-listed files that lost theirs from the
+ * name (#456): from the note's front-matter `title` or first `# ` heading, else
+ * from its README checklist label. `skipped` are those with none to be found,
+ * or whose name sanitizes to nothing, which "Renumber workflows" cannot name.
+ */
+export function unnamedWorkflowIds(
+  checklistOrder: readonly string[],
+  readmeContent: string,
+  noteContents: ReadonlyMap<string, string | undefined>,
+  dir?: string
+): { hints: Map<string, string>; skipped: string[] } {
+  const labels = new Map<string, string>();
+  for (const e of checklistEntries(readmeContent, dir)) {
+    if (e.target !== null && !labels.has(e.target)) labels.set(e.target, unescapeChecklistLabel(e.raw));
+  }
+  const hints = new Map<string, string>();
+  const skipped: string[] = [];
+  for (const name of checklistOrder.filter(lacksWorkflowId)) {
+    const content = noteContents.get(name);
+    const fmTitle = content === undefined ? undefined : parseFrontMatterYaml(content.replace(/\r\n/g, '\n')).frontMatter.title;
+    const title = typeof fmTitle === 'string' ? fmTitle : undefined;
+    const heading = content === undefined ? undefined : /^# (.+)$/m.exec(content)?.[1];
+    const id = [title, heading, labels.get(name)]
+      .map(s => (s ? WORKFLOW_ID_RE.exec(s)?.[1] : undefined))
+      .find(Boolean);
+    if (id && unnamedWorkflowSafeName(name)) hints.set(name, id);
+    else skipped.push(name);
+  }
+  return { hints, skipped };
+}
+
+/**
  * The workflow files of the folder in the order the README checklist lists
  * them: in-folder targets present in `existingNames`, each once (#289).
  */
@@ -756,22 +809,30 @@ export function workflowChecklistOrder(
  *
  * Besides standard names, a name whose number has the wrong number of digits
  * is renumbered too ({@link isMisnumberedWorkflowFileName}), and so is one
- * with no number that the checklist lists (#382). Other entries (README,
+ * with no number that the checklist lists (#382). One the checklist lists
+ * with neither number nor ID gets the ID `idHints` has for it (#456, see
+ * {@link unnamedWorkflowIds}) and its sanitized name. Other entries (README,
  * notes, manually named files) are ignored, and files that already
  * carry their target number are omitted, so a folder whose numbers follow the
  * checklist plans to no renames.
  */
 export function planWorkflowRenumber(
   fileNames: readonly string[],
-  checklistOrder: readonly string[] = []
+  checklistOrder: readonly string[] = [],
+  idHints: ReadonlyMap<string, string> = new Map()
 ): WorkflowRename[] {
   const parts = new Map<string, ParsedWorkflowFileName>();
   const inChecklist = new Set(checklistOrder);
+  const hinted = (fileName: string): ParsedWorkflowFileName | undefined => {
+    const id = idHints.get(fileName);
+    const safeName = id && lacksWorkflowId(fileName) ? unnamedWorkflowSafeName(fileName) : '';
+    return id && safeName ? { sequence: '000', id, safeName } : undefined;
+  };
   for (const fileName of fileNames) {
     const parsed =
       parseWorkflowFileName(fileName) ??
       parseMisnumberedWorkflowFileName(fileName) ??
-      (inChecklist.has(fileName) ? parseUnnumberedWorkflowFileName(fileName) : undefined);
+      (inChecklist.has(fileName) ? (parseUnnumberedWorkflowFileName(fileName) ?? hinted(fileName)) : undefined);
     if (parsed) parts.set(fileName, parsed);
   }
   const before = (a: string, b: string): boolean => {

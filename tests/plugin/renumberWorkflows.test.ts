@@ -378,3 +378,36 @@ describe('renumberWorkflowsCommand and a note without a number', () => {
     expect(links(await h.fs.read(README))).toEqual([A, C_NEW]);
   });
 });
+
+// #456: the note's name lost its ID as well; the checklist label still has it.
+describe('renumberWorkflowsCommand and a note without number or ID', () => {
+  const BARE = '병렬 관류 배양 2차.labnote.md';
+  const NEW = '002_WT130_병렬_관류_배양_2차.labnote.md';
+  const entry = `- [ ] [WT130 Parallel Mammalian Cell Fermentation 병렬 관류 배양 2차](병렬%20관류%20배양%202차.labnote.md)`;
+
+  it('takes the ID from the checklist label and sanitizes the name', async () => {
+    const h = harness({ relink: false });
+    await h.fs.remove(`${DIR}/${C_OLD}`);
+    await h.fs.write(`${DIR}/${BARE}`, '---\ntitle: something\n---\n');
+    await h.fs.write(README, README_BEFORE.replace(`- [ ] [WT020 C 형광 측정](./${C_OLD})`, entry));
+    const asked: string[] = [];
+    h.host.confirm = async (m: string) => (asked.push(m), true);
+
+    await renumberWorkflowsCommand(h.app, h.host, h.sync);
+
+    expect(asked[0]).toContain(`${BARE} → ${NEW} (name format fixed)`);
+    expect(await h.fs.exists(`${DIR}/${NEW}`)).toBe(true);
+    expect(links(await h.fs.read(README))).toEqual([A, NEW]);
+  });
+
+  it('says it skips the note when no ID is to be found, instead of "already follows"', async () => {
+    const h = harness({ relink: false });
+    await h.fs.remove(`${DIR}/${C_OLD}`);
+    await h.fs.write(`${DIR}/${BARE}`, '# no id here\n');
+    await h.fs.write(README, README_BEFORE.replace(`- [ ] [WT020 C 형광 측정](./${C_OLD})`, `- [ ] [병렬](${encodeURI(BARE)})`));
+
+    await renumberWorkflowsCommand(h.app, h.host, h.sync);
+
+    expect(h.calls.at(-1)).toContain(`notify Skipped ${BARE}: the name has neither the ###_ number nor the workflow ID`);
+  });
+});

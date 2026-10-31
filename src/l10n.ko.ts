@@ -250,6 +250,10 @@ const obsidianKo: Record<string, string> = {
   '{0} → {1} (name format fixed)': '{0} → {1} (이름 형식 고침)',
   'Workflow notes share a number: {0}. Run "{1}" to give each its own.':
     '번호가 겹치는 워크플로 노트가 있습니다: {0}. "{1}"을(를) 실행하면 노트마다 번호가 따로 붙습니다.',
+  'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).':
+    '{0}은(는) 건너뜁니다: 이름에 ###_ 번호도 워크플로 ID도 없고, 노트 제목과 README 체크리스트 줄에서도 ID를 찾지 못했습니다. 이름이 ###_ID_로 시작하게 바꾸세요(예: 001_WB030_이름.labnote.md).',
+  'The README checklist lists {0}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "{1}" to name it.':
+    'README 체크리스트에 {0}이(가) 올라 있지만, 이름에 ###_ 번호도 워크플로 ID도 없어 워크플로 뷰와 워크플로 명령이 워크플로로 세지 않습니다. "{1}"을(를) 실행하면 이름을 고칩니다.',
   'Renumber {0} workflow file(s) in {1}?': '{1}의 워크플로 파일 {0}개의 번호를 다시 매길까요?',
   'Renumbered {0} workflow file(s).': '워크플로 파일 {0}개의 번호를 다시 매겼습니다.',
   'Renumber {0} workflow file(s) in {1} and add {2} file(s) missing from the README checklist?':

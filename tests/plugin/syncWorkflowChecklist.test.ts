@@ -175,6 +175,16 @@ describe('syncWorkflowChecklistCommand', () => {
     ]);
   });
 
+  // #456: "already matches" alone left the researcher with no clue.
+  it('points at "Renumber workflows" when a listed note has neither number nor ID', async () => {
+    const BARE = '보정 모델 재학습.labnote.md';
+    const h = harness({ [README]: readme([`- [ ] [WL090 보정 모델 재학습](${encodeURI(BARE)})`]), [`${DIR}/${BARE}`]: 'x' }, true);
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+    expect(h.calls.at(-1)).toBe(
+      `notify The README checklist lists ${BARE}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "Renumber workflows" to name it.`
+    );
+  });
+
   it('adds a single renamed copy without touching other unlisted files (#44)', async () => {
     const COPY = '003_WD030_Design.labnote.md';
     const h = harness(
