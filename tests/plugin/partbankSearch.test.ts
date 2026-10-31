@@ -3,7 +3,7 @@
  * let a slow answer overwrite the results of what is on screen now.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { SearchDebouncer, describeHit } from '../../src/partbank/partbankSearch';
+import { SearchDebouncer, describeHit, partbankEmptyState } from '../../src/partbank/partbankSearch';
 import type { PartbankSearchHit } from '../../src/partbank/client';
 
 /** A debouncer with a hand-driven clock, so no real time passes. */
@@ -166,5 +166,15 @@ describe('describeHit', () => {
     expect(describeHit(hit({ kid: null, description: null, ownedByMe: true }), t).detail).toBe(
       'part · mine'
     );
+  });
+});
+
+// #474: one character, or a search on its way, read as "nothing found".
+describe('partbankEmptyState', () => {
+  it('asks for more text, says it is searching, then that nothing matched', () => {
+    expect(partbankEmptyState('', false)).toBe('short');
+    expect(partbankEmptyState(' g ', true)).toBe('short');
+    expect(partbankEmptyState('gf', true)).toBe('searching');
+    expect(partbankEmptyState('gf', false)).toBe('none');
   });
 });

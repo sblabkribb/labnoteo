@@ -1307,6 +1307,8 @@ const obsidianKo: Record<string, string> = {
   'Store': '저장',
   'No sample in this vault is linked to partbank.': 'partbank와 연결된 시료가 없습니다.',
   'Reading storage locations from partbank…': 'partbank에서 보관 위치를 읽는 중…',
+  'Type at least {0} characters to search partbank.': 'partbank를 검색하려면 {0}자 이상 입력하세요.',
+  'Searching partbank…': 'partbank 검색 중…',
   'Checked {0} linked sample(s); no storage location changed.':
     '연결된 시료 {0}개를 확인했고, 바뀐 보관 위치는 없습니다.',
   'Storage locations to store ({0} changed)': '저장할 보관 위치 ({0}개 변경)',
