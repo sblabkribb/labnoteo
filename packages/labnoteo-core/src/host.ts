@@ -27,6 +27,8 @@ export interface PickItem<T> {
   keywords?: readonly string[];
   /** Ticked when a multi-select list opens; ignored by single-select pickers. */
   checked?: boolean;
+  /** Shown faded, as for a discarded sample (#448). */
+  dimmed?: boolean;
   /** The value returned when this item is chosen. */
   value: T;
 }

@@ -303,13 +303,23 @@ export function sampleListHeaders(plugin: Pick<LabnotePlugin, 't'>): string[][] 
   return sets.filter((set, i) => sets.findIndex(other => other.join('\u0000') === set.join('\u0000')) === i);
 }
 
+/**
+ * A sample's storage location as shown to the researcher: the stored one, or
+ * the one emptied when it was discarded (#458), marked as such.
+ */
+export function sampleLocationText(plugin: Pick<LabnotePlugin, 't'>, rec: SampleRecord): string {
+  if (rec.location) return rec.location;
+  return rec.discardedLocation ? plugin.t('(emptied, was {0})', rec.discardedLocation) : '';
+}
+
 /** A sample's row in a sample list table, in {@link SAMPLE_LIST_HEADERS} order. */
 function sampleListRow(plugin: Pick<LabnotePlugin, 't'>, id: string, rec: SampleRecord, scope: SampleScope): string[] {
   return [
     id,
     rec.alias ?? '',
-    rec.descriptions?.[0] ?? '',
-    rec.location ?? '',
+    // A location splits its cell with ` / `, so descriptions use `; ` (#462).
+    (rec.descriptions ?? []).join('; '),
+    sampleLocationText(plugin, rec),
     plugin.t(scope === 'local' ? 'Local' : 'Global'),
     rec.discarded ?? '',
   ];
@@ -587,7 +597,7 @@ export async function createSampleInteractive(
     // The sample list tables follow the registry as after "Edit sample" (#463).
     const changed =
       (existing.record.alias ?? null) !== mergedAlias ||
-      (existing.record.descriptions?.[0] ?? null) !== mergedDesc ||
+      (existing.record.descriptions ?? []).join('\u0000') !== (merged?.descriptions ?? []).join('\u0000') ||
       (existing.record.location ?? null) !== (merged?.location ?? null);
     const tables = changed ? await updateSampleListTables(app, plugin, { folder: existing.folder, type, id }) : 0;
     const tablesNote = tables > 0 ? plugin.t('Updated the sample list table in {0} note(s).', String(tables)) : undefined;
@@ -918,14 +928,29 @@ export async function otherExperimentsWithSample(
 
 /**
  * Mark a sample discarded today, or in use again with `discarded: false`
- * (#158). The record stays, so the notes that use it keep resolving it.
+ * (#158). The record stays, so the notes that use it keep resolving it. A
+ * stored location is asked about (#458): emptied, it is kept aside and comes
+ * back when the mark is taken off. Dismissing the question keeps it.
  */
 export async function setSampleDiscardedInteractive(
   plugin: LabnotePlugin,
   opts: { folder: string; type: string; id: string; discarded: boolean }
 ): Promise<boolean> {
   const { folder, type, id, discarded } = opts;
-  const found = await setSampleDiscarded(plugin.fs, folder, type, id, discarded ? getSeoulDateString() : null);
+  const location = discarded ? (await loadSamplesByType(plugin.fs, folder, type))[id]?.location : undefined;
+  const clearLocation =
+    !!location &&
+    (await plugin.host.confirm(
+      plugin.t(
+        '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.',
+        id,
+        location
+      ),
+      { confirmLabel: plugin.t('Empty location') }
+    ));
+  const found = await setSampleDiscarded(plugin.fs, folder, type, id, discarded ? getSeoulDateString() : null, {
+    clearLocation,
+  });
   if (!found) {
     new Notice(plugin.t('Sample not found: {0}', id));
     return false;
@@ -1008,6 +1033,8 @@ export async function listSampleDefinitions(
   const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
   const items: PickItem<{ type: string; id: string; resolved: ResolvedSampleDefinition }>[] = [];
   for (const { scope, folder } of scopes) {
+    const alive: typeof items = [];
+    const discarded: typeof items = [];
     for (const type of types) {
       const records = await loadSamplesByType(plugin.fs, folder, type);
       const ids = Object.keys(records).sort((a, b) =>
@@ -1015,15 +1042,19 @@ export async function listSampleDefinitions(
       );
       for (const [id, record] of ids.map(id => [id, records[id]] as const)) {
         const where = scope === 'local' ? plugin.t('Local {0} sample', type) : plugin.t('Global {0} sample', type);
-        items.push({
-          label: [id, record.alias ?? '-', where].join(' | '),
+        const label = [id, record.alias ?? '-', where].join(' | ');
+        // A discarded sample goes after the ones in use of its scope, dimmed (#448).
+        (record.discarded ? discarded : alive).push({
+          label: record.discarded ? `${label} ${plugin.t('(discarded)')}` : label,
           // Searched ahead of the description (#386).
           description: record.location ?? undefined,
-          detail: record.descriptions?.[0],
+          detail: record.descriptions?.length ? record.descriptions.join('; ') : undefined,
+          dimmed: !!record.discarded,
           value: { type, id, resolved: { scope, folder, record } },
         });
       }
     }
+    items.push(...alive, ...discarded);
   }
   return items;
 }

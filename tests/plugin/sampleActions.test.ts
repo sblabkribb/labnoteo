@@ -19,6 +19,7 @@ import {
   listSampleDefinitions,
   sampleUsages,
   sampleUsageSpots,
+  setSampleDiscardedInteractive,
   usageSpotLabel,
   unregisteredReferences,
   validateAlias,
@@ -865,6 +866,66 @@ describe('listSampleDefinitions', () => {
   it('shows only the Global samples without an open note', async () => {
     expect((await list(undefined)).map(i => i.value.id)).toEqual(['DNA-2']);
   });
+
+  // #448, #462
+  it('puts a discarded sample, dimmed and tagged, after those in use of its scope, with every description', async () => {
+    await fs.write(
+      REGISTRY,
+      JSON.stringify({
+        'RNA-1': { type: 'RNA', alias: 'aaa', descriptions: ['kd'], sources: [], discarded: '2026-10-19' },
+        'RNA-2': { type: 'RNA', alias: 'bbb', descriptions: ['one', 'two'], sources: [] },
+      })
+    );
+    const items = await list('labnote/001_Test/001_WD010_A.labnote.md');
+
+    expect(items.map(i => i.label)).toEqual([
+      'RNA-2 | bbb | Local RNA sample',
+      'RNA-1 | aaa | Local RNA sample (discarded)',
+      'DNA-2 | - | Global DNA sample',
+    ]);
+    expect(items.map(i => i.dimmed)).toEqual([false, true, false]);
+    expect(items[0].detail).toBe('one; two');
+  });
+});
+
+// #458
+describe('setSampleDiscardedInteractive', () => {
+  const confirm = vi.fn();
+  const discard = (discarded: boolean) =>
+    setSampleDiscardedInteractive(
+      {
+        ...plugin,
+        app: {
+          workspace: { getLeavesOfType: () => [] },
+          vault: { getMarkdownFiles: () => [], getFileByPath: () => null },
+        },
+        host: { confirm },
+        settings: { globalSampleFolder: GLOBAL, customSampleTypes: [] },
+      } as unknown as LabnotePlugin,
+      { folder: FOLDER, type: 'RNA', id: 'RNA-1', discarded }
+    );
+  const stored = async () => JSON.parse(await fs.read(REGISTRY))['RNA-1'];
+
+  beforeEach(async () => {
+    confirm.mockReset();
+    await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: null, description: null, location: 'Freezer-2' });
+  });
+
+  it('empties the location once confirmed and puts it back on unmark', async () => {
+    confirm.mockResolvedValue(true);
+    expect(await discard(true)).toBe(true);
+    expect(confirm.mock.calls[0][0]).toContain('RNA-1 is stored at Freezer-2. Empty its storage location?');
+    expect(await stored()).toMatchObject({ location: null, discardedLocation: 'Freezer-2' });
+    await discard(false);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(await stored()).toMatchObject({ location: 'Freezer-2' });
+  });
+
+  it('keeps the location when the question is dismissed', async () => {
+    confirm.mockResolvedValue(false);
+    await discard(true);
+    expect(await stored()).toMatchObject({ location: 'Freezer-2', discarded: expect.any(String) });
+  });
 });
 
 describe('insertSampleReference', () => {
@@ -976,6 +1037,18 @@ describe('insertExperimentSamplesTable with a table already there', () => {
     expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
     expect(pickModal).not.toHaveBeenCalled();
     expect(state.text).toBe(`## Samples\n\n${FRESH}\n`);
+  });
+
+  // #462, #458
+  it('lists every description and a location emptied on discard', async () => {
+    const raw = JSON.parse(await fs.read(REGISTRY));
+    raw['RNA-1'].descriptions = ['kd2', 'kd'];
+    raw['RNA-2'] = { ...raw['RNA-2'], discarded: '2026-10-19', discardedLocation: 'Box-3' };
+    await fs.write(REGISTRY, JSON.stringify(raw));
+    const { state, tablePlugin } = setUp('## Samples\n');
+    await insertExperimentSamplesTable(app, tablePlugin);
+    expect(state.text).toContain('| RNA-1 | siKIF | kd2; kd | Freezer-1 | Local |  |');
+    expect(state.text).toContain('| RNA-2 | siX |  | (emptied, was Box-3) | Local | 2026-10-19 |');
   });
 
   it('replaces every table with the current one, in the UI language, leaving the rest', async () => {

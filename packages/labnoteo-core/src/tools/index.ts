@@ -681,7 +681,7 @@ export function createLabnoteTools(): ToolDef[] {
       name: 'get_sample',
       mutates: false,
       description:
-        'Look up a stored sample definition by type and id, searching the document-local labsamples folder then the vault-global one; without documentPath, every experiment\'s local labsamples folder is searched after the global one. The result says where it was found (`scope` local/global, `experiment` folder for a local sample). When the host can search notes, `usages` lists the vault paths of the notes that use the sample found (`sources` is only where it was defined or recorded).',
+        'Look up a stored sample definition by type and id, searching the document-local labsamples folder then the vault-global one; without documentPath, every experiment\'s local labsamples folder is searched after the global one. The result says where it was found (`scope` local/global, `experiment` folder for a local sample). A discarded sample whose location was emptied keeps the old one in `discardedLocation`. When the host can search notes, `usages` lists the vault paths of the notes that use the sample found (`sources` is only where it was defined or recorded).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -766,6 +766,7 @@ export function createLabnoteTools(): ToolDef[] {
           location: rec.location ?? null,
           scope,
           ...(rec.discarded ? { discarded: rec.discarded } : {}),
+          ...(rec.discardedLocation ? { discardedLocation: rec.discardedLocation } : {}),
         }));
         return { ok: true, data };
       },
@@ -775,7 +776,7 @@ export function createLabnoteTools(): ToolDef[] {
       name: 'search_samples',
       mutates: false,
       description:
-        'Search the samples of every type in the global labsamples folder and every experiment\'s local one for `query` in the id, alias, storage location or descriptions (case-insensitive; `_`, `:` and `;` match `-`, and `#`, `*`, `[[`, `]]` are ignored, as in aliases, so a name written `lacZ_F1` in a note finds the alias `lacZ-F1`). Each match gives its type, `scope` (local/global), `experiment` folder for a local sample and `discarded` date if it was marked discarded. Use it when you do not know the type or which experiment holds a sample.',
+        'Search the samples of every type in the global labsamples folder and every experiment\'s local one for `query` in the id, alias, storage location or descriptions (case-insensitive; `_`, `:` and `;` match `-`, and `#`, `*`, `[[`, `]]` are ignored, as in aliases, so a name written `lacZ_F1` in a note finds the alias `lacZ-F1`). Each match gives its type, `scope` (local/global), `experiment` folder for a local sample and `discarded` date if it was marked discarded (with `discardedLocation`, the location emptied then). Use it when you do not know the type or which experiment holds a sample.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -816,6 +817,7 @@ export function createLabnoteTools(): ToolDef[] {
                 scope,
                 experiment,
                 discarded: rec.discarded ?? null,
+                ...(rec.discardedLocation ? { discardedLocation: rec.discardedLocation } : {}),
               });
             }
           }

@@ -1544,6 +1544,40 @@ describe('setSampleDiscarded (#158)', () => {
     expect((await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1']).not.toHaveProperty('discarded');
     expect(await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-9', '2026-10-19')).toBe(false);
   });
+
+  // #458
+  it('empties the location on request and keeps it through saves, then puts it back', async () => {
+    const fs = new MemFileSystem();
+    const DOC = 'labnote/001_Exp/note.labnote.md';
+    const FOLDER = 'labnote/001_Exp/resources/labsamples';
+    await saveSamplesFromDocument(fs, DOC, '@DNA;DNA-1;pUC19');
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: null, description: 'pUC19', location: 'Freezer-2 / A1' });
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', '2026-10-19', { clearLocation: true });
+    await saveSamplesFromDocument(fs, DOC, '@DNA;DNA-1;pUC19;more');
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: 'p', description: 'pUC19' });
+    let rec = (await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1'];
+    expect(rec.location).toBeNull();
+    expect(rec.discardedLocation).toBe('Freezer-2 / A1');
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', null);
+    rec = (await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1'];
+    expect(rec.location).toBe('Freezer-2 / A1');
+    expect(rec).not.toHaveProperty('discardedLocation');
+  });
+
+  it('keeps the location unless asked, and a location written meanwhile wins on unmark', async () => {
+    const fs = new MemFileSystem();
+    const FOLDER = 'labnote/001_Exp/resources/labsamples';
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: null, description: null, location: 'Box-1' });
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', '2026-10-19');
+    expect((await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1'].location).toBe('Box-1');
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', null);
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', '2026-10-20', { clearLocation: true });
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: null, description: null, location: 'Box-9' });
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', null);
+    const rec = (await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1'];
+    expect(rec.location).toBe('Box-9');
+    expect(rec).not.toHaveProperty('discardedLocation');
+  });
 });
 
 describe('listExperimentSampleFolders (#169)', () => {

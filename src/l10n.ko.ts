@@ -511,6 +511,10 @@ const obsidianKo: Record<string, string> = {
   '{0} is no longer marked discarded.': '{0}의 폐기 표시를 해제했습니다.',
   '(discarded)': '(폐기)',
   'Discarded': '폐기',
+  '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.':
+    '{0}은(는) {1}에 보관되어 있습니다. 보관 위치를 비울까요? 원래 위치는 따로 남겨 두었다가 폐기 표시를 해제하면 되돌립니다.',
+  'Empty location': '위치 비우기',
+  '(emptied, was {0})': '(비움, 원래 위치 {0})',
   'Move to Global': '전역으로 이동',
   'Move to Local': '로컬로 이동',
   'Change type': '타입 변경',

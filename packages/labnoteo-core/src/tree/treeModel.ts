@@ -473,14 +473,16 @@ function sampleDetailNodes(idPrefix: string, rec: SampleRecord): TreeNode[] {
       kind: 'sampleDetail',
     });
   }
-  const description = rec.descriptions?.[0];
-  if (description) {
+  // Every description, numbered when there are several (#462).
+  const descriptions = (rec.descriptions ?? []).filter(Boolean);
+  descriptions.forEach((description, i) => {
+    const n = descriptions.length > 1 ? ` ${i + 1}` : '';
     details.push({
-      id: `${idPrefix}:description`,
-      label: `description: ${description}`,
+      id: `${idPrefix}:description${i > 0 ? `:${i + 1}` : ''}`,
+      label: `description${n}: ${description}`,
       kind: 'sampleDetail',
     });
-  }
+  });
   if (rec.location) {
     details.push({
       id: `${idPrefix}:location`,
@@ -521,7 +523,7 @@ async function buildScopeNode(
         id: nodeId,
         label,
         kind: 'sample' as const,
-        tooltip: rec.descriptions?.[0] || undefined,
+        tooltip: (rec.descriptions ?? []).filter(Boolean).join('\n') || undefined,
         ...(rec.discarded ? { dimmed: true } : {}),
         payload: { scope, type, id, record: rec },
         children: sampleDetailNodes(nodeId, rec),
@@ -584,7 +586,7 @@ export async function buildSampleTree(
 function sampleMatchesQuery(node: TreeNode, query: string): boolean {
   const payload = node.payload as { id?: string; record?: SampleRecord } | undefined;
   const rec = payload?.record;
-  return [payload?.id ?? '', rec?.alias ?? '', rec?.descriptions?.[0] ?? '', rec?.location ?? '']
+  return [payload?.id ?? '', rec?.alias ?? '', ...(rec?.descriptions ?? []), rec?.location ?? '']
     .map(normalizeSampleSearch)
     .join('\u0000')
     .includes(query);

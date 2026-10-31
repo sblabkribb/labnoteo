@@ -101,6 +101,7 @@ class PickModal<T> extends SuggestModal<PickItem<T>> {
   }
 
   renderSuggestion(item: PickItem<T>, el: HTMLElement): void {
+    if (item.dimmed) el.addClass('is-discarded');
     el.createEl('div', { text: item.label });
     if (item.description) {
       el.createEl('small', { text: item.description, cls: 'labnote-pick-desc' });

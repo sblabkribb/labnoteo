@@ -143,6 +143,20 @@ describe('buildSampleTree', () => {
     expect(kept.dimmed).toBeUndefined();
   });
 
+  // #462: only the first of several descriptions was shown or searched.
+  it('shows, numbers and searches every description', async () => {
+    const fs = new MemFileSystem();
+    await fs.write(
+      '/local/DNA.json',
+      JSON.stringify({ 'DNA-1': { type: 'DNA', alias: null, descriptions: ['first', 'second'], sources: [] } })
+    );
+    const nodes = await buildSampleTree(fs, { local: '/local', global: '/global' }, ['DNA']);
+    const sample = nodes[0].children![0].children![0];
+    expect(sample.children!.map(d => d.label)).toEqual(['description 1: first', 'description 2: second']);
+    expect(sample.tooltip).toBe('first\nsecond');
+    expect(filterSampleTree(nodes, 'second')[0].children![0].children!.map(s => s.label)).toEqual(['DNA-1']);
+  });
+
   // #64: a vault-root note's local folder is the global one.
   it('lists samples once, under Global, when both scopes are the same folder', async () => {
     const fs = new MemFileSystem();

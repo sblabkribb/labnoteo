@@ -228,7 +228,8 @@ export async function refreshLocationsIn(
   plugin: LabnotePlugin,
   folders: readonly string[]
 ): Promise<void> {
-  const linked = await linkedSamplesIn(plugin, folders);
+  // A discarded sample's location is left as the researcher set it (#458).
+  const linked = (await linkedSamplesIn(plugin, folders)).filter(s => !s.record.discarded);
   if (linked.length === 0) {
     new Notice(plugin.t('No sample in this vault is linked to partbank.'));
     return;

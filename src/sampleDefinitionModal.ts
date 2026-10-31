@@ -16,7 +16,9 @@ import {
   changeSampleTypeInteractive,
   moveSampleInteractive,
   resolveSampleDefinition,
+  sampleLocationText,
   sampleUsageSpots,
+  setSampleDiscardedInteractive,
   usageSpotLabel,
   type ResolvedSampleDefinition,
 } from './sampleActions';
@@ -114,7 +116,7 @@ class SampleDefinitionModal extends Modal {
       [t('Type'), this.type],
       [t('ID'), this.id],
       [t('Alias'), record.alias ?? '-'],
-      [t('Location'), record.location ?? '-'],
+      [t('Location'), sampleLocationText(this.plugin, record) || '-'],
       // The partbank id is the one key that makes the link usable by hand.
       ...(source
         ? [
@@ -185,6 +187,18 @@ class SampleDefinitionModal extends Modal {
             folder,
             type: this.type,
             id: this.id,
+          });
+          if (ok) this.close();
+        })
+      );
+      // #451: the Samples sidebar's context menu has it; so does this window.
+      buttons.addButton(btn =>
+        btn.setButtonText(record.discarded ? t('Unmark discarded') : t('Mark as discarded')).onClick(async () => {
+          const ok = await setSampleDiscardedInteractive(this.plugin, {
+            folder,
+            type: this.type,
+            id: this.id,
+            discarded: !record.discarded,
           });
           if (ok) this.close();
         })

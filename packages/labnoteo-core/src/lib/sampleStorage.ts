@@ -60,6 +60,12 @@ export interface SampleRecord {
    */
   discarded?: string | null;
   /**
+   * The storage location the sample had when it was marked discarded and the
+   * researcher chose to empty `location` (#458). Unmarking puts it back when
+   * `location` is still empty. Only present while the sample is discarded.
+   */
+  discardedLocation?: string;
+  /**
    * Which note (basename) put which description in, from its `@type;`
    * definition (#172). When that note's definition changes, its old
    * description is replaced rather than kept beside the new one. Descriptions
@@ -129,6 +135,9 @@ function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord
       : [],
     location: typeof r.location === 'string' ? r.location : null,
     ...(typeof r.discarded === 'string' && r.discarded ? { discarded: r.discarded } : {}),
+    ...(typeof r.discardedLocation === 'string' && r.discardedLocation
+      ? { discardedLocation: r.discardedLocation }
+      : {}),
     ...(r.descriptionSources && typeof r.descriptionSources === 'object' && !Array.isArray(r.descriptionSources)
       ? {
           descriptionSources: Object.fromEntries(
@@ -178,6 +187,7 @@ function mergeCaseCollidingIds(
     if (!target.alias && rec.alias) target.alias = rec.alias;
     if (rec.aliasSources) target.aliasSources = { ...rec.aliasSources, ...target.aliasSources };
     if (!target.location && rec.location) target.location = rec.location;
+    if (!target.discardedLocation && rec.discardedLocation) target.discardedLocation = rec.discardedLocation;
     if (!target.source && rec.source) target.source = rec.source;
   }
 
@@ -1890,14 +1900,18 @@ export async function renameSampleSourcesInFolder(
 
 /**
  * Mark sample `id` discarded on `date`, or in use again with `null` (#158).
- * Returns false when the record is not in `folder`.
+ * With `clearLocation`, marking empties `location` and keeps it as
+ * `discardedLocation` (#458); unmarking puts that back when `location` is
+ * still empty, and drops it either way. Returns false when the record is not
+ * in `folder`.
  */
 export async function setSampleDiscarded(
   fs: LabnoteFs,
   folder: string,
   type: string,
   id: string,
-  date: string | null
+  date: string | null,
+  opts: { clearLocation?: boolean } = {}
 ): Promise<boolean> {
   assertSafeSampleType(type);
   const filePath = path.join(folder, `${type}.json`);
@@ -1908,8 +1922,17 @@ export async function setSampleDiscarded(
     const record = records[id];
     if (!record) return raw;
     found = true;
-    if (date) record.discarded = date;
-    else delete record.discarded;
+    if (date) {
+      record.discarded = date;
+      if (opts.clearLocation && record.location) {
+        record.discardedLocation = record.location;
+        record.location = null;
+      }
+    } else {
+      delete record.discarded;
+      if (record.discardedLocation && !record.location) record.location = record.discardedLocation;
+      delete record.discardedLocation;
+    }
     return JSON.stringify(records, null, 2);
   });
   return found;
