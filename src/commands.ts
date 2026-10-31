@@ -10,7 +10,7 @@
  * `join('', 'labnote', ...)` yields vault-relative `labnote/...` paths that the
  * adapter understands.
  */
-import { Platform, TFile, type App, type Editor } from 'obsidian';
+import { MarkdownView, Platform, TFile, type App, type Editor } from 'obsidian';
 import type {
   LabnoteHost,
   WorkflowItem,
@@ -49,6 +49,7 @@ import {
   DISCUSS_FLAG_KEY,
   copyFrontMatterKeys,
   setFrontMatterKeys,
+  minimalReplacement,
 } from '@labnoteo/core';
 import { ISSUE_SYNC_WORKFLOW_PATH, SETUP_DOC_PATH } from './scaffold/assets';
 import * as posix from '@labnoteo/core/posix';
@@ -2216,6 +2217,15 @@ export async function writeNoteThroughVault(
   }
 }
 
+/** The editor `path` is open in, in source or live preview mode. */
+function openSourceEditor(app: App, path: string): Editor | undefined {
+  for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+    const view = leaf.view;
+    if (view instanceof MarkdownView && view.file?.path === path && view.getMode() === 'source') return view.editor;
+  }
+  return undefined;
+}
+
 /**
  * Rewrite a note by applying `transform` to its content at write time, not to
  * a copy read earlier. Obsidian may rewrite links in the same note after its
@@ -2302,19 +2312,30 @@ export async function syncReadmeAndSamplesOnDelete(
   //    itself be gone (whole-folder delete); then there is nothing to prune.
   const readmePath = posix.join(labnoteDir, README);
   let removed = 0;
-  if (await host.fs.exists(readmePath)) {
-    const written = await processNoteThroughVault(app, host, readmePath, content => {
-      removed = 0;
-      for (const p of deletedPaths) {
-        const res = removeWorkflowFromReadme(content, posix.basename(p));
-        if (res.changed) {
-          content = res.content;
-          removed++;
-        }
+  const prune = (content: string): string => {
+    removed = 0;
+    for (const p of deletedPaths) {
+      const res = removeWorkflowFromReadme(content, posix.basename(p));
+      if (res.changed) {
+        content = res.content;
+        removed++;
       }
-      return content;
-    });
-    if (!written) removed = 0;
+    }
+    return content;
+  };
+  if (await host.fs.exists(readmePath)) {
+    // An open README is edited in place (#468): rewriting the file left the
+    // editor showing the deleted entries until the app restarted.
+    const editor = openSourceEditor(app, readmePath);
+    if (editor) {
+      const before = editor.getValue();
+      const edit = minimalReplacement(before, prune(before));
+      if (edit) editor.replaceRange(edit.text, editor.offsetToPos(edit.start), editor.offsetToPos(edit.end));
+      else removed = 0;
+    } else {
+      const written = await processNoteThroughVault(app, host, readmePath, prune);
+      if (!written) removed = 0;
+    }
   }
 
   // 2) Samples: a deleted document defines nothing, so pass empty text — every
