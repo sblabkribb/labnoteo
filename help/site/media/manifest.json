@@ -371,18 +371,18 @@
     {
       "id": "sample-definition",
       "lang": "en",
-      "version": "0.130.0",
-      "durationSec": 40.1,
-      "bytes": 812801,
-      "recordedAt": "2026-10-28T00:18:07.103Z"
+      "version": "0.134.0",
+      "durationSec": 41.8,
+      "bytes": 919775,
+      "recordedAt": "2026-10-31T02:56:44.222Z"
     },
     {
       "id": "sample-definition",
       "lang": "ko",
-      "version": "0.130.0",
+      "version": "0.134.0",
       "durationSec": 41.4,
-      "bytes": 867741,
-      "recordedAt": "2026-10-27T23:59:59.120Z"
+      "bytes": 858225,
+      "recordedAt": "2026-10-31T02:54:07.816Z"
     },
     {
       "id": "sample-search-delete",
@@ -547,18 +547,18 @@
     {
       "id": "worksheet-print",
       "lang": "en",
-      "version": "0.111.0",
-      "durationSec": 36.8,
-      "bytes": 554789,
-      "recordedAt": "2026-10-21T09:59:49.054Z"
+      "version": "0.134.0",
+      "durationSec": 37.6,
+      "bytes": 553501,
+      "recordedAt": "2026-10-31T02:55:54.971Z"
     },
     {
       "id": "worksheet-print",
       "lang": "ko",
-      "version": "0.111.0",
-      "durationSec": 35.7,
-      "bytes": 503382,
-      "recordedAt": "2026-10-21T09:51:50.844Z"
+      "version": "0.134.0",
+      "durationSec": 37,
+      "bytes": 528973,
+      "recordedAt": "2026-10-31T02:53:18.877Z"
     }
   ]
 }
