@@ -165,6 +165,7 @@ const obsidianKo: Record<string, string> = {
   '@issue markers': '@issue 마커',
   'Retry of': '재시도 대상',
   'Retried in': '재시도',
+  'Retry line': '재시도 계보',
   'Retry this experiment': '이 실험 다시 하기',
   'Retry experiment {0}': '{0} 다시 하기',
   '{0} (retry)': '{0} 2차',
@@ -250,6 +251,10 @@ const obsidianKo: Record<string, string> = {
   '{0} → {1} (name format fixed)': '{0} → {1} (이름 형식 고침)',
   'Workflow notes share a number: {0}. Run "{1}" to give each its own.':
     '번호가 겹치는 워크플로 노트가 있습니다: {0}. "{1}"을(를) 실행하면 노트마다 번호가 따로 붙습니다.',
+  'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).':
+    '{0}은(는) 건너뜁니다: 이름에 ###_ 번호도 워크플로 ID도 없고, 노트 제목과 README 체크리스트 줄에서도 ID를 찾지 못했습니다. 이름이 ###_ID_로 시작하게 바꾸세요(예: 001_WB030_이름.labnote.md).',
+  'The README checklist lists {0}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "{1}" to name it.':
+    'README 체크리스트에 {0}이(가) 올라 있지만, 이름에 ###_ 번호도 워크플로 ID도 없어 워크플로 뷰와 워크플로 명령이 워크플로로 세지 않습니다. "{1}"을(를) 실행하면 이름을 고칩니다.',
   'Renumber {0} workflow file(s) in {1}?': '{1}의 워크플로 파일 {0}개의 번호를 다시 매길까요?',
   'Renumbered {0} workflow file(s).': '워크플로 파일 {0}개의 번호를 다시 매겼습니다.',
   'Renumber {0} workflow file(s) in {1} and add {2} file(s) missing from the README checklist?':
@@ -511,6 +516,10 @@ const obsidianKo: Record<string, string> = {
   '{0} is no longer marked discarded.': '{0}의 폐기 표시를 해제했습니다.',
   '(discarded)': '(폐기)',
   'Discarded': '폐기',
+  '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.':
+    '{0}은(는) {1}에 보관되어 있습니다. 보관 위치를 비울까요? 원래 위치는 따로 남겨 두었다가 폐기 표시를 해제하면 되돌립니다.',
+  'Empty location': '위치 비우기',
+  '(emptied, was {0})': '(비움, 원래 위치 {0})',
   'Move to Global': '전역으로 이동',
   'Move to Local': '로컬로 이동',
   'Change type': '타입 변경',
@@ -764,6 +773,8 @@ const obsidianKo: Record<string, string> = {
     '연구노트를 편집하거나 상태·논의 표시를 바꾸거나 AI가 고치면 last_updated_date를 오늘 날짜로 바꿉니다(하루 한 번). 워크플로 노트를 고치면 실험 README도 함께 바뀝니다. git으로 받아온 변경은 반영하지 않습니다. 날짜를 손으로 고친 노트는 그날 하루 동안 고친 날짜를 그대로 두고, 이 설정을 껐다 켜면 바로 다시 기록합니다.',
   'Kept the last_updated_date you set by hand in {0}. It updates automatically again from tomorrow.':
     '{0}의 last_updated_date는 손으로 고친 값을 그대로 두었습니다. 내일부터 다시 자동으로 기록합니다.',
+  '{0} has no last_updated_date now, so it is not updated automatically. Put the line back in the front matter to have it recorded again.':
+    '{0}에 last_updated_date가 없어 자동으로 기록하지 않습니다. 다시 기록하려면 머리말에 그 줄을 넣으세요.',
   'AI provider': 'AI 프로바이더',
   'Provider': '프로바이더',
   'Disabled': '비활성화됨',
@@ -855,12 +866,22 @@ const obsidianKo: Record<string, string> = {
   '"{0}" is a copy of the experiment {1} with its number, title, status, created date and discussion flag, so the workflow view lists the two alike. Rename the folder to a new number and you will be asked again to make it a new experiment.':
     '"{0}"은(는) 실험 {1}의 복사본이라 번호·제목·상태·생성일·논의 표시가 같아 워크플로 뷰에 똑같이 보입니다. 폴더 이름을 새 번호로 바꾸면 새 실험으로 정리할지 다시 묻습니다.',
   'Name this copy of the experiment': '복제한 실험의 제목',
-  '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, dated today, planned, without the discussion flag.':
-    '"{0}"은(는) 실험 {1}의 복사본입니다. 복사본의 제목을 정하세요. 다음 번호의 실험이 되고, 날짜는 오늘로, 상태는 planned로 바뀌고, 논의 표시는 꺼집니다.',
+  '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, its README dated today, planned, without the discussion flag. Its workflow notes keep the original\'s dates unless the copy is marked as a retry.':
+    '"{0}"은(는) 실험 {1}의 복사본입니다. 복사본의 제목을 정하세요. 다음 번호의 실험이 되고, README 날짜는 오늘로, 상태는 planned로 바뀌고, 논의 표시는 꺼집니다. 워크플로 노트의 날짜는 재실험으로 표시할 때만 정리하고, 그 밖에는 원본 그대로 둡니다.',
   'Made the copy the experiment {0}, created today.': '복사본을 실험 {0}(으)로 만들었습니다. 생성일은 오늘입니다.',
+  'Update the experiment title': '실험 제목 바꾸기',
+  'The folder was renamed from "{0}" to "{1}", but the README title is still "{2}", which the experiment list shows. Enter the new title, or cancel to keep it.':
+    '폴더 이름이 "{0}"에서 "{1}"(으)로 바뀌었지만 README 제목은 아직 "{2}"이고, 실험 목록에는 이 제목이 보입니다. 새 제목을 입력하세요. 취소하면 그대로 둡니다.',
+  'The README title of {0} is now "{1}".': '{0}의 README 제목을 "{1}"(으)로 바꿨습니다.',
   'Its status went from {0} back to planned.': '상태는 {0}에서 planned로 되돌렸습니다.',
-  'Mark the copy as a retry of {0}? The workflow view then shows the two together.':
-    '복사본을 {0}의 재실험으로 표시할까요? 워크플로 뷰에서 두 실험이 함께 보입니다.',
+  "Mark the copy as a retry of {0}? The workflow view then shows the two together, and the dates of its workflow notes start over: created today, with the end date and the unit operations' Start_date/End_date emptied.":
+    '복사본을 {0}의 재실험으로 표시할까요? 워크플로 뷰에서 두 실험이 함께 보이고, 워크플로 노트의 날짜도 새로 시작합니다: 생성일은 오늘로, 종료일과 유닛 오퍼레이션의 Start_date/End_date는 비웁니다.',
+  "Reset the dates of {0} workflow note(s): created today, with the end date and the unit operations' Start_date/End_date emptied.":
+    '워크플로 노트 {0}개의 날짜를 정리했습니다: 생성일은 오늘로, 종료일과 유닛 오퍼레이션의 Start_date/End_date는 비웠습니다.',
+  'Removed the {0} worksheet scan(s) of the original from the notes of the copy.':
+    '복사본의 노트에서 원본의 기록지 스캔 {0}개를 뺐습니다.',
+  "The copy's {0}/ folder still has {1} scan image(s) of the original; delete them if you do not need them.":
+    '복사본의 {0}/ 폴더에 원본의 스캔 이미지 {1}개가 남아 있습니다. 필요 없으면 지우세요.',
   'Mark as retry': '재실험으로 표시',
   'It is marked as a retry of {0}.': '{0}의 재실험으로 표시했습니다.',
   'It is no longer marked as a retry of {0}.': '{0}의 재실험 표시는 지웠습니다.',
@@ -912,6 +933,8 @@ const obsidianKo: Record<string, string> = {
   '{0} kept because the unit operation has an End_date': '{0}줄은 End_date가 있는 유닛 오퍼레이션이라 유지',
   '{0} left empty because the unit operation is finished; fill it in yourself':
     '{0}줄은 끝난 유닛 오퍼레이션이라 비어 있는 채로 둠(직접 채우세요)',
+  '{0} filled although the unit operation has an End_date, as {1} has not come yet':
+    '{0}줄은 End_date({1})가 아직 오지 않아 채움',
   '(empty)': '(비어 있음)',
   '{0} note(s) updated.': '노트 {0}개를 고쳤습니다.',
   'Name this copy of the workflow': '복제한 워크플로의 이름',
@@ -979,6 +1002,8 @@ const obsidianKo: Record<string, string> = {
   'Copied {0}.': '{0}을(를) 복사했습니다.',
   'Printed worksheets carry this ID with the unit operation and page, so photos of them find their way back to this note.':
     '출력한 기록지에는 이 ID와 유닛 오퍼레이션, 페이지가 함께 찍혀서, 사진을 찍어 올리면 이 노트로 돌아옵니다.',
+  'Pages printed with "{0}" carry this ID and their page number, so photos of them find their way back to this note.':
+    '"{0}"(으)로 출력한 종이에는 이 ID와 페이지가 찍혀서, 사진을 찍어 올리면 이 노트로 돌아옵니다.',
   'This note already has the note ID {0}.': '이 노트에는 이미 노트 ID {0}이(가) 있습니다.',
   '{0} also has the note ID {1}. Give this note a new ID?':
     '{0}도 노트 ID {1}을(를) 쓰고 있습니다. 이 노트에 새 ID를 발급할까요?',
@@ -1284,6 +1309,8 @@ const obsidianKo: Record<string, string> = {
   'Store': '저장',
   'No sample in this vault is linked to partbank.': 'partbank와 연결된 시료가 없습니다.',
   'Reading storage locations from partbank…': 'partbank에서 보관 위치를 읽는 중…',
+  'Type at least {0} characters to search partbank.': 'partbank를 검색하려면 {0}자 이상 입력하세요.',
+  'Searching partbank…': 'partbank 검색 중…',
   'Checked {0} linked sample(s); no storage location changed.':
     '연결된 시료 {0}개를 확인했고, 바뀐 보관 위치는 없습니다.',
   'Storage locations to store ({0} changed)': '저장할 보관 위치 ({0}개 변경)',

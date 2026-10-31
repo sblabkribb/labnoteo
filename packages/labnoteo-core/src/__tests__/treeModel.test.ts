@@ -143,6 +143,20 @@ describe('buildSampleTree', () => {
     expect(kept.dimmed).toBeUndefined();
   });
 
+  // #462: only the first of several descriptions was shown or searched.
+  it('shows, numbers and searches every description', async () => {
+    const fs = new MemFileSystem();
+    await fs.write(
+      '/local/DNA.json',
+      JSON.stringify({ 'DNA-1': { type: 'DNA', alias: null, descriptions: ['first', 'second'], sources: [] } })
+    );
+    const nodes = await buildSampleTree(fs, { local: '/local', global: '/global' }, ['DNA']);
+    const sample = nodes[0].children![0].children![0];
+    expect(sample.children!.map(d => d.label)).toEqual(['description 1: first', 'description 2: second']);
+    expect(sample.tooltip).toBe('first\nsecond');
+    expect(filterSampleTree(nodes, 'second')[0].children![0].children!.map(s => s.label)).toEqual(['DNA-1']);
+  });
+
   // #64: a vault-root note's local folder is the global one.
   it('lists samples once, under Global, when both scopes are the same folder', async () => {
     const fs = new MemFileSystem();
@@ -519,5 +533,34 @@ describe('retried experiments', () => {
       'labnote/104_C',
     ]);
     expect(filterExperiments(entries, '104').map(e => e.folder)).toEqual(['labnote/061_A', 'labnote/104_C']);
+  });
+
+  // #449: each run retries the one before, so 123 found 130 alone.
+  describe('over several runs', () => {
+    const chain = linkRetries([
+      { folder: 'labnote/123_A', title: '1차', status: 'failed' },
+      { folder: 'labnote/130_B', title: '2차', status: 'failed', retryOf: 'labnote/123_A' },
+      { folder: 'labnote/131_C', title: '3차', status: 'failed', retryOf: 'labnote/130_B' },
+      { folder: 'labnote/132_D', title: '4차', status: 'planned', retryOf: 'labnote/131_C' },
+      { folder: 'labnote/133_E', title: 'other branch', status: 'planned', retryOf: 'labnote/130_B' },
+    ]);
+    const found = (q: string) => filterExperiments(chain, q).map(e => e.folder.slice(8, 11));
+
+    it('finds the whole line from any run, without the runs of another branch', () => {
+      expect(found('123')).toEqual(['123', '130', '131', '132', '133']);
+      expect(found('131')).toEqual(['123', '130', '131', '132']);
+      expect(found('133')).toEqual(['123', '130', '133']);
+    });
+
+    it('names the line in the tooltip only when it reaches past the run before and after', () => {
+      const tips = buildExperimentTree(chain, { retryLineage: '재시도 계보' })
+        .children!.flatMap(g => g.children!)
+        .map(e => e.tooltip!);
+      const of = (n: string) => tips.find(t => t.includes(`labnote/${n}_`))!;
+      expect(of('131')).toContain('재시도 계보: 123, 130, 131, 132');
+      expect(of('123')).toContain('재시도 계보: 123, 130, 131, 132, 133');
+      expect(of('132')).toContain('재시도 계보: 123, 130, 131, 132');
+      expect(of('133')).toContain('재시도 계보: 123, 130, 133');
+    });
   });
 });

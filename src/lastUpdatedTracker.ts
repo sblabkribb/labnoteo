@@ -19,9 +19,11 @@ interface Pending {
  * - `stamp`: write today's date.
  * - `handSet`: skipped because the user set the date by hand today; reported
  *   once per hand-set date so the caller can say so (#202).
+ * - `removed`: the user deleted the `last_updated_date` line, which the stamp
+ *   never adds back; reported once so the caller can say so (#466).
  * - `skip`: nothing to do.
  */
-export type StampDecision = 'stamp' | 'handSet' | 'skip';
+export type StampDecision = 'stamp' | 'handSet' | 'removed' | 'skip';
 
 export class LastUpdatedTracker {
   private readonly pending = new Map<string, Pending>();
@@ -30,11 +32,17 @@ export class LastUpdatedTracker {
    * Left alone for that day only, so the automatic date resumes the next day.
    */
   private readonly manual = new Map<string, { day: string; reported: boolean }>();
+  /** Notes whose `last_updated_date` line the user deleted, and whether that was reported. */
+  private readonly removed = new Map<string, boolean>();
 
   constructor(private readonly today: () => string = getSeoulDateString) {}
 
   record(path: string, change: DocChange): void {
-    if (change.dateEdited) this.manual.set(path, { day: this.today(), reported: false });
+    if (change.dateEdited) {
+      this.manual.set(path, { day: this.today(), reported: false });
+      this.removed.delete(path);
+    }
+    if (change.dateRemoved && !this.removed.has(path)) this.removed.set(path, false);
     const prev = this.pending.get(path);
     this.pending.set(path, {
       userEdit: (prev?.userEdit ?? false) || change.userEdit,
@@ -51,6 +59,10 @@ export class LastUpdatedTracker {
     const p = this.pending.get(path);
     this.pending.delete(path);
     if (!p || !p.userEdit || p.lastFromHistory) return 'skip';
+    if (this.removed.get(path) === false) {
+      this.removed.set(path, true);
+      return 'removed';
+    }
     const hand = this.manual.get(path);
     if (!hand) return 'stamp';
     if (hand.day !== this.today()) {
@@ -73,5 +85,6 @@ export class LastUpdatedTracker {
   clear(): void {
     this.pending.clear();
     this.manual.clear();
+    this.removed.clear();
   }
 }

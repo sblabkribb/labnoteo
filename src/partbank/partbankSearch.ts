@@ -75,6 +75,15 @@ export class SearchDebouncer<T> {
   }
 }
 
+/**
+ * What an empty result list stands for (#474): too little typed to search,
+ * a search still on its way (the pause before it included), or no match.
+ */
+export function partbankEmptyState(query: string, pending: boolean): 'short' | 'searching' | 'none' {
+  if (query.trim().length < MIN_QUERY_CHARS) return 'short';
+  return pending ? 'searching' : 'none';
+}
+
 /** What a partbank type is called in the list. */
 export function partbankTypeLabel(
   type: PartbankType,
@@ -139,6 +148,8 @@ class PartbankSearchModal extends SuggestModal<PartbankSearchHit> {
   private settled = false;
   /** The last text a search was started for; `\0` so the first call never matches. */
   private lastAsked = '\u0000';
+  /** A search was started and has not answered yet. */
+  private pending = false;
 
   constructor(
     app: App,
@@ -160,10 +171,16 @@ class PartbankSearchModal extends SuggestModal<PartbankSearchHit> {
       search: query => client.searchGlobal(query, entities),
       onResults: (_query, results) => {
         this.hits = results;
+        this.pending = false;
         // Re-ask Obsidian for the list now that the answer is in.
         this.inputEl.dispatchEvent(new Event('input'));
       },
-      onError: (_query, err) => opts.onError(err),
+      onError: (_query, err) => {
+        this.pending = false;
+        opts.onError(err);
+        // Or the list would keep saying it is searching.
+        this.inputEl.dispatchEvent(new Event('input'));
+      },
     });
   }
 
@@ -179,8 +196,17 @@ class PartbankSearchModal extends SuggestModal<PartbankSearchHit> {
     // dispatch with the results from starting another search.
     if (query.trim() !== this.lastAsked) {
       this.lastAsked = query.trim();
+      this.pending = this.lastAsked.length >= MIN_QUERY_CHARS;
       this.debouncer.query(query);
     }
+    // Obsidian shows it right after an empty list is returned.
+    const state = partbankEmptyState(query, this.pending);
+    this.emptyStateText =
+      state === 'short'
+        ? this.opts.t('Type at least {0} characters to search partbank.', String(MIN_QUERY_CHARS))
+        : state === 'searching'
+          ? this.opts.t('Searching partbank…')
+          : this.opts.emptyText;
     return this.hits;
   }
 

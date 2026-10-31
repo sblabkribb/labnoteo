@@ -69,4 +69,14 @@ describe('rankPickItems', () => {
     ];
     expect(rankPickItems(items, '효소활성').map(i => i.value)).toEqual(['UHW110', 'UHW100']);
   });
+
+  // #485: 활성 was in the name and 측정 only in the detail, so nothing was found.
+  it('finds words spread over the name and the detail, after every other match', () => {
+    const items = [
+      op('UHW380', 'Enzyme Activity', '효소 활성', '기질을 넣고 흡광도로 활성을 측정합니다.'),
+      op('UHW100', 'Enzyme Activity Assay', '효소 활성 측정', ''),
+      op('UHW500', 'Sealing', '실링', '측정 전에 밀봉합니다.'),
+    ];
+    expect(rankPickItems(items, '활성 측정').map(i => i.value)).toEqual(['UHW100', 'UHW380']);
+  });
 });

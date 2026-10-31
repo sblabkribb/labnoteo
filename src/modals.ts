@@ -21,7 +21,9 @@ const t = createObsidianTranslator();
  * keyword or the description containing it; then only the detail or a long
  * keyword (an English description kept searchable). Last (#401), in the
  * label, a short keyword or the description: the query typed without its
- * spaces (`효소활성` for `효소 활성`), or each of its words in any order.
+ * spaces (`효소활성` for `효소 활성`), or each of its words in any order;
+ * after those (#485), each word found in any field, the detail and long
+ * keywords included (`활성 측정` for a label with 활성 and a detail with 측정).
  */
 function pickRank<T>(item: PickItem<T>, q: string): number | undefined {
   const label = item.label.toLowerCase();
@@ -35,6 +37,8 @@ function pickRank<T>(item: PickItem<T>, q: string): number | undefined {
   if (fields.some(f => startsWordWithoutSpaces(f, q))) return 4;
   const words = q.split(/\s+/).filter(Boolean);
   if (words.length > 1 && words.every(w => fields.some(f => f.includes(w)))) return 5;
+  const all = [...fields, ...keywords, item.detail?.toLowerCase() ?? ''];
+  if (words.length > 1 && words.every(w => all.some(f => f.includes(w)))) return 6;
   return undefined;
 }
 
@@ -101,6 +105,7 @@ class PickModal<T> extends SuggestModal<PickItem<T>> {
   }
 
   renderSuggestion(item: PickItem<T>, el: HTMLElement): void {
+    if (item.dimmed) el.addClass('is-discarded');
     el.createEl('div', { text: item.label });
     if (item.description) {
       el.createEl('small', { text: item.description, cls: 'labnote-pick-desc' });

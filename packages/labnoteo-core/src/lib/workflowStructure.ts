@@ -3,7 +3,7 @@
  */
 
 import * as path from '../util/posixPath';
-import { getSeoulDateString, findMetaDateFieldInLine } from './dateUtils';
+import { getSeoulDateString, getSeoulDateTimeString, findMetaDateFieldInLine, metaEndDateInFuture } from './dateUtils';
 import {
   sanitizePathSegment,
   legacySanitizePathSegment,
@@ -18,6 +18,7 @@ import { underscoreTurnsItalic } from './sampleUtils';
 import {
   commandName,
   diagnoseExperimentPath,
+  experimentTitleFromFolderName,
   generateReadmeContent,
   getExperimentDir,
   KO_COMMAND_NAMES,
@@ -725,6 +726,59 @@ export function isMisnumberedWorkflowFileName(fileName: string): boolean {
 }
 
 /**
+ * A `.labnote.md` whose name has neither its number nor its catalog ID
+ * (`병렬 관류 배양 2차.labnote.md`, #456), so no workflow name rule reads it.
+ */
+export function lacksWorkflowId(fileName: string): boolean {
+  return (
+    fileName.endsWith('.labnote.md') &&
+    fileName !== 'README.labnote.md' &&
+    !parseWorkflowFileName(fileName) &&
+    !parseMisnumberedWorkflowFileName(fileName) &&
+    !parseUnnumberedWorkflowFileName(fileName)
+  );
+}
+
+const WORKFLOW_ID_RE = /(?:^|[^A-Za-z0-9])([A-Z]{2}\d{3})(?![0-9])/;
+
+/** The name part a renumbered {@link lacksWorkflowId} file gets: its name, sanitized. */
+function unnamedWorkflowSafeName(fileName: string): string {
+  return sanitizeWorkflowName(fileName.slice(0, -'.labnote.md'.length));
+}
+
+/**
+ * The catalog IDs for the checklist-listed files that lost theirs from the
+ * name (#456): from the note's front-matter `title` or first `# ` heading, else
+ * from its README checklist label. `skipped` are those with none to be found,
+ * or whose name sanitizes to nothing, which "Renumber workflows" cannot name.
+ */
+export function unnamedWorkflowIds(
+  checklistOrder: readonly string[],
+  readmeContent: string,
+  noteContents: ReadonlyMap<string, string | undefined>,
+  dir?: string
+): { hints: Map<string, string>; skipped: string[] } {
+  const labels = new Map<string, string>();
+  for (const e of checklistEntries(readmeContent, dir)) {
+    if (e.target !== null && !labels.has(e.target)) labels.set(e.target, unescapeChecklistLabel(e.raw));
+  }
+  const hints = new Map<string, string>();
+  const skipped: string[] = [];
+  for (const name of checklistOrder.filter(lacksWorkflowId)) {
+    const content = noteContents.get(name);
+    const fmTitle = content === undefined ? undefined : parseFrontMatterYaml(content.replace(/\r\n/g, '\n')).frontMatter.title;
+    const title = typeof fmTitle === 'string' ? fmTitle : undefined;
+    const heading = content === undefined ? undefined : /^# (.+)$/m.exec(content)?.[1];
+    const id = [title, heading, labels.get(name)]
+      .map(s => (s ? WORKFLOW_ID_RE.exec(s)?.[1] : undefined))
+      .find(Boolean);
+    if (id && unnamedWorkflowSafeName(name)) hints.set(name, id);
+    else skipped.push(name);
+  }
+  return { hints, skipped };
+}
+
+/**
  * The workflow files of the folder in the order the README checklist lists
  * them: in-folder targets present in `existingNames`, each once (#289).
  */
@@ -756,22 +810,30 @@ export function workflowChecklistOrder(
  *
  * Besides standard names, a name whose number has the wrong number of digits
  * is renumbered too ({@link isMisnumberedWorkflowFileName}), and so is one
- * with no number that the checklist lists (#382). Other entries (README,
+ * with no number that the checklist lists (#382). One the checklist lists
+ * with neither number nor ID gets the ID `idHints` has for it (#456, see
+ * {@link unnamedWorkflowIds}) and its sanitized name. Other entries (README,
  * notes, manually named files) are ignored, and files that already
  * carry their target number are omitted, so a folder whose numbers follow the
  * checklist plans to no renames.
  */
 export function planWorkflowRenumber(
   fileNames: readonly string[],
-  checklistOrder: readonly string[] = []
+  checklistOrder: readonly string[] = [],
+  idHints: ReadonlyMap<string, string> = new Map()
 ): WorkflowRename[] {
   const parts = new Map<string, ParsedWorkflowFileName>();
   const inChecklist = new Set(checklistOrder);
+  const hinted = (fileName: string): ParsedWorkflowFileName | undefined => {
+    const id = idHints.get(fileName);
+    const safeName = id && lacksWorkflowId(fileName) ? unnamedWorkflowSafeName(fileName) : '';
+    return id && safeName ? { sequence: '000', id, safeName } : undefined;
+  };
   for (const fileName of fileNames) {
     const parsed =
       parseWorkflowFileName(fileName) ??
       parseMisnumberedWorkflowFileName(fileName) ??
-      (inChecklist.has(fileName) ? parseUnnumberedWorkflowFileName(fileName) : undefined);
+      (inChecklist.has(fileName) ? (parseUnnumberedWorkflowFileName(fileName) ?? hinted(fileName)) : undefined);
     if (parsed) parts.set(fileName, parsed);
   }
   const before = (a: string, b: string): boolean => {
@@ -1520,7 +1582,7 @@ export function rebuildExperimentReadme(
   author: string | undefined,
   opts: TemplateHintOptions = {}
 ): string {
-  const title = folderName.replace(/^\d{3}_/, '').replace(/_/g, ' ').trim() || folderName;
+  const title = experimentTitleFromFolderName(folderName) || folderName;
   return planWorkflowChecklistSync(generateReadmeContent(title, author, opts), names, titles).content;
 }
 
@@ -1773,6 +1835,10 @@ export interface WorkflowExperimenterSync {
   skippedLines: number;
   /** How many of {@link skippedLines} are empty, so nobody's name is kept there (#193). */
   skippedEmptyLines: number;
+  /** Of {@link unitOpLines}, those of unit ops whose `End_date` has not come yet (#445). */
+  futureLines: number;
+  /** Those `End_date` values, each once. */
+  futureEndDates: string[];
 }
 
 /**
@@ -1783,9 +1849,10 @@ export interface WorkflowExperimenterSync {
  * rewritten, and so is each empty `- Experimenter:` line of a unit operation
  * outside code blocks; another person's name was written on purpose. A unit op
  * (from its `### [` heading to the next) whose `End_date` is filled in is
- * finished work and keeps who did it (#155). The label is the same in every
- * locale. Undefined when `author` is empty, the note has no `experimenter`
- * key, or it already names someone.
+ * finished work and keeps who did it (#155), unless that date is after `now`:
+ * then it is planned, not finished, and is filled too (#445). The label is
+ * the same in every locale. Undefined when `author` is empty, the note has no
+ * `experimenter` key, or it already names someone.
  */
 /**
  * Whether the workflow note `content` has unit operations and each has its
@@ -1814,7 +1881,8 @@ export function unitOpsAllEnded(content: string): boolean {
 
 export function planWorkflowExperimenterSync(
   content: string,
-  author: string
+  author: string,
+  now: string = getSeoulDateTimeString()
 ): WorkflowExperimenterSync | undefined {
   const to = author.trim();
   if (!to) return undefined;
@@ -1836,7 +1904,8 @@ export function planWorkflowExperimenterSync(
     fmEnd -= end - i - 1;
   }
   // Experimenter lines to rewrite, grouped by unit op, and which unit ops ended.
-  const blocks: { lines: number[]; empty: number; ended: boolean }[] = [{ lines: [], empty: 0, ended: false }];
+  type Block = { lines: number[]; empty: number; ended: boolean; future?: string };
+  const blocks: Block[] = [{ lines: [], empty: 0, ended: false }];
   let fence: OpenFence | null = null;
   for (let i = fmEnd + 1; i < lines.length; i++) {
     const next = stepFence(lines[i], fence);
@@ -1850,7 +1919,9 @@ export function planWorkflowExperimenterSync(
     }
     const block = blocks[blocks.length - 1];
     const date = findMetaDateFieldInLine(lines[i]);
-    if (date?.field === 'End_date' && date.value.trim() !== '') block.ended = true;
+    const end = date?.field === 'End_date' ? date.value.trim() : '';
+    if (end && metaEndDateInFuture(end, now)) block.future = end;
+    else if (end) block.ended = true;
     const m = /^(\s*-\s*Experimenter:)(.*)$/.exec(lines[i]);
     if (m && m[2].trim() === '') {
       block.lines.push(i);
@@ -1860,6 +1931,8 @@ export function planWorkflowExperimenterSync(
   let unitOpLines = 0;
   let skippedLines = 0;
   let skippedEmptyLines = 0;
+  let futureLines = 0;
+  const futureEndDates: string[] = [];
   for (const block of blocks) {
     if (block.ended) {
       skippedLines += block.lines.length;
@@ -1870,9 +1943,15 @@ export function planWorkflowExperimenterSync(
       lines[i] = `${/^(\s*-\s*Experimenter:)/.exec(lines[i])![1]} ${to}`;
       unitOpLines++;
     }
+    if (block.future && block.lines.length > 0) {
+      futureLines += block.lines.length;
+      if (!futureEndDates.includes(block.future)) futureEndDates.push(block.future);
+    }
   }
   const next = lines.join(newline);
-  return next === content ? undefined : { from, to, content: next, unitOpLines, skippedLines, skippedEmptyLines };
+  return next === content
+    ? undefined
+    : { from, to, content: next, unitOpLines, skippedLines, skippedEmptyLines, futureLines, futureEndDates };
 }
 
 /**

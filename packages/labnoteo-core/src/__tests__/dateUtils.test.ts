@@ -6,6 +6,7 @@ import {
   findPairedMetaDate,
   isEndBeforeStart,
   isPlausibleMetaDate,
+  metaEndDateInFuture,
   shouldWriteOnCommit,
   clampDateTimeLocal,
   fromDateTimeLocalValue,
@@ -19,6 +20,23 @@ describe('getSeoulDateString', () => {
   it('formats an explicit date as YYYY-MM-DD', () => {
     // 2024-01-02T00:00:00Z is still 2024-01-02 in Asia/Seoul (UTC+9).
     expect(getSeoulDateString(new Date('2024-01-02T00:00:00Z'))).toBe('2024-01-02');
+  });
+});
+
+// #445
+describe('metaEndDateInFuture', () => {
+  const now = '2026-10-30 10:00';
+  it('compares a time to the minute and a bare date by the day', () => {
+    expect(metaEndDateInFuture('2026-10-30 10:01', now)).toBe(true);
+    expect(metaEndDateInFuture('2026-10-30 10:00', now)).toBe(false);
+    expect(metaEndDateInFuture('2026-10-30', now)).toBe(false);
+    expect(metaEndDateInFuture('2026.10.31', now)).toBe(true);
+    expect(metaEndDateInFuture('2026/11/1 08:00', now)).toBe(true);
+  });
+
+  it('treats a value that is not a date as past', () => {
+    expect(metaEndDateInFuture('next week', now)).toBe(false);
+    expect(metaEndDateInFuture('', now)).toBe(false);
   });
 });
 

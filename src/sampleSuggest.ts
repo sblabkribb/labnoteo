@@ -169,7 +169,9 @@ export class SampleEditorSuggest extends EditorSuggest<SuggestEntry> {
         .map(([id, { rec, scope }]) => ({
           id,
           alias: rec.alias,
-          description: rec.descriptions?.[0],
+          // The others are counted, so a sample with several is told apart (#462).
+          description:
+            rec.descriptions.length > 1 ? `${rec.descriptions[0]} (+${rec.descriptions.length - 1})` : rec.descriptions[0],
           scope,
           discarded: rec.discarded,
         }))

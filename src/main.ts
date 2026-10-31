@@ -28,6 +28,7 @@ import {
   parseFrontMatterYaml,
   reassignIssueMarkerIds,
   removeAllScanEntries,
+  setFrontMatterKeys,
 } from '@labnoteo/core';
 import {
   getSeoulDateString,
@@ -108,6 +109,7 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
   getExperimentDir,
@@ -178,6 +180,7 @@ import {
 import { LabnoteMcpServer } from './llm/mcpServer';
 import { CURRENT_SCHEMA_VERSION, migrateSettings, type LabnoteSettings } from './settings';
 import { BarcodeFeature } from './barcode/barcodeFeature';
+import { SCANS_SUBFOLDER } from './scan/imageStore';
 import { PartbankFeature } from './partbank/partbankFeature';
 import { refreshLocationsIn, vaultSampleFolders } from './partbank/partbankLocation';
 import { downloadPartbankCatalog } from './partbank/partbankCatalog';
@@ -1111,6 +1114,9 @@ export default class LabnotePlugin extends Plugin {
       this.run(() => this.offerRenamedCopyFix(folder, copyOrigin));
     }
     if (before.kind !== 'ok' || before.folder !== oldPath) return;
+    if (after.kind === 'ok' && after.folder === newPath && !copyOrigin && !this.copiedExperiments.has(oldPath)) {
+      this.run(() => this.offerExperimentRetitle(folder, posix.basename(oldPath)));
+    }
     if (after.kind === 'nested' && after.folder === newPath) {
       this.run(() => this.offerExperimentFolderMoveBack(folder, posix.dirname(oldPath)));
       return;
@@ -1127,6 +1133,44 @@ export default class LabnotePlugin extends Plugin {
     }
     if (after.kind !== 'noPrefix' || after.folder !== newPath) return;
     this.run(() => this.offerExperimentFolderNameFix(folder, posix.basename(oldPath)));
+  }
+
+  /**
+   * An experiment folder renamed by hand, keeping its number, whose README
+   * title the old name was made from (#467): the experiment list still shows
+   * the old title. Ask for the new one. The name the folder now has is
+   * offered only when the old title read back exactly from the old name;
+   * otherwise symbols or a cut-off end would be lost, so the old title is.
+   */
+  private async offerExperimentRetitle(folder: TFolder, oldName: string): Promise<void> {
+    const renamedPath = folder.path;
+    const [, number, oldRest] = /^(\d{3})_(.+)$/.exec(oldName) ?? [];
+    const [, newNumber, newRest] = /^(\d{3})_(.+)$/.exec(folder.name) ?? [];
+    if (!number || number !== newNumber || oldRest === newRest) return;
+    const readme = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
+    if (!(readme instanceof TFile)) return;
+    const { title } = await this.readCopiedReadme(readme);
+    if (!title?.trim() || experimentFolderName(number, title) !== oldName) return;
+    if (!(await this.waitForNoModal()) || this.unloaded || folder.path !== renamedPath) return;
+    const fromName = experimentTitleFromFolderName(folder.name);
+    const newTitle = (
+      await this.host.prompt({
+        title: this.t('Update the experiment title'),
+        prompt: this.t(
+          'The folder was renamed from "{0}" to "{1}", but the README title is still "{2}", which the experiment list shows. Enter the new title, or cancel to keep it.',
+          oldName,
+          folder.name,
+          title
+        ),
+        value: experimentTitleFromFolderName(oldName) === title && fromName ? fromName : title,
+        validate: v => (v.trim() ? null : this.t('Title is required.')),
+      })
+    )?.trim();
+    if (!newTitle || newTitle === title || this.unloaded || folder.path !== renamedPath) return;
+    const file = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
+    if (!(file instanceof TFile)) return;
+    await processNoteThroughVault(this.app, this.host, file.path, content => setFrontMatterKeys(content, { title: newTitle }));
+    this.host.notify('info', this.t('The README title of {0} is now "{1}".', folder.name, newTitle));
   }
 
   /**
@@ -1795,11 +1839,16 @@ export default class LabnotePlugin extends Plugin {
     if (this.unloaded || folder.path !== copyPath) return;
     const renewed = new Set<string>();
     let markers = 0;
+    let scans = 0;
     for (const note of markdownFilesIn(folder)) {
-      const reassigned = reassignIssueMarkerIds(await this.app.vault.read(note));
-      if (reassigned.count > 0) {
+      // The original's filed worksheet scans go too, README included (#461).
+      const before = await this.app.vault.read(note);
+      const reassigned = reassignIssueMarkerIds(before);
+      const stripped = removeAllScanEntries(before);
+      if (reassigned.count > 0 || stripped.count > 0) {
         markers += reassigned.count;
-        await this.app.vault.process(note, data => reassignIssueMarkerIds(data).content);
+        scans += stripped.count;
+        await this.app.vault.process(note, data => removeAllScanEntries(reassignIssueMarkerIds(data).content).md);
       }
       renewed.add(note.path);
       await this.barcode.reassignCopiedId(note);
@@ -1809,6 +1858,18 @@ export default class LabnotePlugin extends Plugin {
       this.host.notify(
         'info',
         this.t('Gave the {0} issue marker(s) of the copy new IDs, so they do not merge with the original\'s issues.', String(markers))
+      );
+    }
+    if (scans > 0) {
+      const images = await this.copiedScanImages(copyPath);
+      this.host.notify(
+        'info',
+        [
+          this.t('Removed the {0} worksheet scan(s) of the original from the notes of the copy.', String(scans)),
+          ...(images > 0
+            ? [this.t('The copy\'s {0}/ folder still has {1} scan image(s) of the original; delete them if you do not need them.', SCANS_SUBFOLDER, String(images))]
+            : []),
+        ].join(' ')
       );
     }
 
@@ -1842,6 +1903,13 @@ export default class LabnotePlugin extends Plugin {
       return;
     }
     await this.makeCopyNewExperiment(folder, origin, readme, facts, warn);
+  }
+
+  /** How many filed scan images, by their naming, the copy's scans folder holds. */
+  private async copiedScanImages(copyPath: string): Promise<number> {
+    const dir = posix.join(copyPath, SCANS_SUBFOLDER);
+    if (!(await this.fs.exists(dir))) return 0;
+    return (await this.fs.list(dir)).filter(name => /^LN-[0-9A-HJKMNP-TV-Z]{8}_u\d+_p\d+_/i.test(name)).length;
   }
 
   /** What a copied experiment's README holds that making it a new experiment changes. */
@@ -1892,7 +1960,7 @@ export default class LabnotePlugin extends Plugin {
         )
       );
     const number = /^(\d{3})_/.exec(folder.name)?.[1];
-    const named = folder.name.replace(/^\d{3}_/, '').replace(/_/g, ' ').trim();
+    const named = experimentTitleFromFolderName(folder.name);
     await this.makeCopyNewExperiment(folder, origin, readme, { ...facts, title: named || facts.title }, warn, number);
   }
 
@@ -1918,7 +1986,7 @@ export default class LabnotePlugin extends Plugin {
       await this.host.prompt({
         title: this.t('Name this copy of the experiment'),
         prompt: this.t(
-          '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, dated today, planned, without the discussion flag.',
+          '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, its README dated today, planned, without the discussion flag. Its workflow notes keep the original\'s dates unless the copy is marked as a retry.',
           folder.name,
           origin
         ),
@@ -1952,19 +2020,42 @@ export default class LabnotePlugin extends Plugin {
       retryTarget !== undefined &&
       (await this.host.confirm(
         this.t(
-          'Mark the copy as a retry of {0}? The workflow view then shows the two together.',
+          'Mark the copy as a retry of {0}? The workflow view then shows the two together, and the dates of its workflow notes start over: created today, with the end date and the unit operations\' Start_date/End_date emptied.',
           posix.basename(retryTarget)
         ),
         { confirmLabel: this.t('Mark as retry') }
       ));
     if (this.unloaded || folder.path !== copyPath) return;
+    const today = getSeoulDateString();
     await this.app.vault.process(readme, data => {
-      const reset = resetCopiedExperimentReadme(data, newTitle, getSeoulDateString());
+      const reset = resetCopiedExperimentReadme(data, newTitle, today);
       return markRetry ? setRetryOf(reset, retryOfLink(retryTarget)) : reset;
     });
+    // The next run is done anew; another copy may reuse what was recorded (#461).
+    let redated = 0;
+    if (markRetry) {
+      for (const note of markdownFilesIn(folder)) {
+        if (!parseWorkflowFileName(note.name)) continue;
+        let changed = false;
+        await this.app.vault.process(note, data => {
+          const next = resetCopiedWorkflowDates(data, today);
+          changed = next !== data;
+          return next;
+        });
+        if (changed) redated++;
+      }
+    }
     if (target !== folder.path) await this.app.fileManager.renameFile(folder, target);
     const done = [
       this.t('Made the copy the experiment {0}, created today.', posix.basename(target)),
+      ...(redated > 0
+        ? [
+            this.t(
+              'Reset the dates of {0} workflow note(s): created today, with the end date and the unit operations\' Start_date/End_date emptied.',
+              String(redated)
+            ),
+          ]
+        : []),
       ...(status && status !== 'planned' ? [this.t('Its status went from {0} back to planned.', status)] : []),
       ...(discussed
         ? [this.t('The discussion flag was turned off; run "{0}" if the copy needs its own discussion.', this.t('Toggle discussion flag'))]
@@ -2426,6 +2517,16 @@ export default class LabnotePlugin extends Plugin {
           'info',
           this.t(
             'Kept the last_updated_date you set by hand in {0}. It updates automatically again from tomorrow.',
+            posix.basename(path)
+          )
+        );
+        return;
+      }
+      if (decision === 'removed') {
+        this.host.notify(
+          'info',
+          this.t(
+            '{0} has no last_updated_date now, so it is not updated automatically. Put the line back in the front matter to have it recorded again.',
             posix.basename(path)
           )
         );

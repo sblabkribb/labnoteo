@@ -10,7 +10,7 @@
  * `join('', 'labnote', ...)` yields vault-relative `labnote/...` paths that the
  * adapter understands.
  */
-import { Platform, TFile, type App, type Editor } from 'obsidian';
+import { MarkdownView, Platform, TFile, type App, type Editor } from 'obsidian';
 import type {
   LabnoteHost,
   WorkflowItem,
@@ -49,6 +49,7 @@ import {
   DISCUSS_FLAG_KEY,
   copyFrontMatterKeys,
   setFrontMatterKeys,
+  minimalReplacement,
 } from '@labnoteo/core';
 import { ISSUE_SYNC_WORKFLOW_PATH, SETUP_DOC_PATH } from './scaffold/assets';
 import * as posix from '@labnoteo/core/posix';
@@ -67,6 +68,7 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
+import { getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
 import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
 import { ensureVaultCatalogs } from './catalogUpdate';
 import {
@@ -86,6 +88,8 @@ import {
   planWorkflowRenumber,
   workflowChecklistOrder,
   isMisnumberedWorkflowFileName,
+  lacksWorkflowId,
+  unnamedWorkflowIds,
   planRenumberMoves,
   planTableCsvMoves,
   siblingTableCsvs,
@@ -1510,7 +1514,22 @@ export async function renumberWorkflowsCommand(
   const readmePlanned = readmeBefore === undefined ? undefined : relinkMissing(readmeBefore);
   // The checklist is where the researcher orders the experiment (#289).
   const order = readmePlanned === undefined ? [] : workflowChecklistOrder(readmePlanned, existing, labnoteDir);
-  const renames = planWorkflowRenumber(existing, order);
+  // A listed note whose name lost its number and ID gets the ID back from
+  // its title or checklist label (#456); one with none is named in a warning.
+  const unnamed = new Map<string, string | undefined>();
+  for (const name of order.filter(lacksWorkflowId)) {
+    const p = posix.join(labnoteDir, name);
+    unnamed.set(name, (await host.fs.exists(p)) ? await host.fs.read(p) : undefined);
+  }
+  const ids = unnamedWorkflowIds(order, readmePlanned ?? '', unnamed, labnoteDir);
+  const renames = planWorkflowRenumber(existing, order, ids.hints);
+  const skippedNote =
+    ids.skipped.length === 0
+      ? ''
+      : host.t(
+          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
+          ids.skipped.join(', ')
+        );
   // Files the checklist does not list are renumbered too, so register them in
   // the same run; otherwise one takes 001 and the overview starts at 002 (#56).
   const syncPlan =
@@ -1532,7 +1551,7 @@ export async function renumberWorkflowsCommand(
         );
   if (renames.length === 0 && unlisted === 0 && relinked === 0) {
     if (syncPlan && !syncPlan.hasSection) host.notify('warn', noSection);
-    else if (missingNote) host.notify('warn', missingNote);
+    else if (missingNote || skippedNote) host.notify('warn', [skippedNote, missingNote].filter(Boolean).join('\n\n'));
     else host.notify('info', host.t('Workflow numbering already follows the README checklist.'));
     return;
   }
@@ -1575,14 +1594,17 @@ export async function renumberWorkflowsCommand(
         )}\n${listFileNames(
           host,
           renames.map(r =>
-            isMisnumberedWorkflowFileName(r.from)
+            isMisnumberedWorkflowFileName(r.from) || lacksWorkflowId(r.from)
               ? host.t('{0} → {1} (name format fixed)', r.from, r.to)
               : `${r.from} → ${r.to}`
           )
         )}`;
   const sectionNote = syncPlan && !syncPlan.hasSection ? `\n\n${noSection}` : '';
   const missingPart = missingNote ? `\n\n${missingNote}` : '';
-  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}`))) return;
+  const skippedPart = skippedNote ? `\n\n${skippedNote}` : '';
+  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}`))) {
+    return;
+  }
 
   await readmeSync.flushNow(labnoteDir);
   readmeSync.hold(labnoteDir);
@@ -2030,8 +2052,10 @@ export async function syncWorkflowChecklistCommand(
 
   // Notes naming no experimenter take the README author (#83); a named one stays (#404).
   const author = parseExperimenterFromReadme(readme);
+  // One clock for the question and the write, so both see the same End_dates as past (#445).
+  const now = getSeoulDateTimeString();
   const experimenters = [...notes].flatMap(([name, content]) => {
-    const sync = content === undefined ? undefined : planWorkflowExperimenterSync(content, author);
+    const sync = content === undefined ? undefined : planWorkflowExperimenterSync(content, author, now);
     return sync ? [{ name, ...sync }] : [];
   });
   if (experimenters.length > 0) {
@@ -2044,6 +2068,15 @@ export async function syncWorkflowChecklistCommand(
             : []),
           ...(e.skippedEmptyLines > 0
             ? [host.t('{0} left empty because the unit operation is finished; fill it in yourself', String(e.skippedEmptyLines))]
+            : []),
+          ...(e.futureLines > 0
+            ? [
+                host.t(
+                  '{0} filled although the unit operation has an End_date, as {1} has not come yet',
+                  String(e.futureLines),
+                  e.futureEndDates.join(', ')
+                ),
+              ]
             : []),
         ].join(', ');
         return `- ${e.name}: ${e.from || host.t('(empty)')} → ${e.to} (${counts})`;
@@ -2059,7 +2092,7 @@ export async function syncWorkflowChecklistCommand(
           app,
           host,
           posix.join(labnoteDir, name),
-          content => planWorkflowExperimenterSync(content, author)?.content ?? content
+          content => planWorkflowExperimenterSync(content, author, now)?.content ?? content
         );
         if (changed) updatedNotes.add(name);
       }
@@ -2097,6 +2130,18 @@ export async function syncWorkflowChecklistCommand(
   const clashNotice = (): void => {
     if (plan.numberClashes.length > 0) host.notify('warn', workflowNumberClashNotice(host, plan.numberClashes));
     if (plan.unlinkable.length > 0) host.notify('warn', unlinkableWorkflowNotice(host, plan.unlinkable));
+    // Listed, yet no workflow command counts it (#456).
+    const unnamed = workflowChecklistOrder(readme, names, labnoteDir).filter(lacksWorkflowId);
+    if (unnamed.length > 0) {
+      host.notify(
+        'warn',
+        host.t(
+          'The README checklist lists {0}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "{1}" to name it.',
+          unnamed.join(', '),
+          host.t('Renumber workflows')
+        )
+      );
+    }
   };
 
   if (
@@ -2216,6 +2261,15 @@ export async function writeNoteThroughVault(
   }
 }
 
+/** The editor `path` is open in, in source or live preview mode. */
+function openSourceEditor(app: App, path: string): Editor | undefined {
+  for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+    const view = leaf.view;
+    if (view instanceof MarkdownView && view.file?.path === path && view.getMode() === 'source') return view.editor;
+  }
+  return undefined;
+}
+
 /**
  * Rewrite a note by applying `transform` to its content at write time, not to
  * a copy read earlier. Obsidian may rewrite links in the same note after its
@@ -2302,19 +2356,30 @@ export async function syncReadmeAndSamplesOnDelete(
   //    itself be gone (whole-folder delete); then there is nothing to prune.
   const readmePath = posix.join(labnoteDir, README);
   let removed = 0;
-  if (await host.fs.exists(readmePath)) {
-    const written = await processNoteThroughVault(app, host, readmePath, content => {
-      removed = 0;
-      for (const p of deletedPaths) {
-        const res = removeWorkflowFromReadme(content, posix.basename(p));
-        if (res.changed) {
-          content = res.content;
-          removed++;
-        }
+  const prune = (content: string): string => {
+    removed = 0;
+    for (const p of deletedPaths) {
+      const res = removeWorkflowFromReadme(content, posix.basename(p));
+      if (res.changed) {
+        content = res.content;
+        removed++;
       }
-      return content;
-    });
-    if (!written) removed = 0;
+    }
+    return content;
+  };
+  if (await host.fs.exists(readmePath)) {
+    // An open README is edited in place (#468): rewriting the file left the
+    // editor showing the deleted entries until the app restarted.
+    const editor = openSourceEditor(app, readmePath);
+    if (editor) {
+      const before = editor.getValue();
+      const edit = minimalReplacement(before, prune(before));
+      if (edit) editor.replaceRange(edit.text, editor.offsetToPos(edit.start), editor.offsetToPos(edit.end));
+      else removed = 0;
+    } else {
+      const written = await processNoteThroughVault(app, host, readmePath, prune);
+      if (!written) removed = 0;
+    }
   }
 
   // 2) Samples: a deleted document defines nothing, so pass empty text — every

@@ -74,4 +74,16 @@ describe('LastUpdatedTracker', () => {
     day = '2026-10-26';
     expect(t.keepsHandSet(readme)).toBe(false);
   });
+
+  // #466: a deleted line read as "kept the date you set by hand".
+  it('reports a deleted last_updated_date line once, and forgets it when a date is typed back', () => {
+    const t = new LastUpdatedTracker(() => '2026-10-27');
+    t.record(P, { ...typed, dateRemoved: true });
+    expect(t.consume(P)).toBe('removed');
+    t.record(P, typed);
+    expect(t.consume(P)).toBe('stamp');
+    t.record(P, dateTyped);
+    t.record(P, { ...typed, dateRemoved: true });
+    expect(t.consume(P)).toBe('removed');
+  });
 });

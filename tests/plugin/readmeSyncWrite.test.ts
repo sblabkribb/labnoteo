@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { App } from 'obsidian';
-import { TFile } from '../stubs/obsidian';
+import { MarkdownView, TFile } from '../stubs/obsidian';
 import type { LabnoteHost } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
 import {
@@ -38,9 +38,10 @@ function readme(entries: string[], summary = '요약 글'): string {
 }
 
 /** `vault.process` hands the updater `latest`, as if the file changed since it was read. */
-function makeApp(latest: () => string) {
+function makeApp(latest: () => string, leaves: { view: MarkdownView }[] = []) {
   const processed: string[] = [];
   const app = {
+    workspace: { getLeavesOfType: () => leaves },
     vault: {
       getFileByPath: (path: string) => (path === README ? new TFile(README) : null),
       process: async (_file: TFile, fn: (data: string) => string) => {
@@ -87,6 +88,42 @@ describe('README checklist sync writes onto the latest content', () => {
       readme(['- [ ] [A](./001_WD070_A.labnote.md)'], '요약 글 — 새로 쓴 문장'),
     ]);
     expect(processed[0]).toContain('\n## Summary and Discussion\n');
+  });
+
+  // #468: the open README kept showing the deleted entry until a restart.
+  it('prunes a deleted entry in the open README editor, keeping unsaved typing', async () => {
+    const fs = new MemFileSystem();
+    const entries = ['- [ ] [A](./001_WD070_A.labnote.md)', '- [ ] [B](./002_WB030_B.labnote.md)'];
+    await fs.write(README, readme(entries));
+    const state = { text: readme(entries, '요약 글 — 아직 저장 안 됨') };
+    const view = new MarkdownView();
+    view.file = new TFile(README);
+    view.editor = {
+      getValue: () => state.text,
+      offsetToPos: (offset: number) => offset,
+      replaceRange: (text: string, from: number, to: number) => {
+        state.text = state.text.slice(0, from) + text + state.text.slice(to);
+      },
+    };
+    const { app, processed } = makeApp(() => readme(entries), [{ view }]);
+
+    expect(await syncReadmeAndSamplesOnDelete(app, makeHost(fs), DIR, [`${DIR}/002_WB030_B.labnote.md`])).toBe(1);
+
+    expect(state.text).toBe(readme(['- [ ] [A](./001_WD070_A.labnote.md)'], '요약 글 — 아직 저장 안 됨'));
+    expect(processed).toEqual([]);
+  });
+
+  it('rewrites the file when the README is open in reading view', async () => {
+    const fs = new MemFileSystem();
+    const entries = ['- [ ] [A](./001_WD070_A.labnote.md)', '- [ ] [B](./002_WB030_B.labnote.md)'];
+    await fs.write(README, readme(entries));
+    const view = new MarkdownView();
+    view.file = new TFile(README);
+    view.mode = 'preview';
+    const { app, processed } = makeApp(() => readme(entries), [{ view }]);
+
+    expect(await syncReadmeAndSamplesOnDelete(app, makeHost(fs), DIR, [`${DIR}/002_WB030_B.labnote.md`])).toBe(1);
+    expect(processed).toEqual([readme(['- [ ] [A](./001_WD070_A.labnote.md)'])]);
   });
 
   it('does not touch the note when nothing would change', async () => {

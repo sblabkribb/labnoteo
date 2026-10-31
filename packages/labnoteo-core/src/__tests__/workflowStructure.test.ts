@@ -55,6 +55,8 @@ import {
   workflowIdMismatch,
   planWorkflowExperimenterSync,
   resetCopiedWorkflowDates,
+  unnamedWorkflowIds,
+  lacksWorkflowId,
 } from '../lib/workflowStructure';
 import { sanitizeTitle } from '../lib/labnoteStructure';
 import { WORKFLOW_FILE_NAME_MAX } from '../lib/regexUtils';
@@ -174,6 +176,8 @@ describe('planWorkflowExperimenterSync', () => {
       unitOpLines: 1,
       skippedLines: 0,
       skippedEmptyLines: 0,
+      futureLines: 0,
+      futureEndDates: [],
     });
   });
 
@@ -193,11 +197,25 @@ describe('planWorkflowExperimenterSync', () => {
   it('keeps the empty experimenter lines of finished unit ops and counts them', () => {
     const op = (who: string, end: string) => `\n- Experimenter: ${who}\n- End_date: '${end}'\n`;
     const body = `### [UHW010 PCR]${op('', '2026-10-19 18:00')}### [UHW020 Gel]${op('', '')}`;
-    const out = planWorkflowExperimenterSync(note("experimenter: ''", body), '이영희');
+    const out = planWorkflowExperimenterSync(note("experimenter: ''", body), '이영희', '2026-10-20 09:00');
     expect(out?.content).toBe(
       note('experimenter: 이영희', `### [UHW010 PCR]${op('', '2026-10-19 18:00')}### [UHW020 Gel]${op('이영희', '')}`)
     );
     expect(out).toMatchObject({ unitOpLines: 1, skippedLines: 1, skippedEmptyLines: 1 });
+  });
+
+  // #445: an End_date written ahead is the plan, not the end.
+  it('fills the unit ops whose End_date has not come yet, and says which dates', () => {
+    const op = (who: string, end: string) => `\n- Experimenter: ${who}\n- End_date: '${end}'\n`;
+    const body = `### [UHW010 PCR]${op('', '2026-10-30 18:00')}### [UHW020 Gel]${op('', '2026-10-30')}### [UHW030 Run]${op('', '2026-10-30 09:00')}`;
+    const out = planWorkflowExperimenterSync(note("experimenter: ''", body), '이영희', '2026-10-30 10:00');
+    expect(out?.content).toBe(
+      note(
+        'experimenter: 이영희',
+        `### [UHW010 PCR]${op('이영희', '2026-10-30 18:00')}### [UHW020 Gel]${op('', '2026-10-30')}### [UHW030 Run]${op('', '2026-10-30 09:00')}`
+      )
+    );
+    expect(out).toMatchObject({ unitOpLines: 1, skippedLines: 2, futureLines: 1, futureEndDates: ['2026-10-30 18:00'] });
   });
 
   it('fills an empty experimenter and keeps CRLF', () => {
@@ -1810,6 +1828,45 @@ describe('planWorkflowRenumber and names without a number', () => {
     expect(planWorkflowRenumber(names, ['001_WD010_A.labnote.md', 'WT110_B.labnote.md', '002_WB030_C.labnote.md'])).toEqual([
       { from: 'WT110_B.labnote.md', to: '002_WT110_B.labnote.md' },
       { from: '002_WB030_C.labnote.md', to: '003_WB030_C.labnote.md' },
+    ]);
+  });
+});
+
+// #456: the name lost its ID as well.
+describe('unnamedWorkflowIds and planWorkflowRenumber with ID hints', () => {
+  const readme = [
+    '## 🗂️ Related Workflows',
+    '',
+    '- [ ] [WD010 A](./001_WD010_A.labnote.md)',
+    '- [ ] [WT130 Fermentation 2차](병렬%20관류%20배양%202차.labnote.md)',
+    '- [ ] [memo](memo.labnote.md)',
+    '- [ ] [WB030 symbols](%F0%9F%A7%AB.labnote.md)',
+    '',
+  ].join('\n');
+  const order = ['001_WD010_A.labnote.md', '병렬 관류 배양 2차.labnote.md', 'memo.labnote.md', '🧫.labnote.md'];
+
+  it('reads the ID from the title first, then the heading, then the checklist label', () => {
+    expect(lacksWorkflowId('README.labnote.md')).toBe(false);
+    expect(lacksWorkflowId('WT110_B.labnote.md')).toBe(false);
+    expect(lacksWorkflowId('memo.labnote.md')).toBe(true);
+    const notes = new Map([
+      ['병렬 관류 배양 2차.labnote.md', '---\ntitle: no id\n---\n# also none\n'],
+      ['memo.labnote.md', '---\ntitle: WL090 Retrain\n---\n# WB020 heading\n'],
+    ]);
+    const { hints, skipped } = unnamedWorkflowIds(order, readme, notes);
+    expect([...hints]).toEqual([
+      ['병렬 관류 배양 2차.labnote.md', 'WT130'],
+      ['memo.labnote.md', 'WL090'],
+    ]);
+    // A name made only of symbols has nothing to name the file with.
+    expect(skipped).toEqual(['🧫.labnote.md']);
+  });
+
+  it('names a hinted file with its ID and sanitized name', () => {
+    const names = ['001_WD010_A.labnote.md', '병렬 관류 배양 2차.labnote.md', 'notes.labnote.md'];
+    const hints = new Map([['병렬 관류 배양 2차.labnote.md', 'WT130']]);
+    expect(planWorkflowRenumber(names, names.slice(0, 2), hints)).toEqual([
+      { from: '병렬 관류 배양 2차.labnote.md', to: '002_WT130_병렬_관류_배양_2차.labnote.md' },
     ]);
   });
 });

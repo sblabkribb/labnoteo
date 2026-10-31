@@ -18,6 +18,7 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
   nextExperimentId,
@@ -33,6 +34,17 @@ import {
   retryOfLinkpath,
   setRetryOf,
 } from '../lib/labnoteStructure';
+
+// #467
+describe('experimentTitleFromFolderName', () => {
+  it('reads a folder name back as a title, exact only when nothing was dropped', () => {
+    expect(experimentTitleFromFolderName('001_GFP_assay')).toBe('GFP assay');
+    expect(experimentTitleFromFolderName('001_')).toBe('');
+    const title = 'pH 7/8: 비교';
+    expect(experimentTitleFromFolderName(experimentFolderName('001', title))).not.toBe(title);
+    expect(experimentTitleFromFolderName(experimentFolderName('001', '효모 2차'))).toBe('효모 2차');
+  });
+});
 
 // #482: a retry given another title was not counted for the next run.
 describe('retryFamily', () => {

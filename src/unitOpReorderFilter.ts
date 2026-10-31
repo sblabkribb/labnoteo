@@ -39,6 +39,11 @@ export interface DocChangeKind {
   userEdit: boolean;
   /** A user edit that changed the front matter `last_updated_date` value. */
   dateEdited: boolean;
+  /**
+   * A user edit that took the `last_updated_date` line out of a front matter
+   * that still reads (#466); set only then.
+   */
+  dateRemoved?: boolean;
 }
 
 /** Front matter scan stops here; real notes close theirs long before. */
@@ -95,9 +100,12 @@ function classify(tr: Transaction): DocChangeKind {
   tr.changes.iterChangedRanges(fromA => {
     if (fromA <= fmEnd) inFrontMatter = true;
   });
-  const dateEdited =
-    inFrontMatter && lastUpdatedOf(tr.startState.doc) !== lastUpdatedOf(tr.newDoc);
-  return { userEdit, dateEdited };
+  // A front matter the edit broke has no date to read; that is no date edit.
+  if (!inFrontMatter || frontMatterEnd(tr.newDoc) === -1) return { userEdit, dateEdited: false };
+  const before = lastUpdatedOf(tr.startState.doc);
+  const after = lastUpdatedOf(tr.newDoc);
+  if (before === after) return { userEdit, dateEdited: false };
+  return after === undefined ? { userEdit, dateEdited: false, dateRemoved: true } : { userEdit, dateEdited: true };
 }
 
 /**

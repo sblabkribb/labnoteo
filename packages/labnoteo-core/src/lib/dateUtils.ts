@@ -107,6 +107,20 @@ export function toDateTimeLocalValue(value: string): string {
 }
 
 /**
+ * Whether a Meta `End_date` value lies after `now` (`YYYY-MM-DD HH:mm`), so
+ * the unit operation is planned to end rather than ended (#445). A value with
+ * a time is compared to the minute, a bare date by the day. A value that does
+ * not read as a date is not in the future.
+ */
+export function metaEndDateInFuture(value: string, now: string): boolean {
+  const at = toDateTimeLocalValue(value);
+  const current = toDateTimeLocalValue(now);
+  if (!at || !current) return false;
+  const dateOnly = /^\d{4}([-./])\d{1,2}\1\d{1,2}\.?$/.test(value.trim());
+  return dateOnly ? at.slice(0, 10) > current.slice(0, 10) : at > current;
+}
+
+/**
  * Whether closing the picker with Enter should write its value (#309). A
  * field that already held something keeps it when nothing was picked: the
  * picker shows the current time for a value it cannot read, and a date-only

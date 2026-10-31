@@ -78,6 +78,12 @@ export interface ExperimentEntry {
   retryOf?: string;
   /** The folders of the experiments that run this one again; see {@link linkRetries}. */
   retriedBy?: string[];
+  /**
+   * The experiments up and down this one's `retry_of` line, itself excluded:
+   * what it retries and so on, and every run that follows from it (#449).
+   * Siblings retrying the same experiment are not on it. See {@link linkRetries}.
+   */
+  retryLineage?: string[];
   /** Why the README's front matter could not be read, when it could not (#427). */
   frontMatterError?: string;
 }
@@ -100,6 +106,8 @@ export interface ExperimentTreeLabels {
   /** Tooltip line names for the experiment retried and those retrying it (#327). */
   retryOf?: string;
   retriedBy?: string;
+  /** Tooltip line name for the whole retry line, when it goes further than those two (#449). */
+  retryLineage?: string;
   /** Suffix of a group whose status is outside {@link EXPERIMENT_STATUSES} (#143). */
   invalidStatus?: string;
   /** Tooltip of that group; `{0}` is the allowed list. */
@@ -133,14 +141,40 @@ function hasDiscussion(e: ExperimentEntry): boolean {
 
 /**
  * `experiments` with each one's `retriedBy` filled from the others' `retryOf`
- * (#327), so the experiment that failed shows which runs followed it.
+ * (#327), so the experiment that failed shows which runs followed it, and
+ * its `retryLineage` (#449), so the first run finds the fourth.
  */
 export function linkRetries(experiments: readonly ExperimentEntry[]): ExperimentEntry[] {
   const by = new Map<string, string[]>();
+  const of = new Map<string, string>();
   for (const e of experiments) {
-    if (e.retryOf && e.retryOf !== e.folder) by.set(e.retryOf, [...(by.get(e.retryOf) ?? []), e.folder]);
+    if (e.retryOf && e.retryOf !== e.folder) {
+      by.set(e.retryOf, [...(by.get(e.retryOf) ?? []), e.folder]);
+      of.set(e.folder, e.retryOf);
+    }
   }
-  return experiments.map(e => (by.has(e.folder) ? { ...e, retriedBy: by.get(e.folder) } : e));
+  const lineage = (folder: string): string[] => {
+    const seen = new Set([folder]);
+    for (let up = of.get(folder); up !== undefined && !seen.has(up); up = of.get(up)) seen.add(up);
+    const down = [...(by.get(folder) ?? [])];
+    while (down.length > 0) {
+      const next = down.shift()!;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      down.push(...(by.get(next) ?? []));
+    }
+    seen.delete(folder);
+    return [...seen];
+  };
+  return experiments.map(e => {
+    if (!by.has(e.folder) && !of.has(e.folder)) return e;
+    const line = lineage(e.folder);
+    return {
+      ...e,
+      ...(by.has(e.folder) ? { retriedBy: by.get(e.folder) } : {}),
+      ...(line.length > 0 ? { retryLineage: line } : {}),
+    };
+  });
 }
 
 /** The numbers of the experiments in `folders`, in folder order: `061, 103`. */
@@ -312,6 +346,10 @@ function experimentNode(e: ExperimentEntry, labels: ExperimentTreeLabels): TreeN
     ...(e.lastUpdated ? [`${labels.lastUpdated ?? 'Last updated'}: ${e.lastUpdated}`] : []),
     ...(e.retryOf ? [`${labels.retryOf ?? 'Retry of'}: ${experimentNumbers([e.retryOf])}`] : []),
     ...(e.retriedBy?.length ? [`${labels.retriedBy ?? 'Retried in'}: ${experimentNumbers(e.retriedBy)}`] : []),
+    // Only when it reaches past the two lines above.
+    ...(e.retryLineage && e.retryLineage.length > (e.retryOf ? 1 : 0) + (e.retriedBy?.length ?? 0)
+      ? [`${labels.retryLineage ?? 'Retry line'}: ${experimentNumbers([e.folder, ...e.retryLineage])}`]
+      : []),
     ...(e.discuss ? [labels.discuss ?? 'Flagged for discussion'] : []),
     ...(e.markers ? [`${labels.markers ?? '@issue markers'}: ${e.markers}`] : []),
   ].join('\n');
@@ -332,8 +370,8 @@ function experimentNode(e: ExperimentEntry, labels: ExperimentTreeLabels): TreeN
  * One with something to discuss also matches `discuss` and the words of
  * `discussLabel`, e.g. the UI's group name (#220, #337); a status also
  * matches its name in `statusWords`, e.g. 검토 필요 for `needs-review`
- * (#333); and a retry and the experiment it retries match each other's
- * number (#327).
+ * (#333); and the experiments on one retry line match each other's number
+ * (#327, #449).
  */
 export function filterExperiments(
   experiments: ExperimentEntry[],
@@ -354,7 +392,7 @@ export function filterExperiments(
       status,
       ...(Object.prototype.hasOwnProperty.call(statusWords, status) ? [statusWords[status]] : []),
       ...(hasDiscussion(e) ? ['discuss', discussLabel ?? ''] : []),
-      experimentNumbers([...(e.retryOf ? [e.retryOf] : []), ...(e.retriedBy ?? [])]),
+      experimentNumbers(e.retryLineage ?? [...(e.retryOf ? [e.retryOf] : []), ...(e.retriedBy ?? [])]),
     ]
       .join('\u0000')
       .toLowerCase();
@@ -473,14 +511,16 @@ function sampleDetailNodes(idPrefix: string, rec: SampleRecord): TreeNode[] {
       kind: 'sampleDetail',
     });
   }
-  const description = rec.descriptions?.[0];
-  if (description) {
+  // Every description, numbered when there are several (#462).
+  const descriptions = (rec.descriptions ?? []).filter(Boolean);
+  descriptions.forEach((description, i) => {
+    const n = descriptions.length > 1 ? ` ${i + 1}` : '';
     details.push({
-      id: `${idPrefix}:description`,
-      label: `description: ${description}`,
+      id: `${idPrefix}:description${i > 0 ? `:${i + 1}` : ''}`,
+      label: `description${n}: ${description}`,
       kind: 'sampleDetail',
     });
-  }
+  });
   if (rec.location) {
     details.push({
       id: `${idPrefix}:location`,
@@ -521,7 +561,7 @@ async function buildScopeNode(
         id: nodeId,
         label,
         kind: 'sample' as const,
-        tooltip: rec.descriptions?.[0] || undefined,
+        tooltip: (rec.descriptions ?? []).filter(Boolean).join('\n') || undefined,
         ...(rec.discarded ? { dimmed: true } : {}),
         payload: { scope, type, id, record: rec },
         children: sampleDetailNodes(nodeId, rec),
@@ -584,7 +624,7 @@ export async function buildSampleTree(
 function sampleMatchesQuery(node: TreeNode, query: string): boolean {
   const payload = node.payload as { id?: string; record?: SampleRecord } | undefined;
   const rec = payload?.record;
-  return [payload?.id ?? '', rec?.alias ?? '', rec?.descriptions?.[0] ?? '', rec?.location ?? '']
+  return [payload?.id ?? '', rec?.alias ?? '', ...(rec?.descriptions ?? []), rec?.location ?? '']
     .map(normalizeSampleSearch)
     .join('\u0000')
     .includes(query);
