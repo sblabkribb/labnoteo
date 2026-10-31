@@ -1002,6 +1002,8 @@ const obsidianKo: Record<string, string> = {
   'Copied {0}.': '{0}을(를) 복사했습니다.',
   'Printed worksheets carry this ID with the unit operation and page, so photos of them find their way back to this note.':
     '출력한 기록지에는 이 ID와 유닛 오퍼레이션, 페이지가 함께 찍혀서, 사진을 찍어 올리면 이 노트로 돌아옵니다.',
+  'Pages printed with "{0}" carry this ID and their page number, so photos of them find their way back to this note.':
+    '"{0}"(으)로 출력한 종이에는 이 ID와 페이지가 찍혀서, 사진을 찍어 올리면 이 노트로 돌아옵니다.',
   'This note already has the note ID {0}.': '이 노트에는 이미 노트 ID {0}이(가) 있습니다.',
   '{0} also has the note ID {1}. Give this note a new ID?':
     '{0}도 노트 ID {1}을(를) 쓰고 있습니다. 이 노트에 새 ID를 발급할까요?',

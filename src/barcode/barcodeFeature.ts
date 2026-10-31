@@ -224,10 +224,13 @@ export class BarcodeFeature {
   async showBarcode(file: TFile): Promise<void> {
     const id = await this.noteIds.ensureId(file);
     if (!id) return;
-    const onPrint = isValidWorkflowPath(file.path)
-      ? () => this.run(() => printWorksheetCommand(this.worksheetDeps(), file))
-      : undefined;
-    new BarcodeModal(this.app, this.t, { title: noteTitleOf(this.app, file), id }, onPrint).open();
+    // The window opens for the notes "Print whole note with barcodes" takes, so it is always offered.
+    new BarcodeModal(this.app, this.t, { title: noteTitleOf(this.app, file), id }, {
+      worksheet: isValidWorkflowPath(file.path)
+        ? () => this.run(() => printWorksheetCommand(this.worksheetDeps(), file))
+        : undefined,
+      wholeNote: () => this.run(() => printFullNoteCommand(this.worksheetDeps(), file)),
+    }).open();
   }
 
   private async assignId(file: TFile): Promise<void> {
