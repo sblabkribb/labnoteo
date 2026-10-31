@@ -864,12 +864,18 @@ const obsidianKo: Record<string, string> = {
   '"{0}" is a copy of the experiment {1} with its number, title, status, created date and discussion flag, so the workflow view lists the two alike. Rename the folder to a new number and you will be asked again to make it a new experiment.':
     '"{0}"은(는) 실험 {1}의 복사본이라 번호·제목·상태·생성일·논의 표시가 같아 워크플로 뷰에 똑같이 보입니다. 폴더 이름을 새 번호로 바꾸면 새 실험으로 정리할지 다시 묻습니다.',
   'Name this copy of the experiment': '복제한 실험의 제목',
-  '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, dated today, planned, without the discussion flag.':
-    '"{0}"은(는) 실험 {1}의 복사본입니다. 복사본의 제목을 정하세요. 다음 번호의 실험이 되고, 날짜는 오늘로, 상태는 planned로 바뀌고, 논의 표시는 꺼집니다.',
+  '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, its README dated today, planned, without the discussion flag. Its workflow notes keep the original\'s dates unless the copy is marked as a retry.':
+    '"{0}"은(는) 실험 {1}의 복사본입니다. 복사본의 제목을 정하세요. 다음 번호의 실험이 되고, README 날짜는 오늘로, 상태는 planned로 바뀌고, 논의 표시는 꺼집니다. 워크플로 노트의 날짜는 재실험으로 표시할 때만 정리하고, 그 밖에는 원본 그대로 둡니다.',
   'Made the copy the experiment {0}, created today.': '복사본을 실험 {0}(으)로 만들었습니다. 생성일은 오늘입니다.',
   'Its status went from {0} back to planned.': '상태는 {0}에서 planned로 되돌렸습니다.',
-  'Mark the copy as a retry of {0}? The workflow view then shows the two together.':
-    '복사본을 {0}의 재실험으로 표시할까요? 워크플로 뷰에서 두 실험이 함께 보입니다.',
+  "Mark the copy as a retry of {0}? The workflow view then shows the two together, and the dates of its workflow notes start over: created today, with the end date and the unit operations' Start_date/End_date emptied.":
+    '복사본을 {0}의 재실험으로 표시할까요? 워크플로 뷰에서 두 실험이 함께 보이고, 워크플로 노트의 날짜도 새로 시작합니다: 생성일은 오늘로, 종료일과 유닛 오퍼레이션의 Start_date/End_date는 비웁니다.',
+  "Reset the dates of {0} workflow note(s): created today, with the end date and the unit operations' Start_date/End_date emptied.":
+    '워크플로 노트 {0}개의 날짜를 정리했습니다: 생성일은 오늘로, 종료일과 유닛 오퍼레이션의 Start_date/End_date는 비웠습니다.',
+  'Removed the {0} worksheet scan(s) of the original from the notes of the copy.':
+    '복사본의 노트에서 원본의 기록지 스캔 {0}개를 뺐습니다.',
+  "The copy's {0}/ folder still has {1} scan image(s) of the original; delete them if you do not need them.":
+    '복사본의 {0}/ 폴더에 원본의 스캔 이미지 {1}개가 남아 있습니다. 필요 없으면 지우세요.',
   'Mark as retry': '재실험으로 표시',
   'It is marked as a retry of {0}.': '{0}의 재실험으로 표시했습니다.',
   'It is no longer marked as a retry of {0}.': '{0}의 재실험 표시는 지웠습니다.',

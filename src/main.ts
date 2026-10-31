@@ -178,6 +178,7 @@ import {
 import { LabnoteMcpServer } from './llm/mcpServer';
 import { CURRENT_SCHEMA_VERSION, migrateSettings, type LabnoteSettings } from './settings';
 import { BarcodeFeature } from './barcode/barcodeFeature';
+import { SCANS_SUBFOLDER } from './scan/imageStore';
 import { PartbankFeature } from './partbank/partbankFeature';
 import { refreshLocationsIn, vaultSampleFolders } from './partbank/partbankLocation';
 import { downloadPartbankCatalog } from './partbank/partbankCatalog';
@@ -1795,11 +1796,16 @@ export default class LabnotePlugin extends Plugin {
     if (this.unloaded || folder.path !== copyPath) return;
     const renewed = new Set<string>();
     let markers = 0;
+    let scans = 0;
     for (const note of markdownFilesIn(folder)) {
-      const reassigned = reassignIssueMarkerIds(await this.app.vault.read(note));
-      if (reassigned.count > 0) {
+      // The original's filed worksheet scans go too, README included (#461).
+      const before = await this.app.vault.read(note);
+      const reassigned = reassignIssueMarkerIds(before);
+      const stripped = removeAllScanEntries(before);
+      if (reassigned.count > 0 || stripped.count > 0) {
         markers += reassigned.count;
-        await this.app.vault.process(note, data => reassignIssueMarkerIds(data).content);
+        scans += stripped.count;
+        await this.app.vault.process(note, data => removeAllScanEntries(reassignIssueMarkerIds(data).content).md);
       }
       renewed.add(note.path);
       await this.barcode.reassignCopiedId(note);
@@ -1809,6 +1815,18 @@ export default class LabnotePlugin extends Plugin {
       this.host.notify(
         'info',
         this.t('Gave the {0} issue marker(s) of the copy new IDs, so they do not merge with the original\'s issues.', String(markers))
+      );
+    }
+    if (scans > 0) {
+      const images = await this.copiedScanImages(copyPath);
+      this.host.notify(
+        'info',
+        [
+          this.t('Removed the {0} worksheet scan(s) of the original from the notes of the copy.', String(scans)),
+          ...(images > 0
+            ? [this.t('The copy\'s {0}/ folder still has {1} scan image(s) of the original; delete them if you do not need them.', SCANS_SUBFOLDER, String(images))]
+            : []),
+        ].join(' ')
       );
     }
 
@@ -1842,6 +1860,13 @@ export default class LabnotePlugin extends Plugin {
       return;
     }
     await this.makeCopyNewExperiment(folder, origin, readme, facts, warn);
+  }
+
+  /** How many filed scan images, by their naming, the copy's scans folder holds. */
+  private async copiedScanImages(copyPath: string): Promise<number> {
+    const dir = posix.join(copyPath, SCANS_SUBFOLDER);
+    if (!(await this.fs.exists(dir))) return 0;
+    return (await this.fs.list(dir)).filter(name => /^LN-[0-9A-HJKMNP-TV-Z]{8}_u\d+_p\d+_/i.test(name)).length;
   }
 
   /** What a copied experiment's README holds that making it a new experiment changes. */
@@ -1918,7 +1943,7 @@ export default class LabnotePlugin extends Plugin {
       await this.host.prompt({
         title: this.t('Name this copy of the experiment'),
         prompt: this.t(
-          '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, dated today, planned, without the discussion flag.',
+          '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, its README dated today, planned, without the discussion flag. Its workflow notes keep the original\'s dates unless the copy is marked as a retry.',
           folder.name,
           origin
         ),
@@ -1952,19 +1977,42 @@ export default class LabnotePlugin extends Plugin {
       retryTarget !== undefined &&
       (await this.host.confirm(
         this.t(
-          'Mark the copy as a retry of {0}? The workflow view then shows the two together.',
+          'Mark the copy as a retry of {0}? The workflow view then shows the two together, and the dates of its workflow notes start over: created today, with the end date and the unit operations\' Start_date/End_date emptied.',
           posix.basename(retryTarget)
         ),
         { confirmLabel: this.t('Mark as retry') }
       ));
     if (this.unloaded || folder.path !== copyPath) return;
+    const today = getSeoulDateString();
     await this.app.vault.process(readme, data => {
-      const reset = resetCopiedExperimentReadme(data, newTitle, getSeoulDateString());
+      const reset = resetCopiedExperimentReadme(data, newTitle, today);
       return markRetry ? setRetryOf(reset, retryOfLink(retryTarget)) : reset;
     });
+    // The next run is done anew; another copy may reuse what was recorded (#461).
+    let redated = 0;
+    if (markRetry) {
+      for (const note of markdownFilesIn(folder)) {
+        if (!parseWorkflowFileName(note.name)) continue;
+        let changed = false;
+        await this.app.vault.process(note, data => {
+          const next = resetCopiedWorkflowDates(data, today);
+          changed = next !== data;
+          return next;
+        });
+        if (changed) redated++;
+      }
+    }
     if (target !== folder.path) await this.app.fileManager.renameFile(folder, target);
     const done = [
       this.t('Made the copy the experiment {0}, created today.', posix.basename(target)),
+      ...(redated > 0
+        ? [
+            this.t(
+              'Reset the dates of {0} workflow note(s): created today, with the end date and the unit operations\' Start_date/End_date emptied.',
+              String(redated)
+            ),
+          ]
+        : []),
       ...(status && status !== 'planned' ? [this.t('Its status went from {0} back to planned.', status)] : []),
       ...(discussed
         ? [this.t('The discussion flag was turned off; run "{0}" if the copy needs its own discussion.', this.t('Toggle discussion flag'))]
