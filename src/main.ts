@@ -28,6 +28,7 @@ import {
   parseFrontMatterYaml,
   reassignIssueMarkerIds,
   removeAllScanEntries,
+  setFrontMatterKeys,
 } from '@labnoteo/core';
 import {
   getSeoulDateString,
@@ -108,6 +109,7 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
   getExperimentDir,
@@ -1112,6 +1114,9 @@ export default class LabnotePlugin extends Plugin {
       this.run(() => this.offerRenamedCopyFix(folder, copyOrigin));
     }
     if (before.kind !== 'ok' || before.folder !== oldPath) return;
+    if (after.kind === 'ok' && after.folder === newPath && !copyOrigin && !this.copiedExperiments.has(oldPath)) {
+      this.run(() => this.offerExperimentRetitle(folder, posix.basename(oldPath)));
+    }
     if (after.kind === 'nested' && after.folder === newPath) {
       this.run(() => this.offerExperimentFolderMoveBack(folder, posix.dirname(oldPath)));
       return;
@@ -1128,6 +1133,44 @@ export default class LabnotePlugin extends Plugin {
     }
     if (after.kind !== 'noPrefix' || after.folder !== newPath) return;
     this.run(() => this.offerExperimentFolderNameFix(folder, posix.basename(oldPath)));
+  }
+
+  /**
+   * An experiment folder renamed by hand, keeping its number, whose README
+   * title the old name was made from (#467): the experiment list still shows
+   * the old title. Ask for the new one. The name the folder now has is
+   * offered only when the old title read back exactly from the old name;
+   * otherwise symbols or a cut-off end would be lost, so the old title is.
+   */
+  private async offerExperimentRetitle(folder: TFolder, oldName: string): Promise<void> {
+    const renamedPath = folder.path;
+    const [, number, oldRest] = /^(\d{3})_(.+)$/.exec(oldName) ?? [];
+    const [, newNumber, newRest] = /^(\d{3})_(.+)$/.exec(folder.name) ?? [];
+    if (!number || number !== newNumber || oldRest === newRest) return;
+    const readme = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
+    if (!(readme instanceof TFile)) return;
+    const { title } = await this.readCopiedReadme(readme);
+    if (!title?.trim() || experimentFolderName(number, title) !== oldName) return;
+    if (!(await this.waitForNoModal()) || this.unloaded || folder.path !== renamedPath) return;
+    const fromName = experimentTitleFromFolderName(folder.name);
+    const newTitle = (
+      await this.host.prompt({
+        title: this.t('Update the experiment title'),
+        prompt: this.t(
+          'The folder was renamed from "{0}" to "{1}", but the README title is still "{2}", which the experiment list shows. Enter the new title, or cancel to keep it.',
+          oldName,
+          folder.name,
+          title
+        ),
+        value: experimentTitleFromFolderName(oldName) === title && fromName ? fromName : title,
+        validate: v => (v.trim() ? null : this.t('Title is required.')),
+      })
+    )?.trim();
+    if (!newTitle || newTitle === title || this.unloaded || folder.path !== renamedPath) return;
+    const file = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
+    if (!(file instanceof TFile)) return;
+    await processNoteThroughVault(this.app, this.host, file.path, content => setFrontMatterKeys(content, { title: newTitle }));
+    this.host.notify('info', this.t('The README title of {0} is now "{1}".', folder.name, newTitle));
   }
 
   /**
@@ -1917,7 +1960,7 @@ export default class LabnotePlugin extends Plugin {
         )
       );
     const number = /^(\d{3})_/.exec(folder.name)?.[1];
-    const named = folder.name.replace(/^\d{3}_/, '').replace(/_/g, ' ').trim();
+    const named = experimentTitleFromFolderName(folder.name);
     await this.makeCopyNewExperiment(folder, origin, readme, { ...facts, title: named || facts.title }, warn, number);
   }
 

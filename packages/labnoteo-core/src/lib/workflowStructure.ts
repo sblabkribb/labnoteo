@@ -18,6 +18,7 @@ import { underscoreTurnsItalic } from './sampleUtils';
 import {
   commandName,
   diagnoseExperimentPath,
+  experimentTitleFromFolderName,
   generateReadmeContent,
   getExperimentDir,
   KO_COMMAND_NAMES,
@@ -1581,7 +1582,7 @@ export function rebuildExperimentReadme(
   author: string | undefined,
   opts: TemplateHintOptions = {}
 ): string {
-  const title = folderName.replace(/^\d{3}_/, '').replace(/_/g, ' ').trim() || folderName;
+  const title = experimentTitleFromFolderName(folderName) || folderName;
   return planWorkflowChecklistSync(generateReadmeContent(title, author, opts), names, titles).content;
 }
 

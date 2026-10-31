@@ -321,6 +321,14 @@ export function experimentFolderName(number: string, title: string): string {
 }
 
 /**
+ * The title an experiment folder name reads as: without its `NNN_` and with
+ * `_` for spaces (`001_GFP_assay` → `GFP assay`). Empty when nothing is left.
+ */
+export function experimentTitleFromFolderName(name: string): string {
+  return name.replace(/^\d{3}_/, '').replace(/_/g, ' ').trim();
+}
+
+/**
  * The experiment folder that folder `name` copies, as Obsidian's "Make a copy"
  * names one (`001_GFP 1` → `001_GFP`), else undefined (#223). Experiment
  * folder names have `_` for spaces, so a trailing ` N` marks a copy.

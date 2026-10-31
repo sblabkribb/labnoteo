@@ -867,6 +867,10 @@ const obsidianKo: Record<string, string> = {
   '"{0}" is a copy of the experiment {1}. Give the copy its own title: it becomes the next experiment, its README dated today, planned, without the discussion flag. Its workflow notes keep the original\'s dates unless the copy is marked as a retry.':
     '"{0}"은(는) 실험 {1}의 복사본입니다. 복사본의 제목을 정하세요. 다음 번호의 실험이 되고, README 날짜는 오늘로, 상태는 planned로 바뀌고, 논의 표시는 꺼집니다. 워크플로 노트의 날짜는 재실험으로 표시할 때만 정리하고, 그 밖에는 원본 그대로 둡니다.',
   'Made the copy the experiment {0}, created today.': '복사본을 실험 {0}(으)로 만들었습니다. 생성일은 오늘입니다.',
+  'Update the experiment title': '실험 제목 바꾸기',
+  'The folder was renamed from "{0}" to "{1}", but the README title is still "{2}", which the experiment list shows. Enter the new title, or cancel to keep it.':
+    '폴더 이름이 "{0}"에서 "{1}"(으)로 바뀌었지만 README 제목은 아직 "{2}"이고, 실험 목록에는 이 제목이 보입니다. 새 제목을 입력하세요. 취소하면 그대로 둡니다.',
+  'The README title of {0} is now "{1}".': '{0}의 README 제목을 "{1}"(으)로 바꿨습니다.',
   'Its status went from {0} back to planned.': '상태는 {0}에서 planned로 되돌렸습니다.',
   "Mark the copy as a retry of {0}? The workflow view then shows the two together, and the dates of its workflow notes start over: created today, with the end date and the unit operations' Start_date/End_date emptied.":
     '복사본을 {0}의 재실험으로 표시할까요? 워크플로 뷰에서 두 실험이 함께 보이고, 워크플로 노트의 날짜도 새로 시작합니다: 생성일은 오늘로, 종료일과 유닛 오퍼레이션의 Start_date/End_date는 비웁니다.',
