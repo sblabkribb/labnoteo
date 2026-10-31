@@ -51,6 +51,13 @@ everything changed while it was open.
   passed through while typing a year, are not written; closing says the date was kept.
 - Works in editing views only, including notes opened in a separate window.
 
+### Last updated date
+
+With **Auto-update last updated date** on, editing a lab note sets its `last_updated_date` to today
+once a day. A note whose date you edited by hand keeps it that day. Deleting the
+`last_updated_date` line from the front matter stops the automatic date, since the line is never
+added back, and a notice says so once; put the line back to have it recorded again.
+
 ## Experiments
 
 ### Create experiment
@@ -101,6 +108,11 @@ as written there (a `[[name]]` link stays a link).
   so Obsidian keeps it pointing there when folders are renumbered.
 - In the workflow view the retry's tooltip says `Retry of: 061` and the original's says
   `Retried in: 103`; searching `061` finds both.
+- When a retry is retried again (2nd, 3rd, 4th run), `retry_of` still points at the run just
+  before, but the search follows the whole line: searching the first run finds every later run, and
+  searching the third finds the first, second and fourth. Sibling retries of the same experiment do
+  not find each other. When the line reaches past the run just before and after, the tooltip adds
+  `Retry line: 123, 130, 131, 132`.
 
 ### Toggle discussion flag
 
@@ -195,6 +207,11 @@ put, with a notice.
   are summed up as "+N more"). A name whose number has the wrong number of digits (`01_…`) is fixed
   too, marked "name format fixed", and a listed note without a number (`WB020_Cloning.labnote.md`)
   gets the number of its place in the checklist.
+- A listed `.labnote.md` note renamed in the file explorer without its number and workflow ID
+  (`Parallel perfusion 2.labnote.md`) gets the ID back from its `title` or `## [ID name]` heading, or
+  else from its checklist label, and becomes `001_WT130_Parallel_perfusion_2.labnote.md` (spaces
+  turn into `_`). A note whose ID cannot be found is skipped and named, instead of the folder being
+  called up to date; `Sync workflow checklist with folder` names it too.
 - A checklist entry whose file is gone is pointed at an unlisted file of the same workflow ID and
   name (such as a note renumbered by hand), shown in the same confirmation.
 - Nothing changes when the numbers already follow the checklist; a README without the section is
@@ -225,7 +242,9 @@ file is gone. Also on the README and experiment-folder right-click menus.
 - Notes with an empty `experimenter` get the README `author` after asking; a note that names
   someone keeps that name, since each note may be another person's. A finished unit operation, one
   with an `End_date`, keeps its experimenter, and the dialog lists its empty lines apart for you to
-  fill in.
+  fill in. An `End_date` still ahead (an end planned in advance) does not count as finished: those
+  lines are filled, and the dialog says so with the date. A value with a time is compared to the
+  minute, a date alone by the day.
 - A README `author` written as a YAML list or as `[[name]]` links is read as those names, joined
   with commas, here and for new workflows and unit operations.
 - Local samples the notes use but that only another experiment's registry holds are brought into
@@ -258,8 +277,9 @@ the alias goes into no file name. The same characters are refused as in Create w
 - Typing in the list puts items whose name (Korean name included) equals the query first, then
   names containing it, then items that only mention it in their description, so Enter picks the
   named one. Last come items that hold the query typed without its spaces (`primerdesign` finds
-  `primer design`) or every word of it in any order. Every picker (workflows, statuses, …) ranks
-  this way.
+  `primer design`) or every word of it in any order, and at the very end items whose name and
+  description hold the words between them (`activity assay`: `activity` in the name, `assay` in
+  the description). Every picker (workflows, statuses, …) ranks this way.
 - With **Auto-sync unit operation TOC** on, the TOC is reordered to match the headings. Turned
   off, the order stays as you arranged it, but renaming a unit operation still updates the entry's
   name and link, and deleting a block removes its entry (cutting one does not, since it is usually
@@ -442,8 +462,9 @@ type.
 ### Insert sample list of this experiment
 
 Insert, at the cursor, a Markdown table of every Local sample of this experiment and the Global
-samples the note refers to, with ID, alias, description (the first one), location, scope, and
-discarded columns, leaving the cursor below the table. With a Live Preview table cell focused it
+samples the note refers to, with ID, alias, description (several joined with `; `), location,
+scope, and discarded columns, leaving the cursor below the table. An older table, which held only
+the first description, is offered for replacing when one of its samples has several. With a Live Preview table cell focused it
 goes below that table; run from the front matter or above the first heading, it goes at the end of
 the note, with a notice. Use `Export tables to CSV` for a CSV.
 
@@ -507,6 +528,15 @@ it faded as `(discarded)` in the sample view.
   the same ID.
 - Editing its alias, description or location keeps the mark, the definition window shows the date,
   and `Unmark discarded` clears it.
+- The definition window has `Mark as discarded` / `Unmark discarded` next to `Delete sample` (not
+  for catalog samples). The `Open sample definition` list shows discarded samples faded and tagged
+  `(discarded)`, after the samples in use of the same scope.
+- Marking a sample with a location as discarded asks whether to clear the location. Cleared, the
+  old location is kept apart and shown as `(emptied, was freezer B3)` in tables and the definition
+  window; location searches no longer find it, and partbank's bulk location refresh skips
+  discarded samples. Closing the question with Esc keeps the location and still marks the sample.
+  Unmarking puts the old location back when the location is empty, and keeps one written in the
+  meantime.
 
 ## partbank
 
@@ -539,7 +569,8 @@ or in a link. A server address on plain `http://` warns that the key travels in 
 
 Typing `@dna`, `@plasmid`, `@primer` (or `@sample`) puts **Search partbank** at the bottom of the
 autocomplete menu, which opens a search window prefilled with whatever was typed after `;`. From
-two characters on it searches after a short pause and lists each hit with its name, KID, kind and
+two characters on it searches after a short pause (shorter, the list says `Type at least 2
+characters to search partbank.`; while waiting, `Searching partbank…`) and lists each hit with its name, KID, kind and
 whether it is yours or shared with you. **Only your own items and items shared with your groups**
 are searched, not public ones; a sample already linked to a public item still refreshes and opens,
 but its usages are not sent. Picking one reads the item and its storage location, registers it,
@@ -636,9 +667,11 @@ With no open note, or one whose samples are not tracked, it goes to the clipboar
 
 ### Show note barcode
 
-Show the note's ID and QR code in a window (`Copy ID`, and `Print experiment worksheet` for a
-workflow note), giving the note an ID first if it has none. Also the QR icon at the top of a lab
-note (`*.labnote.md`).
+Show the note's ID and QR code in a window (`Copy ID`, `Print whole note with barcodes`, and
+`Print experiment worksheet` for a workflow note), giving the note an ID first if it has none. Also
+the QR icon at the top of a lab note (`*.labnote.md`). On a note with no worksheet (a README, say),
+the window explains that pages printed with `Print whole note with barcodes` carry this ID and the
+page number.
 
 ### Assign note ID
 
@@ -860,6 +893,10 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   with something to discuss. When nothing matches, the view says so and what it searches. An
   experiment whose status or discussion flag was changed from the list stays listed until the
   search changes.
+- In the sample view, a sample with several descriptions shows them all when expanded
+  (`description 1:`, `description 2:`), joins them on separate lines in the tooltip, and is found
+  by any of them. Autocomplete adds `(+1)` and so on after the first description, and the
+  `Open sample definition` list joins them with `; `.
 
 ### Setup research automation
 
@@ -983,13 +1020,19 @@ objective and summary, and every entry unchecked. Nothing is asked when the whol
 - When the original is `failed` or `needs-repeat`, or is itself a retry, you are asked whether to
   mark the copy as a retry. **Mark as retry** points the copy's `retry_of` at the original (or, for a
   copy of a retry, at the experiment it retried); otherwise `retry_of` is removed, as it is without
-  asking for any other original. The completion notice says which.
+  asking for any other original. The completion notice says which. Marked as a retry, the copy's
+  workflow notes start their dates over (created and last updated today, `end_date` and the unit
+  operations' `Start_date`/`End_date` emptied), and the notice counts them; otherwise they keep the
+  original's dates.
 - The copied README's `id` (`EXP-###`) becomes the number after the highest one with that prefix;
   an `id` not ending in a number is removed, so the folder name is the experiment ID. Either way the
   automation does not take the copy for the original.
-- Checklist links that reach the original's notes are pointed at the copy's own notes, and the
-  original's worksheet scans (`#### Worksheet scans` entries) are taken out of the copy's notes; the
-  scan images stay for the original. The workflow notes keep their dates.
+- Checklist links that reach the original's notes are pointed at the copy's own notes.
+- The original's worksheet scans (`#### Worksheet scans` entries) are taken out of the copy's notes,
+  README included, together with the new marker and note IDs (so also when the title box is
+  cancelled), and one notice gives the total. The scan image files are not deleted: the copy's
+  `images/scans/` keeps copies of the original's scan images, and the notice says how many, to
+  delete if not needed.
 
 ### Aliases with brackets
 
@@ -1001,6 +1044,12 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
 
 - Experiment folder names must start with `###_` (e.g. `020_GFP`). If a rename drops the number,
   you are warned and offered the name with the old number back.
+- Renaming only the part after the number (`020_GFP` → `020_GFP_expression`) of a folder whose old
+  name was made from the README `title` asks for a new README title, which the workflow view's
+  experiment list shows. The box holds the title made from the new folder name when the old title
+  read back exactly from the old name (no `/`, `:` or similar dropped, not cut short), and the old
+  title otherwise. Cancelling keeps the title. A copied experiment folder is tidied up separately
+  (see [Making a copy](#making-a-copy)).
 - Running a workflow command from a note in an unnumbered folder says the folder is not an
   experiment folder.
 - Do not rename or move an experiment's `resources/labsamples/`: it is the Local sample registry, so
