@@ -165,6 +165,7 @@ const obsidianKo: Record<string, string> = {
   '@issue markers': '@issue 마커',
   'Retry of': '재시도 대상',
   'Retried in': '재시도',
+  'Retry line': '재시도 계보',
   'Retry this experiment': '이 실험 다시 하기',
   'Retry experiment {0}': '{0} 다시 하기',
   '{0} (retry)': '{0} 2차',
