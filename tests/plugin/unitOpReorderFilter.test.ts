@@ -290,6 +290,30 @@ describe('createUnitOpReorderFilter', () => {
       const spec = { changes: { from, to: from + 10, insert: '2026-10-13' } };
       expect(kindOf(spec)).toEqual({ userEdit: false, dateEdited: false });
     });
+
+    // #466: deleting the line was taken for a date set by hand.
+    it('tells a deleted last_updated_date line from a changed value', () => {
+      const from = NOTE.indexOf('last_updated_date');
+      const to = NOTE.indexOf('\n', from) + 1;
+      expect(kindOf({ changes: { from, to }, userEvent: 'delete.backward' })).toEqual({
+        userEdit: true,
+        dateEdited: false,
+        dateRemoved: true,
+      });
+      // An emptied value keeps the key, which the stamp fills again.
+      const at = NOTE.indexOf("'2026-10-01'");
+      expect(kindOf({ changes: { from: at, to: at + 12 }, userEvent: 'delete.backward' })).toEqual({
+        userEdit: true,
+        dateEdited: true,
+      });
+    });
+
+    it('does not count an edit that breaks the front matter as a date edit', () => {
+      expect(kindOf({ changes: { from: 0, to: 3 }, userEvent: 'delete.backward' })).toEqual({
+        userEdit: true,
+        dateEdited: false,
+      });
+    });
   });
 });
 

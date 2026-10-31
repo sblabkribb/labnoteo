@@ -2522,6 +2522,16 @@ export default class LabnotePlugin extends Plugin {
         );
         return;
       }
+      if (decision === 'removed') {
+        this.host.notify(
+          'info',
+          this.t(
+            '{0} has no last_updated_date now, so it is not updated automatically. Put the line back in the front matter to have it recorded again.',
+            posix.basename(path)
+          )
+        );
+        return;
+      }
       if (decision !== 'stamp') return;
       stampNoteAndReadme(this.app, this.host, path, this.stampLastUpdated, readme =>
         this.lastUpdatedTracker.keepsHandSet(readme)
