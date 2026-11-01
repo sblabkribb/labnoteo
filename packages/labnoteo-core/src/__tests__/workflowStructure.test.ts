@@ -1545,6 +1545,37 @@ describe('checklist links with parentheses', () => {
   });
 });
 
+// #525: Obsidian links a note as `[[file|label]]` by default.
+describe('checklist entries written as wikilinks', () => {
+  const B = '001_WB120_B.labnote.md';
+  const C = '002_WB110_C.labnote.md';
+  const md = readmeWith([`- [ ] [[002_WB110_C.labnote|WB110 새로 제작]] 메모`, `- [x] [[${B}]]`, '- [ ] [[회의록]]']);
+
+  it('reads the file and label, and leaves other wikilinks alone', () => {
+    expect(parseWorkflowChecklistFromReadme(md)).toEqual([
+      { done: false, title: 'WB110 새로 제작', fileName: C },
+      { done: true, title: '001_WB120_B', fileName: B },
+    ]);
+    expect(isWorkflowChecklistEntryLine('- [ ] [[회의록]]')).toBe(false);
+  });
+
+  it('orders by them and adds no second line', () => {
+    expect(workflowChecklistOrder(md, [B, C])).toEqual([C, B]);
+    expect(planWorkflowChecklistSync(md, [B, C]).added).toEqual([]);
+    expect(planWorkflowRenumber([B, C], workflowChecklistOrder(md, [B, C]))).toEqual([
+      { from: C, to: '001_WB110_C.labnote.md' },
+      { from: B, to: '002_WB120_B.labnote.md' },
+    ]);
+  });
+
+  it('writes a Markdown link back only where it changes the entry', () => {
+    const out = relinkWorkflowChecklistEntries(md, [{ from: C, to: '001_WB110_C.labnote.md' }]);
+    expect(out).toContain('- [ ] [WB110 새로 제작](./001_WB110_C.labnote.md) 메모');
+    expect(out).toContain(`- [x] [[${B}]]`);
+    expect(removeWorkflowChecklistEntries(md, [B])).not.toContain(B);
+  });
+});
+
 // #95: an alias with brackets must not break the checklist line.
 describe('checklist labels with brackets', () => {
   const md = (entries: string[]) => ['## Related Workflows', '', ...entries, '', '## Notes', ''].join('\n');

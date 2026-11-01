@@ -362,6 +362,13 @@ export function createWorkflowFileName(
 const CHECKLIST_ENTRY_RE =
   /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?(.+?\.labnote\.md)\)(.*)(\r?)$/i;
 
+/**
+ * The same entry written as an Obsidian wikilink, `[[file.labnote|label]]`
+ * (#525). A writer that changes it writes the standard Markdown link back.
+ */
+const CHECKLIST_WIKILINK_ENTRY_RE =
+  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[\[([^\]|#]+?\.labnote(?:\.md)?)(?:\|([^\]]*))?\]\](.*)(\r?)$/i;
+
 /** One checklist entry line, split so a writer can change one part of it. */
 interface ChecklistEntryLine {
   /** Line index in the README. */
@@ -382,8 +389,13 @@ interface ChecklistEntryLine {
 
 function parseChecklistEntryLine(line: string, index: number): ChecklistEntryLine | null {
   const m = CHECKLIST_ENTRY_RE.exec(line);
-  if (!m) return null;
-  return { index, prefix: m[1], box: m[2], raw: m[3], link: m[4], tail: m[5], eol: m[6] };
+  if (m) return { index, prefix: m[1], box: m[2], raw: m[3], link: m[4], tail: m[5], eol: m[6] };
+  const w = CHECKLIST_WIKILINK_ENTRY_RE.exec(line);
+  if (!w) return null;
+  const target = w[3].trim();
+  const link = /\.md$/i.test(target) ? target : `${target}.md`;
+  const label = w[4]?.trim() || (link.split('/').pop() ?? link).replace(/\.labnote\.md$/i, '');
+  return { index, prefix: w[1], box: w[2], raw: escapeChecklistLabel(label), link, tail: w[5], eol: w[6] };
 }
 
 /**
