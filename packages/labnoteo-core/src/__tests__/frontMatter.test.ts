@@ -290,4 +290,13 @@ describe('setFrontMatterKeys', () => {
   it('leaves a missing key out when adding is off', () => {
     expect(setFrontMatterKeys(readme, { retry_of: 'x' }, { add: false })).toBe(readme);
   });
+
+  // #517: turning discuss off took the comment on its line with it.
+  it('keeps the comment of a dropped key as a line of its own', () => {
+    const doc = '---\ntitle: x\ndiscuss: true # 다음 랩미팅 안건\nstatus: planned\n---\n';
+    expect(setFrontMatterKeys(doc, { discuss: undefined })).toBe(
+      '---\ntitle: x\n# 다음 랩미팅 안건\nstatus: planned\n---\n'
+    );
+    expect(setFrontMatterKeys("---\ndiscuss: 'a # b'\n---\n", { discuss: undefined })).toBe('---\n---\n');
+  });
 });

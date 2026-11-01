@@ -121,7 +121,8 @@ function trailingComment(line: string): string {
  * `content` with the front-matter keys in `values` set line by line (#422):
  * a value replaces that key's line (and its indented continuation lines),
  * keeping a trailing ` # comment` when the new value fits on one line;
- * `undefined` drops the key; a key not present is added before the closing
+ * `undefined` drops the key but leaves its trailing comment on a line of its
+ * own (#517); a key not present is added before the closing
  * `---` unless `add` is false. Every other line, comments included, stays as
  * written. A note without front matter gets a new block.
  */
@@ -161,7 +162,11 @@ export function setFrontMatterKeys(
       multiline = true;
     }
     const value = values[key];
-    if (value === undefined) continue;
+    if (value === undefined) {
+      const comment = multiline ? '' : trailingComment(first).trimStart();
+      if (comment) out.push(comment);
+      continue;
+    }
     const entry = serializeFrontMatterEntry(key, value);
     const comment = !multiline && !entry.includes('\n') ? trailingComment(first) : '';
     out.push(comment ? `${entry.replace(/\s+$/, '')}${comment}` : entry);
