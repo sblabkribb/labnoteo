@@ -1448,7 +1448,10 @@ ${plugin.t('To keep it for those notes but show it as used up, mark it discarded
   if (listedIn.length > 0) await removeSampleListRows(app, plugin, { folder, type, id });
   await deleteSampleRecord(plugin.fs, folder, type, id);
   plugin.refreshSampleViews();
-  new Notice(plugin.t('Sample deleted: {0}', buildSampleReferenceText(id, record?.alias)));
+  const deleted = plugin.t('Sample deleted: {0}', buildSampleReferenceText(id, record?.alias));
+  // Ctrl+Z brings the rows back but not the record, leaving an ID the registry lacks (#503).
+  const undo = plugin.t('Ctrl+Z only brings back the table rows, not the sample record. To undo, add the sample again.');
+  new Notice(listedIn.length > 0 ? `${deleted} ${undo}` : deleted, listedIn.length > 0 ? 10000 : undefined);
   return true;
 }
 

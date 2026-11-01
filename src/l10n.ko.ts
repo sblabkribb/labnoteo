@@ -667,6 +667,8 @@ const obsidianKo: Record<string, string> = {
   '{0} is also registered in other experiments ({1}); only this one changed.':
     '{0}은(는) 다른 실험의 대장에도 있습니다({1}). 이번 편집은 이 실험의 기록만 바꿨습니다.',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
+  'Ctrl+Z only brings back the table rows, not the sample record. To undo, add the sample again.':
+    'Ctrl+Z로는 표의 줄만 돌아오고 샘플 기록은 돌아오지 않습니다. 되돌리려면 샘플을 다시 추가하세요.',
   "Replace the old alias '{1}' with '{2}' in {0} note(s)?\n\n{3}":
     "노트 {0}개에 남은 옛 별칭 '{1}'을(를) '{2}'(으)로 바꿀까요?\n\n{3}",
   "Remove the old alias '{1}' from {0} note(s)?\n\n{2}":
