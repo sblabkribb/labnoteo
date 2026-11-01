@@ -1,7 +1,7 @@
 id: insert-experiment-samples-table
 order: 24
 section: samples
-title: { ko: 이 실험의 샘플 목록 넣기, en: Insert sample list of this experiment }
+title: { ko: 이 실험의 시료 목록 삽입, en: Insert sample list of this experiment }
 seed: samples
 steps:
   - caption: { ko: README의 Summary 아래에 커서를 둡니다, en: Put the cursor under Summary in the README }
@@ -11,7 +11,7 @@ steps:
     args: { text: '## Summary and Discussion', ch: end }
   - tool: ui_press
     args: { keys: Enter }
-  - caption: { ko: 팔레트에서 이 실험의 샘플 목록 넣기, en: Run Insert sample list of this experiment }
+  - caption: { ko: 팔레트에서 이 실험의 시료 목록 삽입, en: Run Insert sample list of this experiment }
     palette: insert-experiment-samples-table
     hold: 1500
   - caption: { ko: 로컬 샘플과 쓰인 전역 샘플이 표로 들어갑니다, en: Local samples and the Global ones in use go in as a table }

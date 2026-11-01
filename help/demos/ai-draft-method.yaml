@@ -10,7 +10,7 @@ steps:
     args: { path: { ko: labnote/001_GFP_발현/001_WB030_DNA_Assembly_1차.labnote.md, en: labnote/001_GFP_expression/001_WB030_DNA_Assembly_run1.labnote.md } }
   - tool: editor_move
     args: { text: (method used in this step), ch: end }
-  - caption: { ko: "팔레트에서 AI: Method 초안 작성", en: "Run AI: Draft Method from the palette" }
+  - caption: { ko: "팔레트에서 AI: Method 섹션 초안 작성", en: "Run AI: Draft Method section from the palette" }
     palette: ai-draft-method
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }
