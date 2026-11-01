@@ -31,7 +31,7 @@ steps:
     args: { selector: button, text: { ko: 활성화, en: Enable }, exact: true, scope: .community-modal-details }
     hold: 800
   - tool: settings_close
-  - caption: { ko: "BRAT의 Add a beta plugin 명령을 실행합니다", en: "Run BRAT: Plugins: Add a beta plugin for testing (with or without version)" }
+  - caption: { ko: "BRAT의 Add a beta plugin 명령을 실행합니다", en: "Run BRAT's Add a beta plugin command" }
     tool: command_palette
     args: { commandId: obsidian42-brat:AddBetaPlugin }
   - caption: { ko: "BRAT 창은 영어입니다. Repository에 주소를 넣습니다", en: Enter the repository sblabkribb/labnoteo }

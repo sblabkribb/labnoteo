@@ -19,34 +19,34 @@
     {
       "id": "ai-draft-method",
       "lang": "en",
-      "version": "0.130.0",
+      "version": "0.136.1",
       "durationSec": 24.2,
-      "bytes": 361947,
-      "recordedAt": "2026-10-28T02:41:28.589Z"
+      "bytes": 401023,
+      "recordedAt": "2026-11-01T19:07:37.432Z"
     },
     {
       "id": "ai-draft-method",
       "lang": "ko",
-      "version": "0.130.0",
-      "durationSec": 23.6,
-      "bytes": 399233,
-      "recordedAt": "2026-10-28T02:37:18.968Z"
+      "version": "0.136.1",
+      "durationSec": 24.1,
+      "bytes": 430858,
+      "recordedAt": "2026-11-01T18:55:39.500Z"
     },
     {
       "id": "ai-extract-samples",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 33.1,
-      "bytes": 483071,
-      "recordedAt": "2026-10-20T16:51:30.878Z"
+      "version": "0.136.1",
+      "durationSec": 34.2,
+      "bytes": 560147,
+      "recordedAt": "2026-11-01T19:10:52.382Z"
     },
     {
       "id": "ai-extract-samples",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 31.5,
-      "bytes": 524939,
-      "recordedAt": "2026-10-20T16:50:01.407Z"
+      "version": "0.136.1",
+      "durationSec": 32.9,
+      "bytes": 537631,
+      "recordedAt": "2026-11-01T19:01:17.595Z"
     },
     {
       "id": "ai-settings",
@@ -243,18 +243,18 @@
     {
       "id": "insert-experiment-samples-table",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 23.4,
-      "bytes": 353396,
-      "recordedAt": "2026-10-20T16:52:00.002Z"
+      "version": "0.136.1",
+      "durationSec": 42,
+      "bytes": 619398,
+      "recordedAt": "2026-11-01T19:11:41.133Z"
     },
     {
       "id": "insert-experiment-samples-table",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 21.4,
-      "bytes": 359172,
-      "recordedAt": "2026-10-20T16:50:22.229Z"
+      "version": "0.136.1",
+      "durationSec": 36.7,
+      "bytes": 606682,
+      "recordedAt": "2026-11-01T19:02:00.935Z"
     },
     {
       "id": "insert-unit-operation",
@@ -275,34 +275,34 @@
     {
       "id": "install",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 53.3,
-      "bytes": 817346,
-      "recordedAt": "2026-10-20T16:52:06.430Z"
+      "version": "0.136.1",
+      "durationSec": 54.4,
+      "bytes": 808899,
+      "recordedAt": "2026-11-01T19:12:47.323Z"
     },
     {
       "id": "install",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 54.4,
-      "bytes": 820065,
-      "recordedAt": "2026-10-20T16:50:28.347Z"
+      "version": "0.136.1",
+      "durationSec": 55.5,
+      "bytes": 811045,
+      "recordedAt": "2026-11-01T19:03:08.191Z"
     },
     {
       "id": "issue-marker-discussion",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 38.4,
-      "bytes": 641969,
-      "recordedAt": "2026-10-20T16:52:09.326Z"
+      "version": "0.136.1",
+      "durationSec": 51.4,
+      "bytes": 855337,
+      "recordedAt": "2026-11-01T19:14:20.969Z"
     },
     {
       "id": "issue-marker-discussion",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 36.6,
-      "bytes": 681036,
-      "recordedAt": "2026-10-20T16:50:33.116Z"
+      "version": "0.136.1",
+      "durationSec": 48.1,
+      "bytes": 738119,
+      "recordedAt": "2026-11-01T19:04:36.877Z"
     },
     {
       "id": "overview",
@@ -515,18 +515,18 @@
     {
       "id": "workflow-sync",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 27.2,
-      "bytes": 499679,
-      "recordedAt": "2026-10-20T16:52:44.038Z"
+      "version": "0.136.1",
+      "durationSec": 28.9,
+      "bytes": 508520,
+      "recordedAt": "2026-11-01T19:13:22.313Z"
     },
     {
       "id": "workflow-sync",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 25.6,
-      "bytes": 420400,
-      "recordedAt": "2026-10-20T16:51:18.523Z"
+      "version": "0.136.1",
+      "durationSec": 27.2,
+      "bytes": 488827,
+      "recordedAt": "2026-11-01T19:03:41.729Z"
     },
     {
       "id": "workflow-view",

@@ -18,3 +18,13 @@ steps:
     highlight: { selector: .cm-table-widget }
     poster: true
     hold: 2000
+  - caption: { ko: 한 번 더 실행하면 표를 겹쳐 넣지 않고 묻습니다, en: Run it again and it asks instead of adding a second table }
+    palette: insert-experiment-samples-table
+  - highlight: { selector: .labnote-pick-title }
+    hold: 1200
+  - caption: { ko: 기존 표를 최신으로 바꾸기를 고릅니다, en: Pick Replace the existing table(s) with the current samples }
+    tool: modal_pick
+    args: { text: $t(Replace the existing table(s) with the current samples), filter: '' }
+  - caption: { ko: 표가 지금 시료로 바뀌었다고 알려 줍니다, en: A notice says the table now has the current samples }
+    highlight: { selector: .notice }
+    hold: 1500
