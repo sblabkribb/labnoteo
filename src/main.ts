@@ -51,6 +51,7 @@ import {
   planWorkflowRetitle,
   relinkCopiedExperimentChecklist,
   resetCopiedWorkflowDates,
+  outputSampleIds,
   rewriteWorkflowTitle,
   suggestCopiedWorkflowFileName,
   suggestLinkableFileName,
@@ -2144,17 +2145,21 @@ export default class LabnotePlugin extends Plugin {
   /**
    * Date a copy that is becoming a workflow of its own from today, with its
    * end and unit-op dates emptied (#160), and drop the original's filed
-   * worksheet scans (#350), and say so.
+   * worksheet scans (#350), and say so. The Output samples it still names are
+   * only pointed out (#506): whether this run makes them is the user's call.
    */
   private async resetCopyDates(file: TFile): Promise<void> {
     const today = getSeoulDateString();
+    const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
     let changed = false;
     let scans = 0;
+    let outputIds: string[] = [];
     await this.app.vault.process(file, data => {
       const dated = resetCopiedWorkflowDates(data, today);
       changed = dated !== data;
       const stripped = removeAllScanEntries(dated);
       scans = stripped.count;
+      if (this.sampleTrackingFor(file.path)) outputIds = outputSampleIds(stripped.md, types);
       return stripped.md;
     });
     if (changed) {
@@ -2173,6 +2178,17 @@ export default class LabnotePlugin extends Plugin {
           'Removed the {0} worksheet scan(s) of the original from the copy {1}; the scan images stay for the original.',
           String(scans),
           file.name
+        )
+      );
+    }
+    if (outputIds.length > 0) {
+      this.host.notify(
+        'warn',
+        this.t(
+          'The copy {0} still names {1} sample(s) of the original in its Output, such as {2}. Remove those this run does not make.',
+          file.name,
+          String(outputIds.length),
+          outputIds[0]
         )
       );
     }

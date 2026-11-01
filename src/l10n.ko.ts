@@ -909,6 +909,8 @@ const obsidianKo: Record<string, string> = {
     '{1}의 체크리스트 링크 {0}개가 원본 노트를 가리켜 자기 노트로 바꿨습니다.',
   "Removed the {0} worksheet scan(s) of the original from the copy {1}; the scan images stay for the original.":
     '복사본 {1}에서 원본의 기록지 스캔 {0}개를 뺐습니다. 스캔 이미지는 원본용으로 남겨 두었습니다.',
+  'The copy {0} still names {1} sample(s) of the original in its Output, such as {2}. Remove those this run does not make.':
+    '복사본 {0}의 Output에 원본의 샘플 {1}개가 남아 있습니다(예: {2}). 이번 실험에서 만들지 않는 샘플은 지우세요.',
   'The discussion flag was turned off; run "{0}" if the copy needs its own discussion.':
     '논의 표시를 껐습니다. 복사본에도 논의가 필요하면 "{0}"을 실행하세요.',
   '"{0}" no longer has README.labnote.md: the experiment list and the workflow checklist will not find this experiment.':
