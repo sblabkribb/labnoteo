@@ -81,6 +81,7 @@ import {
   insertWorkflowChecklistEntries,
   hasWorkflowChecklistSection,
   findSameAliasWorkflow,
+  workflowChecklistLabels,
   isWorkflowChecklistEntryLine,
   workflowChecklistEntryLabel,
   parseExperimenterFromReadme,
@@ -344,6 +345,12 @@ export function workflowAliasValidator(
   };
 }
 
+/** The README checklist label of each workflow in experiment folder `labnoteDir`; empty without a README. */
+export async function readChecklistLabels(fs: LabnoteHost['fs'], labnoteDir: string): Promise<Map<string, string>> {
+  const readmePath = posix.join(labnoteDir, README);
+  return (await fs.exists(readmePath)) ? workflowChecklistLabels(await fs.read(readmePath)) : new Map();
+}
+
 /**
  * How much of a workflow alias fits in the file name after `ID_name_` (#213);
  * the room differs per workflow. Never blocks: past it only the file name is cut.
@@ -353,11 +360,13 @@ export function workflowAliasHint(
   id: string,
   name: string,
   /** The experiment folder's file names: an alias another workflow of this ID has is flagged (#297). */
-  existing: readonly string[] = []
+  existing: readonly string[] = [],
+  /** The README checklist labels of `existing` (see {@link readChecklistLabels}). */
+  labels?: ReadonlyMap<string, string>
 ): (value: string) => PromptHint {
   const budget = workflowAliasBudget(id, name);
   return value => {
-    const twin = findSameAliasWorkflow(existing, id, name, value);
+    const twin = findSameAliasWorkflow(existing, id, name, value, labels);
     if (twin) {
       return {
         text: host.t(
@@ -1135,6 +1144,7 @@ async function createWorkflowFile(
 ): Promise<CreatedWorkflow | undefined> {
   // Listed before the prompt, which warns about an alias already in use (#297).
   const existingFiles = await host.fs.list(labnoteDir);
+  const existingLabels = await readChecklistLabels(host.fs, labnoteDir);
   // Ask for an optional per-instance alias. The catalog name stays inside the
   // `[id name]` prefix; the alias (if any) is appended after it.
   const alias = await workflowAliasModal(app, {
@@ -1144,7 +1154,7 @@ async function createWorkflowFile(
     placeholder: host.t('Enter a name for this workflow'),
     about: workflowConcept(host),
     description: chosen.description ? catalogDescription(chosen.id, chosen.description) : undefined,
-    hint: workflowAliasHint(host, chosen.id, chosen.name, existingFiles),
+    hint: workflowAliasHint(host, chosen.id, chosen.name, existingFiles, existingLabels),
     validate: workflowAliasValidator(host),
   });
   if (alias === undefined) return undefined; // cancelled

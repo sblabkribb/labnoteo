@@ -95,6 +95,7 @@ import {
   experimentReadmes,
   experimentTitleHint,
   workflowAliasHint,
+  readChecklistLabels,
   workflowAliasValidator,
   workflowConcept,
   rebuildExperimentReadmeFile,
@@ -2213,7 +2214,13 @@ export default class LabnotePlugin extends Plugin {
       value: originalAlias,
       about: workflowConcept(this.host),
       description,
-      hint: workflowAliasHint(this.host, heading.id, heading.name, await this.fs.list(posix.dirname(copyPath))),
+      hint: workflowAliasHint(
+        this.host,
+        heading.id,
+        heading.name,
+        await this.fs.list(posix.dirname(copyPath)),
+        await readChecklistLabels(this.fs, posix.dirname(copyPath))
+      ),
       validate: workflowAliasValidator(this.host, originalAlias),
     });
     if (alias === undefined || this.unloaded) return;

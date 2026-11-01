@@ -37,6 +37,8 @@ import {
   planTableCsvNames,
   tableCsvName,
   labelMatchesFileName,
+  findSameAliasWorkflow,
+  workflowChecklistLabels,
   workflowAliasProblem,
   decodeChecklistLink,
   workflowLabelFor,
@@ -924,6 +926,29 @@ describe('labelMatchesFileName', () => {
     // Cut at 0.101.0's 100 code points, before the cap went down to 80.
     expect(labelMatchesFileName(long, `003_WD030_Design_${'가'.repeat(87)}.labnote.md`)).toBe(true);
     expect(labelMatchesFileName(`WD030 Design ${'가'.repeat(80)} 나`, `003_WD030_Design_${'가'.repeat(80)}.labnote.md`)).toBe(true);
+  });
+});
+
+describe('findSameAliasWorkflow', () => {
+  const info = { id: 'WD030', name: 'Design', description: '' };
+  const longAlias = `${'가'.repeat(80)} 첫째`;
+  const cut = createWorkflowFileName('001', info, longAlias);
+  const readme = `## 🔗 Related Workflows\n\n- [ ] [WD030 Design ${longAlias}](./${cut})\n`;
+
+  // #492: only the start of a long alias reaches the file name.
+  it('compares a cut file name by its full checklist label', () => {
+    const labels = workflowChecklistLabels(readme);
+    expect(labels.get(cut)).toBe(`WD030 Design ${longAlias}`);
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', `${'가'.repeat(80)} 둘째`)).toBe(cut);
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', `${'가'.repeat(80)} 둘째`, labels)).toBeUndefined();
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', longAlias, labels)).toBe(cut);
+  });
+
+  it('compares the file name when it is not cut or the label is not its own', () => {
+    const files = ['001_WD030_Design_1차.labnote.md'];
+    const labels = new Map([[files[0], 'My own label']]);
+    expect(findSameAliasWorkflow(files, 'WD030', 'Design', '1차', labels)).toBe(files[0]);
+    expect(findSameAliasWorkflow(files, 'WD030', 'Design', '2차', labels)).toBeUndefined();
   });
 });
 

@@ -1312,16 +1312,36 @@ export function labelMatchesFileName(label: string, fileName: string): boolean {
  * A workflow file among `names` that a new workflow `id name alias` would be
  * indistinguishable from (#297): same ID and alias, both possibly empty, so
  * its checklist label and file name differ only by number. Compared like
- * {@link labelMatchesFileName}.
+ * {@link labelMatchesFileName}. A file name cut at the length cap keeps only
+ * the start of its alias, so when `labels` (see {@link workflowChecklistLabels})
+ * has the file's full label, that label is compared instead (#492).
  */
 export function findSameAliasWorkflow(
   names: readonly string[],
   id: string,
   name: string,
-  alias: string
+  alias: string,
+  labels?: ReadonlyMap<string, string>
 ): string | undefined {
   const label = [id, name, alias.trim()].filter(Boolean).join(' ');
-  return names.find(file => parseWorkflowFileName(file)?.id === id && labelMatchesFileName(label, file));
+  return names.find(file => {
+    if (parseWorkflowFileName(file)?.id !== id) return false;
+    const full = labels?.get(file);
+    if (full !== undefined && labelMatchesFileName(full, file)) {
+      const sanitized = sanitizePathSegment(full);
+      if (capPathSegment(sanitized, WORKFLOW_FILE_NAME_MAX) !== sanitized) {
+        return sanitizePathSegment(label) === sanitized;
+      }
+    }
+    return labelMatchesFileName(label, file);
+  });
+}
+
+/** The README checklist's label of each workflow file it lists, by file name. */
+export function workflowChecklistLabels(readmeContent: string): Map<string, string> {
+  return new Map(
+    parseWorkflowChecklistFromReadme(readmeContent).map(item => [path.basename(item.fileName), item.title])
+  );
 }
 
 /** The `## [ID name] alias` heading a workflow note starts with. */
