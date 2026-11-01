@@ -3,7 +3,7 @@
  */
 
 import * as path from '../util/posixPath';
-import { getSeoulDateString, getSeoulDateTimeString, findMetaDateFieldInLine, metaEndDateInFuture } from './dateUtils';
+import { getSeoulDateString, getSeoulDateTimeString, findMetaDateFieldInLine, classifyMetaEndDate } from './dateUtils';
 import {
   sanitizePathSegment,
   legacySanitizePathSegment,
@@ -1874,9 +1874,10 @@ export interface WorkflowExperimenterSync {
 /**
  * Whether the workflow note `content` has unit operations and each has its
  * Meta `End_date` filled: the work is done even if the front matter
- * `end_date`, which nothing fills, is still empty (#355).
+ * `end_date`, which nothing fills, is still empty (#355). An End_date after
+ * `now`, or one that does not read as a date, is not ended (#509).
  */
-export function unitOpsAllEnded(content: string): boolean {
+export function unitOpsAllEnded(content: string, now: string = getSeoulDateTimeString()): boolean {
   const lines = content.split(/\r?\n/);
   const ended: boolean[] = [];
   let fence: OpenFence | null = null;
@@ -1891,7 +1892,9 @@ export function unitOpsAllEnded(content: string): boolean {
       continue;
     }
     const date = findMetaDateFieldInLine(line);
-    if (ended.length > 0 && date?.field === 'End_date' && date.value.trim() !== '') ended[ended.length - 1] = true;
+    if (ended.length > 0 && date?.field === 'End_date' && date.value.trim() !== '') {
+      ended[ended.length - 1] = classifyMetaEndDate(date.value.trim(), now) === 'ended';
+    }
   }
   return ended.length > 0 && ended.every(Boolean);
 }
@@ -1937,8 +1940,9 @@ export function planWorkflowExperimenterSync(
     const block = blocks[blocks.length - 1];
     const date = findMetaDateFieldInLine(lines[i]);
     const end = date?.field === 'End_date' ? date.value.trim() : '';
-    if (end && metaEndDateInFuture(end, now)) block.future = end;
-    else if (end) block.ended = true;
+    const state = end ? classifyMetaEndDate(end, now) : undefined;
+    if (state === 'future') block.future = end;
+    else if (state) block.ended = true;
     const m = /^(\s*-\s*Experimenter:)(.*)$/.exec(lines[i]);
     if (m && m[2].trim() === '') {
       block.lines.push(i);

@@ -1965,6 +1965,14 @@ describe('unitOpsAllEnded', () => {
     expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('')}`)).toBe(false);
     expect(unitOpsAllEnded('# no unit operations\n')).toBe(false);
   });
+
+  // #509: a planned or unreadable End_date counted as ended.
+  it('does not count an End_date still to come or not a date as ended', () => {
+    const now = '2026-10-31 23:10';
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('2026-11-14 17:00')}`, now)).toBe(false);
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('11/14 예정')}`, now)).toBe(false);
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('2026.10.31')}`, now)).toBe(true);
+  });
 });
 
 describe('workflowAliasProblem', () => {

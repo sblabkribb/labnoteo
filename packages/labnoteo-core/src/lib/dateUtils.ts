@@ -121,6 +121,17 @@ export function metaEndDateInFuture(value: string, now: string): boolean {
 }
 
 /**
+ * What a filled Meta `End_date` says about its unit operation at `now`: a date
+ * that has passed is `ended`, one still to come is `future` (#445), and a value
+ * that does not read as a date, such as `11/7 예정`, is `unreadable` (#501).
+ * Only `ended` counts as finished work wherever End_date is judged (#509).
+ */
+export function classifyMetaEndDate(value: string, now: string): 'ended' | 'future' | 'unreadable' {
+  if (!toDateTimeLocalValue(value)) return 'unreadable';
+  return metaEndDateInFuture(value, now) ? 'future' : 'ended';
+}
+
+/**
  * Whether closing the picker with Enter should write its value (#309). A
  * field that already held something keeps it when nothing was picked: the
  * picker shows the current time for a value it cannot read, and a date-only
