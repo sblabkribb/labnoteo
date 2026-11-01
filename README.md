@@ -62,15 +62,15 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 | 폴더와 워크플로 체크리스트 맞추기 (`Sync workflow checklist with folder`) | 옮겨 오거나 복사한 워크플로를 체크리스트에 맞추고, 어긋난 라벨·제목과 비어 있는 실험자를 확인 후 고칩니다(노트에 적힌 실험자는 그대로) |
 | 유닛 오퍼레이션 삽입 (`Insert unit operation`) | 카탈로그에서 고른 유닛 오퍼레이션을 워크플로 노트에 넣고 목차를 갱신합니다 |
 | 카탈로그 업데이트 (`Update catalogs`) | 보관함의 `resources/workflows/` 카탈로그를 이 플러그인 버전에 맞춥니다(연구실이 고친 값은 그대로) |
-| 표 CSV 내보내기 (`Export tables to CSV`) | 노트의 표를 `<노트이름>.labnote_tableN.csv`로 내보냅니다(엑셀 호환 UTF-8 BOM) |
+| 표를 CSV로 내보내기 (`Export tables to CSV`) | 노트의 표를 `<노트이름>.labnote_tableN.csv`로 내보냅니다(엑셀 호환 UTF-8 BOM) |
 | 이 실험의 표를 모두 CSV로 내보내기 (`Export all tables of this experiment to CSV`) | 실험 폴더의 모든 노트의 표를 한 번에 CSV로 내보냅니다 |
 | 연구노트 자동화 설정 (`Setup research automation`) | GitHub Actions·스크립트를 현재 보관함에 설치합니다([연구노트 자동화](#연구노트-자동화) 참고) |
-| AI: Method 섹션 초안 (`AI: Draft Method section`) | 설정된 LLM으로 유닛 오퍼레이션의 `#### Method` 초안을 씁니다 |
+| AI: Method 섹션 초안 작성 (`AI: Draft Method section`) | 설정된 LLM으로 유닛 오퍼레이션의 `#### Method` 초안을 씁니다 |
 | AI: 워크플로 결과 요약 (`AI: Summarize workflow results`) | 워크플로 노트의 결과 절을 요약해 `Conclusions and Discussion` 끝에 콜아웃으로 넣습니다 |
 | AI: 실험 결과 요약 (`AI: Summarize experiment results`) | 실험 README에서 모든 워크플로 노트의 결과를 요약해 `Summary and Discussion` 끝에 넣습니다 |
 | AI: 샘플 정의 추출 (`AI: Extract sample definitions`) | 노트 본문에서 샘플을 찾아 대장에만 등록합니다(본문은 바꾸지 않음) |
-| AI: 어시스턴트에게 요청 (`AI: Ask assistant (uses tools)`) | 목표를 말하면 모델이 Labnote 툴로 수행합니다 — 보관함 수정 전 매번 확인 |
-| MCP 서버 토글 (`Toggle MCP server`) | 로컬 MCP 서버를 켜고 끕니다([Copilot 가이드](docs/COPILOT.md#선택-labnote-툴-연결--mcp) 참고) |
+| AI: 어시스턴트에게 요청 (툴 사용) (`AI: Ask assistant (uses tools)`) | 목표를 말하면 모델이 Labnote 툴로 수행합니다 — 보관함 수정 전 매번 확인 |
+| MCP 서버 켜기/끄기 (`Toggle MCP server`) | 로컬 MCP 서버를 켜고 끕니다([Copilot 가이드](docs/COPILOT.md#선택-labnote-툴-연결--mcp) 참고) |
 | 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰를 표시하고 포커스를 목록으로 옮깁니다 |
 | 샘플 정의 열기 (편집·이동·삭제) (`Open sample definition`) | 커서 위 샘플이나 검색해 고른 샘플의 정의 창을 엽니다(편집·삭제·이동·타입 변경) |
 | 이 실험의 시료 목록 삽입 (`Insert sample list of this experiment`) | 이 실험의 시료를 Markdown 표로 커서 위치에 넣습니다 |
@@ -137,7 +137,7 @@ Obsidian 1.13 이상에서는 설정 창 검색으로 이 플러그인의 항목
 **partbank**
 
 - **partbank 서버** / **partbank 데스크톱 앱**: 각각 주소와 API 키, `연결 확인` 버튼. 키는 보관함이 아니라 이 PC에만 저장되므로 PC마다 적어야 합니다. 데스크톱 연결은 모바일에서 보이지 않습니다.
-- **검색할 연결**: 자동완성 검색과 카탈로그 내려받기가 쓸 연결(기본 `partbank 서버`). 데스크톱 앱으로 만든 링크는 그 PC에서만 통하므로 함께 쓰는 보관함은 서버를 쓰세요.
+- **검색에 쓸 연결**: 자동완성 검색과 카탈로그 내려받기가 쓸 연결(기본 `partbank 서버`). 데스크톱 앱으로 만든 링크는 그 PC에서만 통하므로 함께 쓰는 보관함은 서버를 쓰세요.
 - **노트 사용처를 partbank에 보내기**: partbank에서 가져온 시료를 쓴 랩노트의 경로·실험 폴더 이름·절 제목을 partbank에 보냅니다(기본 켬). 끄면 이 PC가 보낸 기록을 지웁니다.
 
 자세한 동작은 [partbank에서 부품 가져오기](automation/templates/QUICKSTART.md#partbank에서-부품-가져오기)를 보세요.
@@ -159,7 +159,7 @@ Obsidian 1.13 이상에서는 설정 창 검색으로 이 플러그인의 항목
 
 **AI 프로바이더**
 
-- **프로바이더**: `비활성화됨`, `ollama`, `openai`. 플러그인이 제공자와 직접 통신합니다.
+- **프로바이더**: `비활성화됨`, `Ollama`, `OpenAI-compatible`. 플러그인이 제공자와 직접 통신합니다.
 - **Ollama 엔드포인트** / **OpenAI 엔드포인트**: 기본 URL. 제공자를 바꿀 때 OpenAI 키가 로컬 Ollama 주소로 새어 나가지 않도록 필드를 분리해 두었습니다. `localhost:11434`처럼 `http://`·`https://`를 빼고 적으면 접속할 때 `http://`를 붙입니다.
 - **모델**: 모델 id. 예: `qwen3`, `gpt-4o-mini`.
 - **API 키**: OpenAI 호환 제공자 전용 — Ollama로는 전송되지 않습니다.

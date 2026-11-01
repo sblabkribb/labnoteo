@@ -13,7 +13,7 @@ labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안�
 [연구노트 자동화](../README.md#연구노트-자동화)를 설정했다면 생성된 `AGENTS.md`/`CLAUDE.md`를
 같은 에이전트가 터미널에서든 Copilot 에이전트 모드에서든 자동으로 읽습니다.
 
-> **먼저 [설치 가이드](./INSTALL.md)의 3~6단계**(Obsidian → 커뮤니티 플러그인 → 자동화
+> **먼저 [설치 가이드](./INSTALL.md)의 1~6단계**(Obsidian → 커뮤니티 플러그인 → 자동화
 > 설정)를 마쳤다고 가정합니다. `AGENTS.md`가 생긴 뒤에 에이전트를 연결해야 규칙이
 > 처음부터 적용됩니다.
 
@@ -167,7 +167,7 @@ Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.
 
 | 층 | 모델·인증 | 설정 위치 | 쓰임 |
 | --- | --- | --- | --- |
-| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더** — [README 설정](../README.md#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안` 등) |
+| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더** — [README 설정](../README.md#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안 작성` 등) |
 | **Copilot Agent Chat** (opencode / Claude / Codex) | **에이전트 로그인** — BYOK 키는 쓰지 않습니다(Claude/Codex). opencode는 Copilot 라이선스 또는 BYOK | `Basic → Agents`의 각 에이전트 탭 | git 커밋·이슈 신호·Wiki 초안 |
 | **Copilot Quick Chat** | Copilot-hosted 또는 **BYOK** 모델. Agent Chat 모델과 **별개 목록**입니다 | `Settings → Copilot → BYOK` + `Basic → Agents → Quick Chat` | Copilot 채팅창에서의 짧은 질의 |
 

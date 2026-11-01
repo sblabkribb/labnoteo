@@ -213,8 +213,8 @@ git push -u origin main
 ## 9. (선택) LLM 제공자 설정
 
 Obsidian *안에서* 방법 초안·결과 요약을 하려면 설정 → **Labnote Assistant** →
-**AI 프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI 호환`을 고르고 엔드포인트·모델명을
-채웁니다. 기본값 `Disabled`에서는 AI 명령이 동작하지 않습니다. 이 층은 7번의 Copilot
+**AI 프로바이더** → **프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI-compatible`을 고르고 엔드포인트·모델명을
+채웁니다. 기본값 `비활성화됨`에서는 AI 명령이 동작하지 않습니다. 이 층은 7번의 Copilot
 에이전트와 별개입니다 — 층 구분은 [Copilot 가이드의 모델 설정](./COPILOT.md#copilot-llm-설정)을
 참고하세요.
 

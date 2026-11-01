@@ -155,7 +155,7 @@ See the [printout scan guide](docs/SCAN.md) (Korean) for each setting in detail 
 
 **AI provider**
 
-- **Provider**: `Disabled`, `ollama`, or `openai`. The plugin talks to the provider directly.
+- **Provider**: `Disabled`, `Ollama`, or `OpenAI-compatible`. The plugin talks to the provider directly.
 - **Ollama endpoint** / **OpenAI endpoint**: the base URL. The fields are separate so an OpenAI key never leaks to a local Ollama address. Written without `http://` or `https://`, as in `localhost:11434`, it gets `http://` when connecting.
 - **Model**: the model id, e.g. `qwen3`, `gpt-4o-mini`.
 - **API key**: OpenAI-compatible providers only — never sent to Ollama.
