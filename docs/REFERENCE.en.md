@@ -61,7 +61,7 @@ everything changed while it was open.
 ### Last updated date
 
 With **Auto-update last updated date** on, editing a lab note (ticking a checkbox in Live Preview
-included) sets its `last_updated_date` to today once a day. Editing a workflow note, or creating
+included) sets its `last_updated_date` to today (Asia/Seoul) once a day. Editing a workflow note, or creating
 one, updates the experiment README's date too. Changes pulled with git and the plugin's own
 automatic tidy-ups do not count. A note whose date you edited by hand keeps it that day (on a day
 you edited the README's date by hand, editing a workflow note does not overwrite it). Deleting the
