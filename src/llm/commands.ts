@@ -88,8 +88,13 @@ function toolContext(plugin: LabnotePlugin): ToolContext {
  * The system-prompt line telling the model to write in Obsidian's UI
  * language (#237): the note itself may be in English while the researcher
  * reads Korean, and models otherwise answer in the language of the prompt.
+ * A summary leaves `keepSampleIds` off (#527): "keep sample IDs as written"
+ * had the model copy the `ID;alias` references the summary must not carry.
  */
-export function replyLanguageInstruction(lang: string = getObsidianLanguage()): string {
+export function replyLanguageInstruction(
+  lang: string = getObsidianLanguage(),
+  { keepSampleIds = true }: { keepSampleIds?: boolean } = {}
+): string {
   const code = lang.split('-')[0].toLowerCase() || 'en';
   let name = code;
   try {
@@ -97,7 +102,8 @@ export function replyLanguageInstruction(lang: string = getObsidianLanguage()): 
   } catch {
     // An unknown code stays as it is.
   }
-  return `Write the answer in ${name}. Keep sample IDs, units, numbers and quoted text exactly as they appear in the note.`;
+  const kept = keepSampleIds ? 'sample IDs, units, numbers and quoted text' : 'units, numbers and quoted text';
+  return `Write the answer in ${name}. Keep ${kept} exactly as they appear in the note.`;
 }
 
 /**
@@ -545,7 +551,7 @@ export async function summarizeResultsCommand(plugin: LabnotePlugin): Promise<vo
         'You summarize experimental Results for a lab notebook as 3–6 concise Markdown bullet points. No preamble, no code fences. ' +
         'Use only measurements and observations written in the note; never invent a number, a result or a conclusion that is not there. ' +
         `${SUMMARY_REFERENCE_INSTRUCTION} ` +
-        replyLanguageInstruction(),
+        replyLanguageInstruction(undefined, { keepSampleIds: false }),
     },
     {
       role: 'user',
@@ -648,7 +654,7 @@ export async function summarizeExperimentCommand(plugin: LabnotePlugin): Promise
         'No preamble, no code fences. Use only what is written; never invent a number, a result or a conclusion. ' +
         'The researcher\'s own notes, inside <researcher-notes>, are context only: they stay in the note as they are, so do not copy, restate or rephrase them in the answer. ' +
         `${SUMMARY_REFERENCE_INSTRUCTION} ` +
-        replyLanguageInstruction(),
+        replyLanguageInstruction(undefined, { keepSampleIds: false }),
     },
     {
       role: 'user',

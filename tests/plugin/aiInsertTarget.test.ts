@@ -415,5 +415,9 @@ describe('reply language', () => {
       expect(s.role).toBe('system');
       expect(s.content).toContain('Write the answer in Korean.');
     }
+    // #527: the summary is not told to keep sample IDs as written; the Method draft is.
+    expect(systems[0].content).not.toContain('Keep sample IDs');
+    expect(systems[0].content).toContain('Keep units, numbers and quoted text');
+    expect(systems[1].content).toContain('Keep sample IDs');
   });
 });
