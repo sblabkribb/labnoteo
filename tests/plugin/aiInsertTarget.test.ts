@@ -223,6 +223,8 @@ describe('summarizeResultsCommand in a workflow note (#279)', () => {
     await summarizeResultsCommand(plugin);
 
     expect(plugin.host.confirm).toHaveBeenCalledWith(expect.stringContaining('already has an AI summary'), expect.objectContaining({ destructive: true }));
+    // #498: a note typed inside the callout goes with it.
+    expect(plugin.host.confirm).toHaveBeenCalledWith(expect.stringContaining('What you typed inside the callout is replaced too'), expect.anything());
     expect(start.text).not.toContain('옛 요약');
     expect(start.text.match(/AI workflow results summary/g)).toHaveLength(1);
     expect(start.text).toContain('내 결론 메모\n\n> [!note] AI workflow results summary (llama3.1');

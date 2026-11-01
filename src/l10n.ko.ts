@@ -110,6 +110,8 @@ const obsidianKo: Record<string, string> = {
   'AI workflow results summary ({0}, {1})': 'AI 워크플로 결과 요약 ({0}, {1})',
   'AI experiment results summary ({0}, {1})': 'AI 실험 결과 요약 ({0}, {1})',
   '"{0}" already has an AI summary. Replace it with a new one?': '"{0}"에 이미 AI 요약이 있습니다. 새 요약으로 바꿀까요?',
+  'What you typed inside the callout is replaced too; keep notes you want outside it.':
+    '콜아웃 안에 직접 적은 내용도 함께 바뀝니다. 남길 메모는 콜아웃 밖에 적으세요.',
   'In an experiment README, run "{0}".': '실험 README에서는 "{0}"을(를) 실행하세요.',
   'Open an experiment README first.': '실험 README를 먼저 여세요.',
   'No results are written in the workflow notes of this experiment yet, so there is nothing to summarize.':
