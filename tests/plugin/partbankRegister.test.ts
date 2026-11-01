@@ -10,6 +10,12 @@ import { Notice } from '../stubs/obsidian';
 import { catalogSeedNote, noticeForRegistration, registerPartbankItem } from '../../src/partbank/partbankRegister';
 import type { PartbankClient } from '../../src/partbank/client';
 import type LabnotePlugin from '../../src/main';
+import { pickModal } from '../../src/modals';
+
+vi.mock('../../src/modals', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../src/modals')>()),
+  pickModal: vi.fn(),
+}));
 
 const WEB = 'https://partbank.kbiofoundry.kr';
 const LOCAL = 'labnote/001_Exp/resources/labsamples';
@@ -43,6 +49,35 @@ beforeEach(() => {
     host: { confirm },
   } as unknown as LabnotePlugin;
   Notice.reset();
+  vi.mocked(pickModal).mockReset();
+});
+
+// #504: "Search partbank" made a second sample with an alias the experiment already had.
+describe('registerPartbankItem and a sample with the same alias', () => {
+  beforeEach(async () => {
+    await upsertSampleRecord(fs, LOCAL, 'DNA', 'DNA-2', { alias: 'sfGFP', description: '손 기록', source: null });
+  });
+
+  it('uses the sample picked instead of writing a new one', async () => {
+    vi.mocked(pickModal).mockResolvedValueOnce('DNA-2');
+    const result = await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+    expect(result).toMatchObject({ id: 'DNA-2', reused: true, sameAlias: true, referenceText: 'DNA-2;sfGFP' });
+    expect(Object.keys(await loadSamplesByType(fs, LOCAL, 'DNA'))).toEqual(['DNA-2']);
+    expect(vi.mocked(pickModal).mock.calls[0][1]).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'Create a new sample anyway', value: null })])
+    );
+  });
+
+  it('writes a new sample when asked to, and nothing when cancelled', async () => {
+    vi.mocked(pickModal).mockResolvedValueOnce(undefined);
+    expect(await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' })).toBeUndefined();
+    expect(Object.keys(await loadSamplesByType(fs, LOCAL, 'DNA'))).toEqual(['DNA-2']);
+
+    vi.mocked(pickModal).mockResolvedValueOnce(null);
+    const result = await registerPartbankItem(plugin, client, ITEM, { folder: LOCAL, type: 'DNA' });
+    expect(result?.reused).toBe(false);
+    expect(Object.keys(await loadSamplesByType(fs, LOCAL, 'DNA'))).toHaveLength(2);
+  });
 });
 
 describe('registerPartbankItem (#270)', () => {
