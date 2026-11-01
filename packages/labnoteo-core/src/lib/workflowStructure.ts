@@ -120,6 +120,11 @@ export function diagnoseWorkflowPath(filePath: string): WorkflowPathDiagnosis {
 export function suggestWorkflowFileName(baseName: string): string | undefined {
   if (!/^\d{3}_/.test(baseName) || !/\.md$/i.test(baseName)) return undefined;
   if (baseName.toLowerCase().endsWith('.labnote.md')) return undefined;
+  const repeatedMd = baseName.match(/^(.*)\.labnote(?:\.md){2,}$/i);
+  if (repeatedMd) {
+    const trimmed = `${repeatedMd[1]}.labnote.md`;
+    return suggestLinkableFileName(trimmed) ?? trimmed;
+  }
   const moved = `${baseName.slice(0, -'.md'.length).replace(/\.labnote/i, '')}.labnote.md`;
   return suggestLinkableFileName(moved) ?? moved;
 }

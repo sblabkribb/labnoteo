@@ -1325,6 +1325,11 @@ describe('suggestWorkflowFileName', () => {
   it('leaves out characters no link can reach (#326)', () => {
     expect(suggestWorkflowFileName('001_WB030_Gibson.labnote #2.md')).toBe('001_WB030_Gibson 2.labnote.md');
   });
+
+  it('drops a repeated .md instead of moving .labnote (#523)', () => {
+    expect(suggestWorkflowFileName('001_WB030_Gibson.labnote.md.md')).toBe('001_WB030_Gibson.labnote.md');
+    expect(suggestWorkflowFileName('001_WB030_Gibson.labnote.md.MD.md')).toBe('001_WB030_Gibson.labnote.md');
+  });
 });
 
 describe('rebuildExperimentReadme (#340)', () => {
