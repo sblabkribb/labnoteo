@@ -643,8 +643,8 @@ export interface AliasRewriteEdit {
  *   keeping its description. A stale definition would otherwise put the old
  *   alias back in the registry the next time its note is saved.
  * - A plain reference's alias runs to the next `;`, `:`, `|` or line end, so it
- *   may carry the rest of the sentence. Only a leading `oldAlias` followed by
- *   whitespace or that end is replaced; an empty `newAlias` drops the `;` too,
+ *   may carry the rest of the sentence. Only a leading `oldAlias` not followed
+ *   by a letter, digit, `_` or `-` is replaced (`;EL-L,` too, #500); an empty `newAlias` drops the `;` too,
  *   leaving the bare id. Anything else is left as written.
  * - An `oldAlias` holding `;` or `:` (allowed before #98) is cut short by the
  *   pattern, so it is compared against the text after the id instead.
@@ -666,8 +666,9 @@ export function planAliasRewrite(
   if (!oldAlias) return newAlias ? planAliasAddition(text, type, id, newEsc, sampleListHeaders) : edits;
   if (oldAlias === newAlias) return edits;
 
+  // The same end as the editor's stale-alias mark (staleSampleAliasEnd): `;EL-L,` holds `EL-L` (#500).
   const startsWithAlias = (s: string, alias: string): boolean =>
-    s.startsWith(alias) && (s.length === alias.length || /\s/.test(s[alias.length]));
+    s.startsWith(alias) && !/^[\p{L}\p{N}_-]/u.test(s.slice(alias.length));
 
   const legacy = hasSampleAliasSeparator(oldAlias);
   const pattern = buildSampleDefinitionPattern(type);

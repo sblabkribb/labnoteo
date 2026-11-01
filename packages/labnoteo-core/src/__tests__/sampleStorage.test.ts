@@ -665,6 +665,15 @@ describe('planAliasRewrite', () => {
     );
   });
 
+  // #500: a reference with a comma, period or bracket right after it kept the old alias.
+  it('rewrites a reference followed by punctuation, not one running on into a longer word', () => {
+    const text = 'DNA-1;frag1, DNA-1;frag1.\n(DNA-1;frag1) DNA-1;frag1x DNA-1;frag1-b\n';
+    expect(rewrite(text, 'DNA-1', 'frag1', 'frag2')).toBe(
+      'DNA-1;frag2, DNA-1;frag2.\n(DNA-1;frag2) DNA-1;frag1x DNA-1;frag1-b\n'
+    );
+    expect(rewrite('DNA-1;EL-L, DNA-1;EL-L-P13.\n', 'DNA-1', 'EL-L', 'EL-L-P13')).toBe('DNA-1;EL-L-P13, DNA-1;EL-L-P13.\n');
+  });
+
   it('rewrites every definition of the id in the note', () => {
     expect(rewrite('@dna;DNA-1;old\n본문\n@DNA;DNA-1;old\n', 'DNA-1', 'old', 'new')).toBe(
       '@dna;DNA-1;new\n본문\n@dna;DNA-1;new\n'
