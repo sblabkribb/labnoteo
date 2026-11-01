@@ -268,6 +268,31 @@ describe('changing the status to completed', () => {
     expect(shown[0]).toContain('Discussion flag cleared.');
   });
 
+  // #514: the status path said the flag was off, not that markers keep it listed.
+  it('names the markers left and how to turn the flag back on', async () => {
+    const fs = new MemFileSystem({
+      [README]: note('\ndiscuss: true'),
+      [WORKFLOW]: '---\ntitle: A\n---\n\n## Method\n- 37도 @issue;ISS-a;온도 확인\n',
+    });
+    const picks = ['completed', 'clear'];
+    const shown: string[] = [];
+    const app = {
+      workspace: { getActiveFile: () => new TFile(WORKFLOW), getLeavesOfType: () => [] },
+      vault: { getFileByPath: () => null },
+    } as unknown as App;
+    const host = {
+      fs,
+      t: (s: string, ...args: string[]) => args.reduce((acc, a, i) => acc.replace(`{${i}}`, a), s),
+      notify: (_k: string, m: string) => shown.push(m),
+      pick: async () => picks.shift(),
+    } as unknown as LabnoteHost;
+    await changeExperimentStatusCommand(app, host);
+    expect(shown.at(-1)).toContain(
+      'Discussion flag cleared. 1 @issue marker(s) remain, so the experiment stays under "Something to discuss": 001_WD010_Design.labnote.md:6.'
+    );
+    expect(shown.at(-1)).toMatch(/pick planned\. Turn the discussion flag back on with "Toggle discussion flag"\.$/);
+  });
+
   // #490: the retry was only on the workflow view's right-click menu.
   it('points a failed experiment to the retry', async () => {
     const fs = new MemFileSystem({ [README]: note() });

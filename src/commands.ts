@@ -689,7 +689,19 @@ export async function changeExperimentStatusCommand(
 
   await writeNoteThroughVault(app, host, readmePath, stamp(updated));
   let message = host.t('Experiment status changed ({0}): {1} → {2}.', folderName, current ?? host.t('(none)'), chosen);
-  if (cleared) message += ` ${host.t('Discussion flag cleared.')}`;
+  if (cleared) {
+    message += ` ${host.t('Discussion flag cleared.')}`;
+    // Markers keep it under "Something to discuss", as the toggle says (#379, #514).
+    const spots = await experimentMarkerSpots(host.fs, labnoteDir);
+    if (spots.length > 0) {
+      message += ` ${host.t(
+        '{0} @issue marker(s) remain, so the experiment stays under "{1}": {2}.',
+        String(spots.length),
+        host.t('Something to discuss'),
+        formatMarkerSpots(spots, host.t)
+      )}`;
+    }
+  }
   // The retry is otherwise only on the workflow view's right-click menu (#490).
   if (chosen === 'failed' || chosen === 'needs-repeat') {
     message += ` ${host.t('To run it again with other conditions, use "{0}".', host.t('Retry this experiment'))}`;
@@ -710,6 +722,8 @@ export async function changeExperimentStatusCommand(
           ? host.t('To undo, right-click this experiment in the workflow view again and pick {0}.', current)
           : host.t('To undo, run "{0}" again and pick {1}.', host.t('Change experiment status'), current)
       }`;
+      // Picking the old status back leaves the flag off (#514).
+      if (cleared) message += ` ${host.t('Turn the discussion flag back on with "{0}".', host.t('Toggle discussion flag'))}`;
     }
   }
   // `needs-review` only opens a review issue through the automation (#79).
