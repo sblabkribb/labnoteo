@@ -729,6 +729,8 @@ const obsidianKo: Record<string, string> = {
     '{0}은(는) _ 때문에 읽기 화면에서 기울임으로 보입니다. 계속 쓸 수는 있으며, 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
   '{0}: differs from {1} only in letter case, so on Windows both would share one {Type}.json and their samples would mix. It was not saved.':
     '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
+  '{0}: only the letter case of {1} changed. Its samples and the IDs already written in notes keep {1}, so the change was not saved.':
+    '{0}: {1}의 대소문자만 바꿨습니다. 이 타입의 시료와 노트에 이미 쓴 ID는 {1} 철자를 쓰므로 바꾸지 않고 저장된 이름을 유지했습니다.',
   '{0} differs from {1} only in letter case: on Windows both share one {Type}.json, so their samples mix. Keep one of them.':
     '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞이니 하나만 남기세요.',
   '{0}: {1} sample(s)': '{0}: 샘플 {1}개',
