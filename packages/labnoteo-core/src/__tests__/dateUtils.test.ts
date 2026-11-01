@@ -238,6 +238,13 @@ describe('findPairedMetaDate / isEndBeforeStart', () => {
     expect(isEndBeforeStart('', '2026-10-19 08:00')).toBe(false);
     expect(isEndBeforeStart('2026-10-19 08:00', '')).toBe(false);
   });
+
+  // #531: a date-only End_date read as 00:00 came before a start that day.
+  it('compares by day when either value has no time', () => {
+    expect(isEndBeforeStart('2026-10-19 15:00', '2026-10-19')).toBe(false);
+    expect(isEndBeforeStart('2026-10-19 15:00', '2026-10-18')).toBe(true);
+    expect(isEndBeforeStart('2026-10-20', '2026-10-19 23:00')).toBe(true);
+  });
 });
 
 describe('touchLastUpdatedDate', () => {

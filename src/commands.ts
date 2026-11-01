@@ -68,7 +68,12 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
-import { getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
+import {
+  findMetaDateFieldInLine,
+  findPairedMetaDate,
+  getSeoulDateTimeString,
+  isEndBeforeStart,
+} from '@labnoteo/core/lib/dateUtils';
 import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
 import { ensureVaultCatalogs } from './catalogUpdate';
 import {
@@ -884,6 +889,16 @@ export function insertDateCommand(
     changes: [{ from, to: editor.offsetToPos(plan.to), text: plan.text }],
     selection: { from: end },
   });
+  // The 📅 picker says so when the End_date comes before the Start_date; this too (#531).
+  const docLines = editor.getValue().split('\n');
+  const own = findMetaDateFieldInLine(docLines[from.line] ?? '');
+  const other = own ? findPairedMetaDate(docLines, from.line) : undefined;
+  if (own && other) {
+    const [start, finish] = own.field === 'End_date' ? [other.value, own.value] : [own.value, other.value];
+    if (isEndBeforeStart(start, finish)) {
+      host.notify('warn', host.t('End_date {0} is earlier than Start_date {1}.', finish, start));
+    }
+  }
   return true;
 }
 

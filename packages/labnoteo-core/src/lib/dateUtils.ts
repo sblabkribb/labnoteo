@@ -193,11 +193,15 @@ export function findPairedMetaDate(
 /**
  * Whether `end` is earlier than `start`, both Meta date values (#192). False
  * when either is empty or not a date, so an unfinished block raises nothing.
+ * A value without a time compares by day only (#531): an `End_date` of the
+ * day the run started at 15:00 is not earlier than it.
  */
 export function isEndBeforeStart(start: string, end: string): boolean {
   const a = toDateTimeLocalValue(start);
   const b = toDateTimeLocalValue(end);
-  return a !== '' && b !== '' && b < a;
+  if (a === '' || b === '') return false;
+  const hasTime = (v: string) => /\d{1,2}:\d{2}/.test(v);
+  return hasTime(start) && hasTime(end) ? b < a : b.slice(0, 10) < a.slice(0, 10);
 }
 
 /**
