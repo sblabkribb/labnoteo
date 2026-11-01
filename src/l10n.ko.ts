@@ -376,6 +376,8 @@ const obsidianKo: Record<string, string> = {
     '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
   '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.':
     '{0}은(는) 날짜 칸이 아니어서 날짜를 넣지 않았습니다. end_date처럼 빈 날짜 줄이나 본문에서 실행하세요.',
+  '{0} has its value on the lines below, such as a list, so no date was put on its line. Add the date as a new "- " item under it.':
+    '{0}은(는) 아래 줄에 목록 같은 값이 있어 그 줄에 날짜를 넣지 않았습니다. 아래에 "- " 항목을 새로 만들어 날짜를 넣으세요.',
   'This Start_date/End_date already has a value. Use the 📅 picker next to it to change the date.':
     '이 Start_date/End_date에는 이미 값이 있습니다. 날짜를 바꾸려면 옆의 📅 피커를 쓰세요.',
   'This line already has an issue marker. A line can hold only one.':

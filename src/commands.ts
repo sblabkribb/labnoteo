@@ -807,7 +807,12 @@ export function insertDateCommand(
               '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
               plan.key
             )
-          : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
+          : plan.reason === 'listValue'
+            ? host.t(
+                '{0} has its value on the lines below, such as a list, so no date was put on its line. Add the date as a new "- " item under it.',
+                plan.key
+              )
+            : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
     );
     return false;
   }

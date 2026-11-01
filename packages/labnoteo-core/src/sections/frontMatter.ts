@@ -247,6 +247,8 @@ export type DateInsertion =
   | { reason: 'frontMatter' }
   /** On an empty front matter key whose name is not a date's (#444). */
   | { reason: 'notDateKey'; key: string }
+  /** On a date key whose value is the list or block on the lines below it (#526). */
+  | { reason: 'listValue'; key: string }
   /** On a unit op's `Start_date`/`End_date` line that already has a value (#167). */
   | { reason: 'metaDate' };
 
@@ -262,7 +264,8 @@ export function isDateLikeKey(key: string): boolean {
  * top-level date key ({@link isDateLikeKey}) with an empty value (`key:`,
  * `key: ''`, `key: ""`) takes it, written the way the other entries are
  * ({@link serializeFrontMatterEntry}), so an empty `end_date` can be filled;
- * an empty `author` or a `tags:` with its list below is refused (#444).
+ * an empty `author` or a `tags:` with its list below is refused (#444), and
+ * so is a date key whose list or block value is on the lines below (#526).
  * Anywhere else in the front matter —
  * a line with a value, a `---` line, a list item — typing the date would break
  * the YAML, so it is refused. A unit op's `- Start_date:`/`- End_date:` line
@@ -302,5 +305,7 @@ export function planDateInsertion(
   const m = /^([A-Za-z_][\w-]*):[ \t]*(?:''|"")?[ \t]*$/.exec(doc.slice(lineStart, lineEnd));
   if (!m) return { reason: 'frontMatter' };
   if (!isDateLikeKey(m[1])) return { reason: 'notDateKey', key: m[1] };
+  const next = doc.slice(lineEnd).replace(/^\r?\n/, '').split(/\r?\n/, 1)[0];
+  if (/^(?:\s+\S|-(?:\s|$))/.test(next)) return { reason: 'listValue', key: m[1] };
   return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], text) };
 }
