@@ -490,7 +490,11 @@ async function confirmReplaceSummary(plugin: LabnotePlugin, text: string, headin
   if (!findAiCalloutInSection(text, heading, titles)) return true;
   const place = locateSummary(text, heading, titles);
   const where = place.kind === 'callout' ? place.heading || plugin.t('(top of the note)') : heading;
-  return plugin.host.confirm(plugin.t('"{0}" already has an AI summary. Replace it with a new one?', where), {
+  // A note typed inside the callout goes with it (#498).
+  const message = `${plugin.t('"{0}" already has an AI summary. Replace it with a new one?', where)} ${plugin.t(
+    'What you typed inside the callout is replaced too; keep notes you want outside it.'
+  )}`;
+  return plugin.host.confirm(message, {
     confirmLabel: plugin.t('Replace'),
     destructive: true,
   });

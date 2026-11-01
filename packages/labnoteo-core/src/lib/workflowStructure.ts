@@ -15,6 +15,7 @@ import { frontMatterNames, parseFrontMatterYaml, serializeFrontMatterEntry } fro
 import { normalizeHeadingText, stepFence, type OpenFence } from '../sections/sectionEdit';
 import { generateNoteId, NOTE_ID_KEY } from './noteId';
 import { underscoreTurnsItalic } from './sampleUtils';
+import { findSampleReferenceSpans } from './sampleStorage';
 import {
   commandName,
   diagnoseExperimentPath,
@@ -2050,6 +2051,34 @@ export function resetCopiedWorkflowDates(content: string, today: string): string
   }
   const next = lines.join(newline);
   return next === content ? content : next;
+}
+
+/**
+ * The samples referenced or defined in the `#### Output` sections of a
+ * workflow note, outside code blocks, each ID once in order. In a copy (#506)
+ * they are what the original run made, which the copy would claim to make too.
+ */
+export function outputSampleIds(content: string, types: readonly string[]): string[] {
+  const ids: string[] = [];
+  let inOutput = false;
+  let fence: OpenFence | null = null;
+  for (const line of content.split(/\r?\n/)) {
+    const next = stepFence(line, fence);
+    if (next !== fence || fence) {
+      fence = next;
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading) {
+      if (heading[1].length <= 4) inOutput = heading[1].length === 4 && heading[2].toLowerCase() === 'output';
+      continue;
+    }
+    if (!inOutput) continue;
+    for (const span of findSampleReferenceSpans(line, types)) {
+      if (!ids.includes(span.id)) ids.push(span.id);
+    }
+  }
+  return ids;
 }
 
 /**

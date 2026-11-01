@@ -82,4 +82,9 @@ describe('resolveFocusRow', () => {
     expect(resolveFocusRow(rows, '/gone', 'gone')).toEqual({ index: 0, expand: [] });
     expect(resolveFocusRow([], undefined, undefined)).toBeUndefined();
   });
+
+  // #528: a new search forgets the row (resetTreeFocus), and the tab stop starts at the top.
+  it('puts the tab stop on the first row when no row is remembered', () => {
+    expect(resolveFocusRow(tree(false), undefined, undefined)).toEqual({ index: 0, expand: [] });
+  });
 });

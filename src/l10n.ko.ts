@@ -50,6 +50,8 @@ const obsidianKo: Record<string, string> = {
   'Insert date and time': '날짜 및 시간 삽입',
   'Switch to the editing view and put the cursor where the date goes, then run this again.':
     '편집 화면으로 바꿔 날짜를 넣을 곳에 커서를 둔 뒤 다시 실행하세요.',
+  'Switch to the editing view and put the cursor on the line to discuss, then run this again.':
+    '편집 화면으로 바꿔 논의할 줄에 커서를 둔 뒤 다시 실행하세요.',
   'Only years 1900–2100 are written; the date in the note was kept.':
     '1900~2100년만 기록합니다. 노트의 날짜는 그대로 두었습니다.',
   'End_date {0} is earlier than Start_date {1}.': 'End_date({0})가 Start_date({1})보다 이릅니다.',
@@ -110,6 +112,8 @@ const obsidianKo: Record<string, string> = {
   'AI workflow results summary ({0}, {1})': 'AI 워크플로 결과 요약 ({0}, {1})',
   'AI experiment results summary ({0}, {1})': 'AI 실험 결과 요약 ({0}, {1})',
   '"{0}" already has an AI summary. Replace it with a new one?': '"{0}"에 이미 AI 요약이 있습니다. 새 요약으로 바꿀까요?',
+  'What you typed inside the callout is replaced too; keep notes you want outside it.':
+    '콜아웃 안에 직접 적은 내용도 함께 바뀝니다. 남길 메모는 콜아웃 밖에 적으세요.',
   'In an experiment README, run "{0}".': '실험 README에서는 "{0}"을(를) 실행하세요.',
   'Open an experiment README first.': '실험 README를 먼저 여세요.',
   'No results are written in the workflow notes of this experiment yet, so there is nothing to summarize.':
@@ -168,6 +172,9 @@ const obsidianKo: Record<string, string> = {
   'Retry line': '재시도 계보',
   'Retry this experiment': '이 실험 다시 하기',
   'Retry experiment {0}': '{0} 다시 하기',
+  '"{0}" is for a failed or needs-repeat experiment, and {1} is {2}. Change its status first.':
+    "'{0}'은(는) failed·needs-repeat 실험에 씁니다. {1}은(는) {2} 상태입니다. 상태를 먼저 바꾸세요.",
+  'To run it again with other conditions, use "{0}".': "조건을 바꿔 다시 하려면 '{0}'을(를) 쓰세요.",
   '{0} (retry)': '{0} 2차',
   'Type @dna (or another type) in a note, or right-click → "{0}" to register a sample.':
     '노트에서 @dna처럼 입력하거나 우클릭 → "{0}"(으)로 샘플을 등록합니다.',
@@ -273,6 +280,7 @@ const obsidianKo: Record<string, string> = {
   'Remove from checklist': '체크리스트에서 지우기',
   'file not found': '파일 없음',
   'in another folder': '다른 폴더',
+  'moved to {0}': '옮겨 감: {0}',
   'No changes made.': '바꾼 것이 없습니다.',
   'The workflow checklist already matches the folder.': '워크플로 체크리스트가 이미 폴더와 일치합니다.',
   'Workflow checklist updated: {0} added, {1} removed.':
@@ -343,6 +351,7 @@ const obsidianKo: Record<string, string> = {
   'Flagged for discussion. To open it as an issue, run "Setup research automation" first.':
     "논의 표시를 설정했습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
   'Discussion flag cleared.': '논의 표시를 해제했습니다.',
+  'Turn the discussion flag back on with "{0}".': "논의 표시는 '{0}'(으)로 다시 켜세요.",
   "Changed {0}'s README, not this note.": '이 노트가 아니라 {0}의 README를 바꿨습니다.',
   'Issue marker inserted. To open it as an issue, run "Setup research automation" first.':
     "이슈 마커를 넣었습니다. 이슈로 올리려면 먼저 '연구노트 자동화 설정'을 실행하세요.",
@@ -370,6 +379,8 @@ const obsidianKo: Record<string, string> = {
     '이 노트의 마커는 이슈로 열리지 않습니다. 실험 폴더 바로 안의 README와 워크플로 노트(.labnote.md)만 읽습니다. 그 노트에 마커를 넣으세요.',
   'This marker ID appears more than once in this note.': '이 마커 ID는 이 노트에 두 번 이상 있습니다.',
   'This marker ID is already used in {0}.': '이 마커 ID는 이미 {0}에서 쓰고 있습니다.',
+  'This marker has no ID. Insert it again with "{0}".': "마커 ID가 없습니다. '{0}'(으)로 다시 넣으세요.",
+  'This marker has no topic sentence.': '주제 문장이 없습니다.',
   'Marker ID {0} appears twice in this note, so the two questions merge into one issue. Delete one of these markers and insert it again with "Insert issue marker".':
     '마커 ID {0}이(가) 이 노트에 두 번 있어 두 질문이 한 이슈로 합쳐집니다. 그중 하나를 지우고 "논의 이슈 마커 삽입"으로 다시 넣으세요.',
   'Marker ID {0} is also used in {1}, so the two questions merge into one issue. Delete the marker in this note (underlined) and insert it again with "Insert issue marker".':
@@ -663,6 +674,8 @@ const obsidianKo: Record<string, string> = {
   '{0} is also registered in other experiments ({1}); only this one changed.':
     '{0}은(는) 다른 실험의 대장에도 있습니다({1}). 이번 편집은 이 실험의 기록만 바꿨습니다.',
   'Sample deleted: {0}': '샘플이 삭제되었습니다: {0}',
+  'Ctrl+Z only brings back the table rows, not the sample record. To undo, add the sample again.':
+    'Ctrl+Z로는 표의 줄만 돌아오고 샘플 기록은 돌아오지 않습니다. 되돌리려면 샘플을 다시 추가하세요.',
   "Replace the old alias '{1}' with '{2}' in {0} note(s)?\n\n{3}":
     "노트 {0}개에 남은 옛 별칭 '{1}'을(를) '{2}'(으)로 바꿀까요?\n\n{3}",
   "Remove the old alias '{1}' from {0} note(s)?\n\n{2}":
@@ -903,6 +916,8 @@ const obsidianKo: Record<string, string> = {
     '{1}의 체크리스트 링크 {0}개가 원본 노트를 가리켜 자기 노트로 바꿨습니다.',
   "Removed the {0} worksheet scan(s) of the original from the copy {1}; the scan images stay for the original.":
     '복사본 {1}에서 원본의 기록지 스캔 {0}개를 뺐습니다. 스캔 이미지는 원본용으로 남겨 두었습니다.',
+  'The copy {0} still names {1} sample(s) of the original in its Output, such as {2}. Remove those this run does not make.':
+    '복사본 {0}의 Output에 원본의 샘플 {1}개가 남아 있습니다(예: {2}). 이번 실험에서 만들지 않는 샘플은 지우세요.',
   'The discussion flag was turned off; run "{0}" if the copy needs its own discussion.':
     '논의 표시를 껐습니다. 복사본에도 논의가 필요하면 "{0}"을 실행하세요.',
   '"{0}" no longer has README.labnote.md: the experiment list and the workflow checklist will not find this experiment.':
@@ -1042,10 +1057,10 @@ const obsidianKo: Record<string, string> = {
     '이 종이에 기록한 뒤 QR 코드가 보이게 사진을 찍거나 스캔해서 스캔 폴더에 넣으세요.',
   'This note has no unit operations to print. Add one with "{0}" first.':
     '출력할 유닛 오퍼레이션이 없습니다. 먼저 "{0}"(으)로 추가하세요.',
-  'This note has only software unit operations. Worksheets are for steps done at the bench.':
-    '이 노트에는 소프트웨어 유닛 오퍼레이션만 있습니다. 기록지는 실험실에서 하는 단계용입니다.',
   'Each unit operation starts on a new page with a QR code in two corners. Lab unit operations are selected; turn on software ones to print them too.':
     '유닛 오퍼레이션마다 새 페이지에서 시작하고, 두 모서리에 QR 코드가 들어갑니다. 실험실 유닛 오퍼레이션은 선택되어 있고, 소프트웨어 유닛 오퍼레이션도 출력하려면 켜세요.',
+  'Each unit operation starts on a new page with a QR code in two corners. This note has only software unit operations, so all of them are selected.':
+    '유닛 오퍼레이션마다 새 페이지에서 시작하고, 두 모서리에 QR 코드가 들어갑니다. 소프트웨어 유닛 오퍼레이션만 있어 모두 켜 두었습니다.',
   Lab: '실험실',
   'Paper size': '용지 크기',
   'Open in browser': '브라우저에서 열기',

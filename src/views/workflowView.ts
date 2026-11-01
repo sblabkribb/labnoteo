@@ -39,7 +39,7 @@ import {
   statusNames,
 } from '../commands';
 import { experimentMarkerSpots, noteMarkerIds } from '../issueMarkerIndex';
-import { focusTree, renderTree } from './treeRender';
+import { focusTree, renderTree, resetTreeFocus } from './treeRender';
 
 const README = 'README.labnote.md';
 
@@ -155,6 +155,7 @@ export class WorkflowTreeView extends ItemView {
     });
     search.value = this.query;
     this.registerDomEvent(search, 'input', () => {
+      if (search.value !== this.query && this.treeEl) resetTreeFocus(this.treeEl);
       this.query = search.value;
       this.kept.clear();
       if (this.searchTimer !== undefined) window.clearTimeout(this.searchTimer);
@@ -162,6 +163,17 @@ export class WorkflowTreeView extends ItemView {
         this.searchTimer = undefined;
         this.render();
       }, 200);
+    });
+    // ↓ or Enter goes from the search to the results (#528), once Korean input is done.
+    this.registerDomEvent(search, 'keydown', evt => {
+      if (evt.isComposing || (evt.key !== 'ArrowDown' && evt.key !== 'Enter') || !this.treeEl) return;
+      evt.preventDefault();
+      if (this.searchTimer !== undefined) {
+        window.clearTimeout(this.searchTimer);
+        this.searchTimer = undefined;
+        this.render();
+      }
+      focusTree(this.treeEl);
     });
     const groupBy = controls.createEl('select', {
       cls: 'dropdown labnote-workflow-group-by',

@@ -379,6 +379,19 @@ describe('experiments by project', () => {
     expect(t.children![1].children!.map(e => e.label)).toEqual(['052 · CRISPR 1차', '074 · CRISPR 2차']);
   });
 
+  // #516: the search found ALE-2026 and ale-2026 together, the groups did not.
+  it('groups one project whatever its case, named as the earliest experiment writes it', () => {
+    const mixed: ExperimentEntry[] = [
+      { folder: 'labnote/031_B', title: 'B', project: 'ale-2026' },
+      { folder: 'labnote/012_A', title: 'A', project: 'ALE-2026' },
+      { folder: 'labnote/040_C', title: 'C', project: 'Biosensor' },
+    ];
+    const t = buildExperimentTree(mixed, {}, 'project');
+    expect(t.children!.map(g => g.label)).toEqual(['ALE-2026 [2]', 'Biosensor [1]']);
+    expect(t.children![0]).toMatchObject({ id: 'experimentProject:ALE-2026', payload: { project: 'ALE-2026' } });
+    expect(t.children![0].children!.map(e => e.label)).toEqual(['012 · A', '031 · B']);
+  });
+
   it('names the project in the tooltip', () => {
     const t = buildExperimentTree(entries.slice(0, 1), { project: '과제' });
     expect(t.children![0].children![0].tooltip).toBe('CRISPR 2차\nlabnote/074_B\nStatus: in-progress\n과제: CRISPR-다중편집');
@@ -420,6 +433,18 @@ describe('experiments by author', () => {
     const t = buildExperimentTree(entries, { noAuthor: '(담당자 없음)' }, 'author');
     expect(t.children!.map(g => g.label)).toEqual(['김민준 [1]', '이서연 [2]', '(담당자 없음) [1]']);
     expect(t.children![1]).toMatchObject({ id: 'experimentAuthor:이서연', kind: 'experimentAuthor', payload: { author: '이서연' } });
+  });
+
+  // #516
+  it('groups one author whatever the case, listing them once in the tooltip', () => {
+    const mixed: ExperimentEntry[] = [
+      { folder: 'labnote/020_B', title: 'B', authors: ['kim'] },
+      { folder: 'labnote/010_A', title: 'A', authors: ['Kim', 'KIM'] },
+    ];
+    const t = buildExperimentTree(mixed, {}, 'author');
+    expect(t.children!.map(g => g.label)).toEqual(['Kim [2]']);
+    expect(buildExperimentTree(mixed.slice(1), {}).children![0].children![0].tooltip).toContain('Author: Kim');
+    expect(buildExperimentTree(mixed.slice(1), {}).children![0].children![0].tooltip).not.toContain('KIM');
   });
 
   // #395: "이서연, 박하늘" made a group of its own.

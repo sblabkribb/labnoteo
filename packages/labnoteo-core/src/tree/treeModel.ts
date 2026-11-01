@@ -216,20 +216,29 @@ export function buildExperimentTree(
     icon: 'beaker',
   };
   if (groupBy === 'project' || groupBy === 'author') {
+    const namesOf = (e: ExperimentEntry) => (groupBy === 'project' ? [e.project?.trim() ?? ''] : authorsOf(e));
+    // One group whatever the case, as the search matches (#516).
     const byKey = new Map<string, ExperimentEntry[]>();
     for (const e of experiments) {
       // An experiment of several people is in each one's group (#395).
-      const keys = groupBy === 'project' ? [e.project?.trim() ?? ''] : authorsOf(e);
+      const keys = namesOf(e).map(n => n.toLowerCase());
       for (const key of keys.length > 0 ? keys : ['']) byKey.set(key, [...(byKey.get(key) ?? []), e]);
     }
-    const keys = [...byKey.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    // Named as the earliest experiment writes it, so a group of one spelling keeps its id.
+    const spelling = new Map(
+      [...byKey].map(([k, members]) => [k, namesOf(sortByFolder(members)[0]).find(n => n.toLowerCase() === k) ?? k])
+    );
+    const keys = [...byKey.keys()]
+      .filter(Boolean)
+      .map(k => spelling.get(k)!)
+      .sort((a, b) => a.localeCompare(b));
     if (byKey.has('')) keys.push('');
     const none = groupBy === 'project' ? (labels.noProject ?? '(no project)') : (labels.noAuthor ?? '(no author)');
     const kind = groupBy === 'project' ? ('experimentProject' as const) : ('experimentAuthor' as const);
     return {
       ...root,
       children: keys.map(key => {
-        const members = sortByFolder(byKey.get(key)!);
+        const members = sortByFolder(byKey.get(key.toLowerCase())!);
         return {
           id: `${kind}:${key}`,
           label: `${key || none} [${members.length}]`,
@@ -314,7 +323,10 @@ export function buildExperimentTree(
 
 /** An experiment's authors, trimmed, blank ones left out and each once. */
 function authorsOf(e: ExperimentEntry): string[] {
-  return [...new Set((e.authors ?? []).map(a => a.trim()).filter(Boolean))];
+  const seen = new Set<string>();
+  return (e.authors ?? [])
+    .map(a => a.trim())
+    .filter(a => a && !seen.has(a.toLowerCase()) && seen.add(a.toLowerCase()));
 }
 
 function sortByFolder(entries: ExperimentEntry[]): ExperimentEntry[] {

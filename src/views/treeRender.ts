@@ -81,6 +81,17 @@ export function focusTree(container: HTMLElement): void {
   if (state) restoreTabStop(state, true);
 }
 
+/**
+ * Forget the row that had the tab stop, so the next render puts it on the first
+ * row (#528): after a new search the row kept from before sits among other results.
+ */
+export function resetTreeFocus(container: HTMLElement): void {
+  const state = states.get(container);
+  if (!state) return;
+  state.focusedKey = undefined;
+  state.focusedId = undefined;
+}
+
 /** Put the tab stop back on the row that had it, wherever it moved (#227). */
 function restoreTabStop(state: TreeState, focus: boolean): void {
   const shown = new Set(visibleEntries(state));

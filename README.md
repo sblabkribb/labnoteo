@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.135.0**
+**버전 0.136.0**
 
 [English](README.en.md)
 
@@ -54,6 +54,7 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 | 날짜 및 시간 삽입 (`Insert date and time`) | 커서 위치에 현재 타임스탬프를 넣습니다 |
 | 실험 생성 (`Create experiment`) | 새 `.labnote.md` 실험 노트와 번호가 붙은 실험 폴더를 만듭니다 |
 | 실험 상태 변경 (`Change experiment status`) | 실험의 `status` frontmatter를 피커로 바꿉니다(워크플로 뷰의 실험 우클릭에도 있음) |
+| 이 실험 다시 하기 (`Retry this experiment`) | `failed`·`needs-repeat` 실험과 이어진 재시도 실험을 만듭니다(워크플로 뷰의 실험 우클릭에도 있음) |
 | 논의 표시 전환 (`Toggle discussion flag`) | 실험의 `discuss` 표시를 켜고 끕니다 — 다음 push 때 GitHub Issue 생성 |
 | 논의 이슈 마커 삽입 (`Insert issue marker`) | 커서 위치에 `@issue;<ID>;<주제문장>` 마커를 넣습니다 — 마커마다 별도 Issue |
 | 워크플로 생성 (`Create workflow`) | 카탈로그에서 골라 번호가 매겨진 워크플로 노트를 만들고 체크리스트에 등록합니다 |

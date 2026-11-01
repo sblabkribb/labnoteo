@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.135.0**
+**Version 0.136.0**
 
 [한국어](README.md)
 
@@ -55,6 +55,7 @@ Under a Korean UI the command palette shows each name as `Korean (English)` (e.g
 | Insert date and time | Insert the current timestamp at the cursor |
 | Create experiment | Create a new `.labnote.md` experiment note and its numbered experiment folder |
 | Change experiment status | Change an experiment's `status` frontmatter through a picker (also on the workflow view's right-click menu) |
+| Retry this experiment | Create a retry experiment linked to a `failed` or `needs-repeat` one (also on the workflow view's right-click menu) |
 | Toggle discussion flag | Turn an experiment's `discuss` flag on or off, so the next push opens a GitHub Issue |
 | Insert issue marker | Drop an `@issue;<ID>;<topic>` marker at the cursor — each marker opens its own Issue |
 | Create workflow | Create a numbered workflow note from the catalog and list it in the checklist |

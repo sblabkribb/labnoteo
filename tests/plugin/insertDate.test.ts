@@ -101,6 +101,26 @@ describe('insertDateCommand', () => {
       'author is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
     ]);
   });
+
+  // #531: only the 📅 picker warned of an End_date before the Start_date.
+  it('warns when the End_date it fills is before the Start_date, a date-only one by day', () => {
+    const run = (start: string, text: string) => {
+      const notices: string[] = [];
+      const warnHost = {
+        notify: (_level: string, message: string) => notices.push(message),
+        t: (s: string, ...args: string[]) => args.reduce((acc, a, i) => acc.replace(`{${i}}`, a), s),
+      } as unknown as LabnoteHost;
+      const doc = `### [UHW010 PCR]\n#### Meta\n- Start_date: '${start}'\n- End_date: \n#### Method\n`;
+      const e = fakeEditor(doc, doc.indexOf('- End_date: ') + 12);
+      expect(insertDateCommand(e.editor, warnHost, text)).toBe(true);
+      return notices;
+    };
+    expect(run('2026-11-01 15:00', '2026-10-31 18:00')).toEqual([
+      'End_date 2026-10-31 18:00 is earlier than Start_date 2026-11-01 15:00.',
+    ]);
+    expect(run('2026-11-01 15:00', '2026-11-01')).toEqual([]);
+    expect(run('2026-11-01 15:00', '2026-11-01 16:00')).toEqual([]);
+  });
 });
 
 // #405: with a property focused, the date went to the body's last cursor line.

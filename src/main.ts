@@ -51,6 +51,7 @@ import {
   planWorkflowRetitle,
   relinkCopiedExperimentChecklist,
   resetCopiedWorkflowDates,
+  outputSampleIds,
   rewriteWorkflowTitle,
   suggestCopiedWorkflowFileName,
   suggestLinkableFileName,
@@ -74,6 +75,7 @@ import { createObsidianHost } from './obsidianHost';
 import {
   createExperimentCommand,
   changeExperimentStatusCommand,
+  retryExperimentFromPalette,
   insertIssueMarkerCommand,
   insertDateCommand,
   focusOnNoteHeader,
@@ -435,6 +437,40 @@ export default class LabnotePlugin extends Plugin {
     return true;
   }
 
+  /**
+   * The issue marker command, listed in reading view too (#532): missing from
+   * the palette there, it read as a command that does not exist.
+   */
+  private insertIssueMarkerFromPalette(checking: boolean): boolean {
+    const reading = this.app.workspace.getActiveViewOfType(MarkdownView)?.getMode() === 'preview';
+    const active = this.app.workspace.activeEditor;
+    const editor = active?.editor;
+    if (!reading && !editor) return false;
+    if (checking) return true;
+    if (reading || !editor) {
+      this.host.notify('info', this.t('Switch to the editing view and put the cursor on the line to discuss, then run this again.'));
+      return true;
+    }
+    const path = active?.file?.path ?? '';
+    this.run(async () => {
+      const inserted = await insertIssueMarkerCommand(editor, this.host, path);
+      if (!inserted || this.issueAutomationHintShown) return;
+      const state = await issueAutomationState(this.host);
+      if (state === 'ready') return;
+      this.issueAutomationHintShown = true;
+      this.host.notify(
+        'info',
+        state === 'no-git'
+          ? this.t(
+              'Issue marker inserted. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.',
+              SETUP_DOC_PATH
+            )
+          : this.t('Issue marker inserted. To open it as an issue, run "Setup research automation" first.')
+      );
+    });
+    return true;
+  }
+
   /** What had focus before the command palette or another dialog took it (#405). */
   private lastFocus: Element | null = null;
 
@@ -481,25 +517,15 @@ export default class LabnotePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'retry-experiment',
+      name: this.paletteName('Retry this experiment'),
+      callback: () => this.run(() => retryExperimentFromPalette(this.app, this.host)),
+    });
+
+    this.addCommand({
       id: 'insert-issue-marker',
       name: this.paletteName('Insert issue marker'),
-      editorCallback: (editor, ctx) =>
-        this.run(async () => {
-          const inserted = await insertIssueMarkerCommand(editor, this.host, ctx.file?.path ?? '');
-          if (!inserted || this.issueAutomationHintShown) return;
-          const state = await issueAutomationState(this.host);
-          if (state === 'ready') return;
-          this.issueAutomationHintShown = true;
-          this.host.notify(
-            'info',
-            state === 'no-git'
-              ? this.t(
-                  'Issue marker inserted. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.',
-                  SETUP_DOC_PATH
-                )
-              : this.t('Issue marker inserted. To open it as an issue, run "Setup research automation" first.')
-          );
-        }),
+      checkCallback: checking => this.insertIssueMarkerFromPalette(checking),
     });
 
     this.addCommand({
@@ -2137,17 +2163,21 @@ export default class LabnotePlugin extends Plugin {
   /**
    * Date a copy that is becoming a workflow of its own from today, with its
    * end and unit-op dates emptied (#160), and drop the original's filed
-   * worksheet scans (#350), and say so.
+   * worksheet scans (#350), and say so. The Output samples it still names are
+   * only pointed out (#506): whether this run makes them is the user's call.
    */
   private async resetCopyDates(file: TFile): Promise<void> {
     const today = getSeoulDateString();
+    const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
     let changed = false;
     let scans = 0;
+    let outputIds: string[] = [];
     await this.app.vault.process(file, data => {
       const dated = resetCopiedWorkflowDates(data, today);
       changed = dated !== data;
       const stripped = removeAllScanEntries(dated);
       scans = stripped.count;
+      if (this.sampleTrackingFor(file.path)) outputIds = outputSampleIds(stripped.md, types);
       return stripped.md;
     });
     if (changed) {
@@ -2166,6 +2196,17 @@ export default class LabnotePlugin extends Plugin {
           'Removed the {0} worksheet scan(s) of the original from the copy {1}; the scan images stay for the original.',
           String(scans),
           file.name
+        )
+      );
+    }
+    if (outputIds.length > 0) {
+      this.host.notify(
+        'warn',
+        this.t(
+          'The copy {0} still names {1} sample(s) of the original in its Output, such as {2}. Remove those this run does not make.',
+          file.name,
+          String(outputIds.length),
+          outputIds[0]
         )
       );
     }
@@ -2848,6 +2889,10 @@ export default class LabnotePlugin extends Plugin {
     const missingTitle = this.t('Not in the sample registry');
     const staleAliasTitle = (alias: string): string => this.t('The registry calls this sample {0}', alias);
     const discardedTitle = (date: string): string => this.t('Marked discarded on {0}', date);
+    const malformedTitle = (reason: 'missing-id' | 'missing-title'): string =>
+      reason === 'missing-id'
+        ? this.t('This marker has no ID. Insert it again with "{0}".', this.t('Insert issue marker'))
+        : this.t('This marker has no topic sentence.');
     const getState = (path: string | undefined): HighlightState => {
       const tracked = this.sampleTrackingFor(path);
       const base: HighlightState = tracked
@@ -2868,8 +2913,8 @@ export default class LabnotePlugin extends Plugin {
         : base;
       const others = markers.othersFor(path);
       const withMarkers = others
-        ? { ...samples, otherMarkerIds: others.ids, markerVersion: others.version, duplicateTitle }
-        : samples;
+        ? { ...samples, otherMarkerIds: others.ids, markerVersion: others.version, duplicateTitle, malformedTitle }
+        : { ...samples, malformedTitle };
       return path !== undefined && !markerExperimentDir(path) ? { ...withMarkers, markersUnread: true } : withMarkers;
     };
     this.registerIssueMarkerIndex(markers);

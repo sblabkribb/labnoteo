@@ -412,6 +412,18 @@ export interface CreatedSample {
 }
 
 /**
+ * The alias as the samples that have it are registered (#507): matched apart
+ * from case and spaces, the typed one read as a different alias.
+ */
+export function storedAlias(
+  records: Readonly<Record<string, SampleRecord | undefined>>,
+  ids: readonly string[],
+  typed: string
+): string {
+  return ids.map(id => records[id]?.alias?.trim()).find(Boolean) ?? typed;
+}
+
+/**
  * Before a new `type` sample with `alias` is written to `folder`: when the
  * folder already has samples with that alias, ask whether to use one of them.
  * A twin in the same folder is worse than a Global one (#125): autocomplete
@@ -429,11 +441,12 @@ export async function pickAliasSibling(
   plugin: LabnotePlugin,
   folder: string,
   type: string,
-  alias: string
+  typed: string
 ): Promise<{ id: string; record: SampleRecord | undefined } | null | undefined> {
-  const siblings = await samplesWithAliasIn(plugin.fs, folder, type, alias);
+  const siblings = await samplesWithAliasIn(plugin.fs, folder, type, typed);
   if (siblings.length === 0) return null;
   const records = await loadSamplesByType(plugin.fs, folder, type);
+  const alias = storedAlias(records, siblings, typed);
   const inGlobal = isSameSampleFolder(folder, plugin.settings.globalSampleFolder);
   const labels = siblings.map(s => aliasSiblingLabel(plugin, s, records[s]));
   // Discarded ones go below "Create a new sample anyway", so Enter on the
@@ -701,11 +714,12 @@ async function confirmAliasClash(
   const inGlobal = isSameSampleFolder(folder, plugin.settings.globalSampleFolder);
   const records = await loadSamplesByType(plugin.fs, folder, type);
   const labels = siblings.map(s => aliasSiblingLabel(plugin, s, records[s]));
+  const shown = storedAlias(records, siblings, alias);
   const taken =
     siblings.length === 1
       ? plugin.t(
           inGlobal ? 'Global samples already have the alias {0} ({1}).' : 'This experiment already has the alias {0} ({1}).',
-          alias,
+          shown,
           labels[0]
         )
       : plugin.t(
@@ -713,7 +727,7 @@ async function confirmAliasClash(
             ? '{0} Global samples already have the alias {1} ({2}).'
             : '{0} samples in this experiment already have the alias {1} ({2}).',
           String(siblings.length),
-          alias,
+          shown,
           labels.join(', ')
         );
   return confirmModal(app, `${taken} ${plugin.t('Save {0} anyway?', id)}`, plugin.t('Save anyway'));
@@ -1448,7 +1462,10 @@ ${plugin.t('To keep it for those notes but show it as used up, mark it discarded
   if (listedIn.length > 0) await removeSampleListRows(app, plugin, { folder, type, id });
   await deleteSampleRecord(plugin.fs, folder, type, id);
   plugin.refreshSampleViews();
-  new Notice(plugin.t('Sample deleted: {0}', buildSampleReferenceText(id, record?.alias)));
+  const deleted = plugin.t('Sample deleted: {0}', buildSampleReferenceText(id, record?.alias));
+  // Ctrl+Z brings the rows back but not the record, leaving an ID the registry lacks (#503).
+  const undo = plugin.t('Ctrl+Z only brings back the table rows, not the sample record. To undo, add the sample again.');
+  new Notice(listedIn.length > 0 ? `${deleted} ${undo}` : deleted, listedIn.length > 0 ? 10000 : undefined);
   return true;
 }
 
@@ -1705,7 +1722,7 @@ export async function moveSampleInteractive(
       app,
       `${plugin.t(
         toGlobal ? 'Global samples already have the alias {0} ({1}).' : 'This experiment already has the alias {0} ({1}).',
-        record.alias!,
+        storedAlias(tgtDb, twins, record.alias!),
         twins.join(', ')
       )} ${plugin.t('Move {0} there anyway?', id)}`,
       plugin.t('Move anyway')

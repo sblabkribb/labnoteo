@@ -131,6 +131,22 @@ describe('syncWorkflowChecklistCommand', () => {
     expect(h.calls.at(-1)).toBe('notify Workflow checklist updated: 1 added, 1 removed.');
   });
 
+  // #494: a note moved to another experiment read as "file not found".
+  it('says where a note it cannot find here was moved to', async () => {
+    const md0 = readme(['- [ ] [WT080](./011_WT080_X.labnote.md)', '- [ ] [Gone](./012_WD040_Gone.labnote.md)']);
+    const h = harness({ [README]: md0, 'labnote/009_Other/011_WT080_X.labnote.md': 'x' }, false);
+    const app = h.app as unknown as { metadataCache: unknown };
+    app.metadataCache = {
+      getFirstLinkpathDest: (link: string) =>
+        Object.keys(h.fs.snapshot())
+          .filter(p => p.endsWith(`/${link}`))
+          .map(p => new TFile(p))[0] ?? null,
+    };
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+    expect(h.prompts[0]).toContain('- 011_WT080_X.labnote.md (moved to labnote/009_Other)');
+    expect(h.prompts[0]).toContain('- 012_WD040_Gone.labnote.md (file not found)');
+  });
+
   it('shortens a vault-absolute link to this folder, keeping its checkbox and label (#102)', async () => {
     const h = harness(
       {

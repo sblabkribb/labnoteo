@@ -581,8 +581,9 @@ describe('editSampleInteractive alias rewrite', () => {
 
     expect(await edit(FOLDER, 'SIKIF ')).toBe(false);
 
+    // #507: named as RNA-2 has it.
     expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
-      'This experiment already has the alias SIKIF (RNA-2). Save RNA-1 anyway?'
+      'This experiment already has the alias siKIF (RNA-2). Save RNA-1 anyway?'
     );
     expect(JSON.parse(await fs.read(`${FOLDER}/RNA.json`))['RNA-1'].alias).toBe('si KIF');
   });
@@ -649,7 +650,10 @@ describe('editSampleInteractive alias rewrite', () => {
     expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain('RNA-1 is only listed in the sample list tables');
     // #391: what is deleted, beyond its ID.
     expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain('Alias: si KIF\nDescription: kd\nScope: Local');
-    expect(Notice.shown.at(-1)).toBe('Sample deleted: RNA-1;si KIF');
+    // #503: Ctrl+Z restored only the rows.
+    expect(Notice.shown.at(-1)).toBe(
+      'Sample deleted: RNA-1;si KIF Ctrl+Z only brings back the table rows, not the sample record. To undo, add the sample again.'
+    );
     expect(JSON.parse(await fs.read(`${FOLDER}/RNA.json`))).not.toHaveProperty('RNA-1');
     expect(await fs.read(`${A}/README.labnote.md`)).not.toContain('RNA-1');
     expect(await fs.read(`${A}/README.labnote.md`)).toContain('| RNA-2 | other |');

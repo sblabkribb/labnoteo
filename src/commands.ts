@@ -68,7 +68,12 @@ import {
   setRetryOf,
 } from '@labnoteo/core/lib/labnoteStructure';
 import { fullPathLength, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
-import { getSeoulDateTimeString } from '@labnoteo/core/lib/dateUtils';
+import {
+  findMetaDateFieldInLine,
+  findPairedMetaDate,
+  getSeoulDateTimeString,
+  isEndBeforeStart,
+} from '@labnoteo/core/lib/dateUtils';
 import { loadWorkflows, loadUnitOperations } from '@labnoteo/core/lib/workflowDataLoader';
 import { ensureVaultCatalogs } from './catalogUpdate';
 import {
@@ -540,6 +545,36 @@ export async function retryExperimentCommand(app: App, host: LabnoteHost, folder
 }
 
 /**
+ * The palette entry of {@link retryExperimentCommand} (#490), for the open
+ * note's experiment. Listed for every note: a command that shows only for some
+ * statuses reads as missing, so the others are told why it does not run.
+ */
+export async function retryExperimentFromPalette(app: App, host: LabnoteHost): Promise<void> {
+  const folder = await resolveLabnoteDir(app, host);
+  if (!folder) return;
+  const readmePath = posix.join(folder, README);
+  if (!(await host.fs.exists(readmePath))) {
+    host.notify('warn', host.t('This experiment has no README.labnote.md.'));
+    return;
+  }
+  const { frontMatter } = parseFrontMatterYaml((await host.fs.read(readmePath)).replace(/\r\n/g, '\n'));
+  const status = typeof frontMatter.status === 'string' ? frontMatter.status.trim() : '';
+  if (status !== 'failed' && status !== 'needs-repeat') {
+    host.notify(
+      'info',
+      host.t(
+        '"{0}" is for a failed or needs-repeat experiment, and {1} is {2}. Change its status first.',
+        host.t('Retry this experiment'),
+        posix.basename(folder),
+        status || host.t('(none)')
+      )
+    );
+    return;
+  }
+  await retryExperimentCommand(app, host, folder);
+}
+
+/**
  * What each status means, shown under its name in the picker, and the words
  * its search also matches (#249). The stored value stays the English term;
  * only the explanation and the search words are translated, so a Korean user
@@ -659,7 +694,23 @@ export async function changeExperimentStatusCommand(
 
   await writeNoteThroughVault(app, host, readmePath, stamp(updated));
   let message = host.t('Experiment status changed ({0}): {1} → {2}.', folderName, current ?? host.t('(none)'), chosen);
-  if (cleared) message += ` ${host.t('Discussion flag cleared.')}`;
+  if (cleared) {
+    message += ` ${host.t('Discussion flag cleared.')}`;
+    // Markers keep it under "Something to discuss", as the toggle says (#379, #514).
+    const spots = await experimentMarkerSpots(host.fs, labnoteDir);
+    if (spots.length > 0) {
+      message += ` ${host.t(
+        '{0} @issue marker(s) remain, so the experiment stays under "{1}": {2}.',
+        String(spots.length),
+        host.t('Something to discuss'),
+        formatMarkerSpots(spots, host.t)
+      )}`;
+    }
+  }
+  // The retry is otherwise only on the workflow view's right-click menu (#490).
+  if (chosen === 'failed' || chosen === 'needs-repeat') {
+    message += ` ${host.t('To run it again with other conditions, use "{0}".', host.t('Retry this experiment'))}`;
+  }
   // Ctrl+Z only reaches the README when it is the open note (#126).
   const active = app.workspace.getActiveFile()?.path;
   if (active !== readmePath) {
@@ -676,6 +727,8 @@ export async function changeExperimentStatusCommand(
           ? host.t('To undo, right-click this experiment in the workflow view again and pick {0}.', current)
           : host.t('To undo, run "{0}" again and pick {1}.', host.t('Change experiment status'), current)
       }`;
+      // Picking the old status back leaves the flag off (#514).
+      if (cleared) message += ` ${host.t('Turn the discussion flag back on with "{0}".', host.t('Toggle discussion flag'))}`;
     }
   }
   // `needs-review` only opens a review issue through the automation (#79).
@@ -836,6 +889,16 @@ export function insertDateCommand(
     changes: [{ from, to: editor.offsetToPos(plan.to), text: plan.text }],
     selection: { from: end },
   });
+  // The 📅 picker says so when the End_date comes before the Start_date; this too (#531).
+  const docLines = editor.getValue().split('\n');
+  const own = findMetaDateFieldInLine(docLines[from.line] ?? '');
+  const other = own ? findPairedMetaDate(docLines, from.line) : undefined;
+  if (own && other) {
+    const [start, finish] = own.field === 'End_date' ? [other.value, own.value] : [own.value, other.value];
+    if (isEndBeforeStart(start, finish)) {
+      host.notify('warn', host.t('End_date {0} is earlier than Start_date {1}.', finish, start));
+    }
+  }
   return true;
 }
 
@@ -2035,9 +2098,23 @@ export async function syncWorkflowChecklistCommand(
   let remove: string[] = [];
   const removable = plan.stale.filter(s => s.reason !== 'subfolder');
   if (removable.length > 0) {
-    const list = removable
-      .map(s => `- ${s.link} (${host.t(s.reason === 'missing' ? 'file not found' : 'in another folder')})`)
-      .join('\n');
+    // A note moved to another experiment is not lost, though its link no longer finds it (#494).
+    const movedTo = (link: string): string | undefined => {
+      let name = link;
+      try {
+        name = decodeURI(link);
+      } catch {
+        // kept as written
+      }
+      const file = app.metadataCache?.getFirstLinkpathDest(posix.basename(name), readmePath);
+      return file && !file.path.startsWith(`${labnoteDir}/`) ? posix.dirname(file.path) : undefined;
+    };
+    const why = (s: (typeof removable)[number]): string => {
+      if (s.reason !== 'missing') return host.t('in another folder');
+      const dir = movedTo(s.link);
+      return dir ? host.t('moved to {0}', dir) : host.t('file not found');
+    };
+    const list = removable.map(s => `- ${s.link} (${why(s)})`).join('\n');
     // The files missing from the checklist are added whatever the answer (#459).
     const addNote =
       plan.added.length > 0

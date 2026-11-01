@@ -223,16 +223,21 @@ export interface WorksheetDeps {
   ensureNoteId: (file: TFile) => Promise<string | undefined>;
 }
 
+/**
+ * The unit operations to print selected at first: the lab ones, or every one
+ * of a note with only software ones (#508), whose run log is worth printing too.
+ */
+export function initialWorksheetSelection(unitOps: readonly WorksheetUnitOp[]): number[] {
+  const lab = unitOps.filter(op => op.kind === 'hw');
+  return (lab.length > 0 ? lab : unitOps).map(op => op.index);
+}
+
 /** Pick the unit operations to print (lab ones preselected), then print or open in a browser. */
 export async function printWorksheetCommand(deps: WorksheetDeps, file: TFile): Promise<void> {
   const { app, host, t } = deps;
   const unitOps = listWorksheetUnitOps(await app.vault.read(file));
   if (unitOps.length === 0) {
     host.notify('info', t('This note has no unit operations to print. Add one with "{0}" first.', t('Insert unit operation')));
-    return;
-  }
-  if (!unitOps.some(op => op.kind === 'hw')) {
-    host.notify('info', t('This note has only software unit operations. Worksheets are for steps done at the bench.'));
     return;
   }
   const choice = await new WorksheetModal(app, t, unitOps, deps.paper()).choose();
@@ -279,7 +284,7 @@ class WorksheetModal extends Modal {
   ) {
     super(app);
     this.paper = paper;
-    this.selected = new Set(unitOps.filter(op => op.kind === 'hw').map(op => op.index));
+    this.selected = new Set(initialWorksheetSelection(unitOps));
   }
 
   choose(): Promise<WorksheetChoice | null> {
@@ -294,7 +299,9 @@ class WorksheetModal extends Modal {
     this.modalEl.addClass('labnote-worksheet-modal');
     this.setTitle(t('Print experiment worksheet'));
     contentEl.createEl('p', {
-      text: t('Each unit operation starts on a new page with a QR code in two corners. Lab unit operations are selected; turn on software ones to print them too.'),
+      text: this.unitOps.some(op => op.kind === 'hw')
+        ? t('Each unit operation starts on a new page with a QR code in two corners. Lab unit operations are selected; turn on software ones to print them too.')
+        : t('Each unit operation starts on a new page with a QR code in two corners. This note has only software unit operations, so all of them are selected.'),
     });
     for (const op of this.unitOps) {
       const kind = op.kind === 'hw' ? t('Lab') : t('Software');

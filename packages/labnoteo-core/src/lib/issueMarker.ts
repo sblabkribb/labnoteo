@@ -337,6 +337,31 @@ export function findIssueMarkerRanges(text: string, hidden?: (at: number) => boo
   return ranges;
 }
 
+/**
+ * Character ranges of the markers in `text` that `validate` fails (#519), the
+ * ones {@link findIssueMarkerRanges} leaves out, with the reason
+ * {@link parseIssueMarkers} gives. An unstyled marker read as plain text, not
+ * as one that blocks the push. Code is the caller's to drop, as there.
+ */
+export function findMalformedIssueMarkerRanges(
+  text: string,
+  hidden?: (at: number) => boolean
+): Array<IssueMarkerRange & { reason: MalformedIssueMarker['reason'] }> {
+  const ranges: Array<IssueMarkerRange & { reason: MalformedIssueMarker['reason'] }> = [];
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    const lineStart = offset;
+    const at = markerStart(line, hidden && (a => hidden(lineStart + a)));
+    if (at !== -1) {
+      const m = line.slice(at).match(MARKER_RE);
+      const reason = !m ? 'missing-id' : (m[2] ?? '').trim() ? undefined : 'missing-title';
+      if (reason) ranges.push({ start: offset + at, end: offset + line.length, reason });
+    }
+    offset += line.length + 1;
+  }
+  return ranges;
+}
+
 /** A piece of a rendered line: a text node, or an inline element such as a link or bold. */
 export interface InlineRun {
   text: string;

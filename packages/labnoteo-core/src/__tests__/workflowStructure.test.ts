@@ -57,6 +57,7 @@ import {
   workflowIdMismatch,
   planWorkflowExperimenterSync,
   resetCopiedWorkflowDates,
+  outputSampleIds,
   unnamedWorkflowIds,
   lacksWorkflowId,
 } from '../lib/workflowStructure';
@@ -162,6 +163,36 @@ describe('resetCopiedWorkflowDates', () => {
   it('leaves a note without those dates as it is', () => {
     const src = '---\ntitle: X\n---\n\n- End_date: \'\'\n';
     expect(resetCopiedWorkflowDates(src, '2026-10-19')).toBe(src);
+  });
+});
+
+// #506: a copy's Output still names what the original run made.
+describe('outputSampleIds', () => {
+  const note = [
+    '### [UHW010 PCR]',
+    '#### Input',
+    '- DNA-1001;template',
+    '#### Output',
+    '- @DNA;DNA-1002;GFP 증폭산물;PCR 산물',
+    '- DNA-1003;second, DNA-1002;again',
+    '```',
+    '- DNA-1009;in code',
+    '```',
+    '##### Gel',
+    '- RNA-5;under a sub-heading',
+    '#### Results',
+    '- DNA-1004;not output',
+    '### [UHW020 Gel]',
+    '#### Output',
+    '- (samples to the next step)',
+  ].join('\n');
+
+  it('lists the definitions and references under Output, each once', () => {
+    expect(outputSampleIds(note, ['DNA', 'RNA'])).toEqual(['DNA-1002', 'DNA-1003', 'RNA-5']);
+  });
+
+  it('is empty without Output samples', () => {
+    expect(outputSampleIds('#### Output\n- (samples to the next step)\n', ['DNA'])).toEqual([]);
   });
 });
 

@@ -23,7 +23,10 @@ empty line that is not a date's such as `author:`, it inserts nothing and warns.
 continues on the lines below, such as a `review_dates:` list (`- …`) or a `|` block, is left alone
 too, and the notice says to add the date as a new `- ` item under it. On an empty
 `Start_date`/`End_date` line of a unit operation's `#### Meta` it fills that value (with a value
-already there, it points to the 📅 picker). Right after a sample reference with an alias
+already there, it points to the 📅 picker). An `End_date` it fills that is earlier than the
+block's `Start_date` gets the same notice as the 📅 picker (the value is still written); with no
+time on either side only the days are compared, so a date-only end on the day a 15:00 run started
+raises nothing. Right after a sample reference with an alias
 (`DNA-…;T7-frag1`), a space goes in first, so the date is not read as part of the alias.
 
 While a table cell is being edited, the date goes in at the cursor in that cell. In reading view
@@ -94,15 +97,23 @@ Update the active experiment's `status` frontmatter via a picker.
   can still drop comments when you edit there. When the README front matter cannot be read, it is
   left unchanged and the notice names the file.
 - With the discussion flag on, picking `completed` offers to clear the flag or keep it, and lists
-  where `@issue` markers remain (`note:line`).
+  where `@issue` markers remain (`note:line`). Clearing it, the notice names those markers too, as
+  they keep the experiment under "Something to discuss"; run from a workflow note, its undo hint
+  adds that `Toggle discussion flag` turns the flag back on.
+- Picking `failed` or `needs-repeat` adds a pointer to `Retry this experiment`.
 
 ### Retry this experiment
 
-On the right-click menu of a `failed` or `needs-repeat` experiment in the workflow view: create the
-next experiment to run it again. The title starts from the original's (`… 1차` becomes `… 2차`;
-otherwise ` (retry)` is added, ` 2차` in the Korean UI; a run that already has a folder is skipped)
-and can be edited; the new experiment is `planned` and keeps the original's `author` and `project`
-as written there (a `[[name]]` link stays a link).
+On the right-click menu of a `failed` or `needs-repeat` experiment in the workflow view, or from the
+command palette for the open note's experiment: create the next experiment to run it again. From
+the palette, an experiment with another status gets a notice to change its status first. The title
+starts from the original's (`… 1차` becomes `… 2차`; otherwise ` (retry)` is added, ` 2차` in the
+Korean UI; a run that already has a folder is skipped) and can be edited; the new experiment is
+`planned` and keeps the original's `author` and `project` as written there (a `[[name]]` link
+stays a link).
+
+- Only a run number at the end of the title counts. One in the middle (`1차 항체 교체`) is left as
+  it is, so edit it in the title box if needed.
 
 - The run counts every experiment linked by `retry_of`, retries given another title included: with
   `… 1차` and two renamed retries it offers `… 4차` (in English, `(retry)` is the second run and
@@ -136,7 +147,8 @@ Turn the active experiment's `discuss` flag on or off, so the next push opens a 
 ### Insert issue marker
 
 Drop an `@issue;<ID>;<topic>` marker at the cursor (the selection becomes the topic); each marker
-opens its own Issue (requires Setup research automation).
+opens its own Issue (requires Setup research automation). In reading view the command is still
+listed and says to switch to the editing view and put the cursor on the line first.
 
 - Only the README and workflow notes (`.labnote.md`) directly in an experiment folder are read for
   markers. In any other note (a plain `.md` in the experiment folder, a note in a subfolder or
@@ -162,6 +174,9 @@ opens its own Issue (requires Setup research automation).
 - On a heading it goes on the line below. Inside a table, the front matter, a code block
   (including code indented four spaces after a blank line) or a comment (`<!-- -->`, `%% %%`) it is
   not inserted.
+- A marker missing its ID or topic (`@issue;;…`, `@issue;ISS-…;`) opens no Issue and fails
+  `validate`. Editing and reading views give it a wavy warning underline instead of the marker
+  colour, with a tooltip naming what is missing.
 - Markers inside code blocks, inline code (`` `@issue;…` ``) or comments are not highlighted, open
   no Issue, are not validated and keep their IDs when a note is copied. Commenting out a marker
   leaves an Issue it already opened as it is. Rerun `Setup research automation` after updating for
@@ -232,6 +247,9 @@ put, with a notice.
 
 List moved-in or copied workflows in the README checklist and, after asking, remove entries whose
 file is gone. Also on the README and experiment-folder right-click menus.
+
+- An entry whose note was moved to another experiment is listed as `(moved to labnote/…)` rather
+  than `(file not found)`.
 
 - The question about entries to remove also lists the files it adds, which go in whatever the
   answer. Entries of deleted notes the automatic cleanup had not removed yet are removed first and
@@ -329,7 +347,9 @@ This command is about the workflow catalogs. The sample "product catalogs" of
 
 ### Export tables to CSV
 
-Export note tables to `<note name>.labnote_tableN.csv` next to the note.
+Export note tables to `<note name>.labnote_tableN.csv` next to the note. A CSV is a copy made at
+export time: after you edit the table, or a sample edit or type change rewrites the note's aliases
+or IDs, export again to bring the CSV up to date.
 
 **Naming**
 
@@ -470,7 +490,8 @@ type.
   README that went into the registry's usage record (`sources`) before this rule is not taken out
   by itself.
 - **Edit** asks before saving an alias another sample of the same type in the same registry
-  already has; for a Local sample whose alias only Global samples have, a notice says so.
+  already has (case and spacing aside; the question spells it as that sample has it); for a Local
+  sample whose alias only Global samples have, a notice says so.
   **Change type** names the samples of the new type that already have its alias.
 - **Delete** shows the sample's alias, description, location, scope and discard date in the
   confirmation, and the notice names it as `ID;alias`.
@@ -512,7 +533,8 @@ column.
 A row of these tables lists a sample without using it. View usages leaves it out, it does not
 bring a deleted sample's record back or keep a Global sample in the next table, and it does not
 stop a delete: deleting a sample listed only there says so in the confirmation and removes its
-rows too.
+rows too. Its notice adds that Ctrl+Z brings back only those rows, not the sample record; add the
+sample again to undo.
 
 ### Sample aliases
 
@@ -723,7 +745,8 @@ read is left unchanged, with a notice.
 
 ### Print experiment worksheet
 
-Pick a workflow note's unit operations (lab ones preselected) and print them as worksheets with a
+Pick a workflow note's unit operations (lab ones preselected, or every one in a note with only
+software unit operations) and print them as worksheets with a
 QR code in two corners of every page; A4 or Letter. Method steps keep the numbers they have in the
 note, lines indented under a step print below it, and tables print as tables (also ones without
 `|` at the ends of their rows). Notes written
@@ -827,7 +850,8 @@ README, which has the next command.
   `> [!note] AI workflow results summary (model, date)` callout. Without that section (its heading
   was renamed, say) it goes to the section holding the summary inserted earlier, or else to the end
   of the note, and the notice says which. Running it again asks before replacing the summary
-  already there.
+  already there; the question says that what you typed inside the callout is replaced too, so keep
+  notes you want outside it. The experiment summary asks the same way.
 - In a note outside the template the whole note is sent and the summary goes after the cursor's
   line as `> [!note] AI summary (model, date)`.
 - In a workflow note with no results written yet — its `Results & Discussions`, `QC Metrics`,
@@ -912,15 +936,20 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   rest under **Nothing to discuss**; the tooltip gives the marker count and the author.
 - **By author** reads a list `author` or `[[name]]` links as the names, and puts an experiment of
   several people in each one's group, so the group counts can add up to more than the experiments.
+- **By project** and **By author** put names that differ only in case (`ALE-2026`, `ale-2026`) in
+  one group, as the search matches them, named as the lowest-numbered experiment writes it.
 - **By status**, an experiment whose README front matter cannot be read goes under
   **(front matter unreadable)** with a warning icon, its tooltip giving the error, rather than among
   the ones with no status.
 - **Search experiments** matches the folder name, title, project, author, status and the names of
   the experiment's workflow notes (an alias such as `WTR-3`, or a catalog ID), the status also by
   its name in the UI language (`검토 필요` for `needs-review` in Korean), and `discuss` for the ones
-  with something to discuss. When nothing matches, the view says so and what it searches. An
-  experiment whose status or discussion flag was changed from the list stays listed until the
-  search changes.
+  with something to discuss (an experiment with the word in its title or a note name stays too;
+  **By discussion** shows only the ones with something to discuss). When nothing matches, the view
+  says so and what it searches. An experiment whose status or discussion flag was changed from the
+  list stays listed until the search changes.
+- Down or Enter in the search box moves into the results. A new search puts the Tab stop back on
+  the top row.
 - In the sample view, a sample with several descriptions shows them all when expanded
   (`description 1:`, `description 2:`), joins them on separate lines in the tooltip, and is found
   by any of them. Autocomplete adds `(+1)` and so on after the first description, and the
@@ -968,7 +997,8 @@ otherwise, and on yes keeps the current file beside it as `AGENTS.backup.md` (th
 A command that inserts at the cursor (Insert unit operation, Insert sample list of this experiment,
 a sample reference, AI drafts and summaries, …) run on a note in reading view switches it to
 editing view first, inserts near the end of the note, and says so. A unit operation goes after the
-last block.
+last block. Insert date, Insert date and time and Insert issue marker need a cursor, so in reading
+view they only say to switch to the editing view.
 
 When a sample's alias or type changes, a note open only in reading view is fixed in its file and
 its view is left as it is.
@@ -1038,6 +1068,9 @@ objective and summary, and every entry unchecked. Nothing is asked when the whol
   operations' `Start_date`/`End_date` emptied. The same happens when you rename a copy into the
   format by hand; then the note's `title` and `## [ID name]` heading follow the new file name
   before you are asked to list it, so they match even if you decline.
+- Samples of the original still referenced or defined in the copy's `#### Output` are pointed out
+  then, with their count and the first ID (in notes with sample tracking on). Remove the ones this
+  run does not make; the references are not removed for you.
 - The copy's `@issue` markers get new IDs before that box opens, so they do not merge with the
   original's issues.
 - An experiment folder duplicated with "Make a copy" (`001_… 1`) asks for a title and becomes the

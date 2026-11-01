@@ -5,7 +5,8 @@ import { findUnitOpInsertOffset, rebuildUnitOpToc } from '../../packages/labnote
 import { listWorksheetUnitOps, paginateWorksheet } from '../../packages/labnoteo-core/src/lib/worksheet';
 import { decodeScanPayload, unitOpFingerprint } from '../../packages/labnoteo-core/src/lib/scanPayload';
 import { buildPrintHtml, escapeHtml, fitBodies, type PrintPage } from '../../src/print/printPages';
-import { plainInline, worksheetPrintPages } from '../../src/print/worksheetPrint';
+import { initialWorksheetSelection, plainInline, worksheetPrintPages } from '../../src/print/worksheetPrint';
+import type { WorksheetUnitOp } from '../../packages/labnoteo-core/src/lib/worksheet';
 import { sliceIntoPages, unitOpOfRenderedHeading, type MeasuredBlock } from '../../src/print/fullNotePrint';
 
 describe('buildPrintHtml', () => {
@@ -57,6 +58,16 @@ describe('buildPrintHtml', () => {
 
   it('escapes note text', () => {
     expect(escapeHtml(`<img src=x onerror="a('b')">&`)).toBe('&lt;img src=x onerror=&quot;a(&#39;b&#39;)&quot;&gt;&amp;');
+  });
+});
+
+// #508: a note with only software unit operations could not print at all.
+describe('initialWorksheetSelection', () => {
+  const op = (index: number, kind: 'hw' | 'sw') => ({ index, kind }) as WorksheetUnitOp;
+
+  it('selects the lab unit operations, or every one when there are none', () => {
+    expect(initialWorksheetSelection([op(1, 'sw'), op(2, 'hw'), op(3, 'hw')])).toEqual([2, 3]);
+    expect(initialWorksheetSelection([op(1, 'sw'), op(2, 'sw')])).toEqual([1, 2]);
   });
 });
 

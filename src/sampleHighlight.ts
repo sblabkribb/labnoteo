@@ -10,8 +10,9 @@
  * their pure scanners with `@labnoteo/core`, so the two views stay perfectly
  * consistent and the logic is unit-tested in core rather than here.
  *
- * For `@issue` the highlight doubles as validation feedback: only well-formed
- * markers are styled, so one that stays plain is one that will open no issue.
+ * For `@issue` the highlight doubles as validation feedback: well-formed
+ * markers are styled, and one without an ID or topic, which `validate` fails,
+ * gets a warning underline (#519).
  */
 import {
   ViewPlugin,
@@ -25,11 +26,13 @@ import { editorInfoField } from 'obsidian';
 import {
   codeBlockRanges,
   findIssueMarkerRanges,
+  findMalformedIssueMarkerRanges,
   markerHiddenRanges,
   findSampleIdRanges,
   markerSpanAcrossRuns,
   staleSampleAliasEnd,
   type IssueMarkerRange,
+  type MalformedIssueMarker,
 } from '@labnoteo/core';
 import { findDefinedSampleIds } from '@labnoteo/core/lib/sampleStorage';
 import { noteMarkerIds } from './issueMarkerIndex';
@@ -59,6 +62,8 @@ export interface HighlightState {
   discardedTitle?: (date: string) => string;
   /** The note is not one the automation reads markers from, so they stay plain (#428). */
   markersUnread?: boolean;
+  /** Tooltip of a marker `validate` fails (#519). */
+  malformedTitle?: (reason: MalformedIssueMarker['reason']) => string;
 }
 
 const SAMPLE_ID_CLASS = 'labnote-sample-id';
@@ -67,6 +72,7 @@ const STALE_ALIAS_CLASS = 'labnote-sample-alias-stale';
 const DISCARDED_SAMPLE_CLASS = 'labnote-sample-discarded';
 const ISSUE_MARKER_CLASS = 'labnote-issue-marker';
 const DUPLICATE_MARKER_CLASS = 'labnote-issue-marker-duplicate';
+const MALFORMED_MARKER_CLASS = 'labnote-issue-marker-malformed';
 const MARKER_ID_RE = /^@issue[;:]([A-Za-z0-9-]+)/i;
 
 /** One span to decorate, with the class and optional colour or tooltip it carries. */
@@ -96,6 +102,8 @@ interface MarkerOptions {
   cut?: boolean;
   /** Leave the markers plain: the note's markers open no issue (#428). */
   noMarkers?: boolean;
+  /** Tooltip for a marker without an ID or topic; such markers are found without it too (#519). */
+  malformedTitle?: HighlightState['malformedTitle'];
 }
 
 /**
@@ -155,16 +163,22 @@ export function collectTokenRanges(
   colors: Record<string, string>,
   opts: MarkerOptions = {}
 ): TokenRange[] {
-  const markers = opts.noMarkers
-    ? []
-    : findIssueMarkerRanges(text, opts.inComment).filter(r => !opts.inCode?.(r.start, r.end));
-  const ranges: TokenRange[] = markers.map(r => {
+  const live = (r: IssueMarkerRange) => !opts.inCode?.(r.start, r.end);
+  const wellFormed = opts.noMarkers ? [] : findIssueMarkerRanges(text, opts.inComment).filter(live);
+  // Reading view picks the text nodes to style by calling this without options, so these are found regardless.
+  const malformed = opts.noMarkers ? [] : findMalformedIssueMarkerRanges(text, opts.inComment).filter(live);
+  const markers = [...wellFormed, ...malformed];
+  const ranges: TokenRange[] = wellFormed.map(r => {
     const id = MARKER_ID_RE.exec(text.slice(r.start, r.end))?.[1];
     const title = id ? opts.duplicate?.(id) : undefined;
     return title === undefined
       ? { ...r, cls: ISSUE_MARKER_CLASS }
       : { ...r, cls: `${ISSUE_MARKER_CLASS} ${DUPLICATE_MARKER_CLASS}`, title };
   });
+  for (const { start, end, reason } of malformed) {
+    const title = opts.malformedTitle?.(reason);
+    ranges.push(title ? { start, end, cls: MALFORMED_MARKER_CLASS, title } : { start, end, cls: MALFORMED_MARKER_CLASS });
+  }
 
   for (const r of findSampleIdRanges(text, types)) {
     if (markers.some(m => r.start < m.end && r.end > m.start)) continue;
@@ -312,6 +326,7 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
             staleAlias,
             discarded,
             noMarkers: state.markersUnread,
+            malformedTitle: state.malformedTitle,
           })) {
             const styleVar = sampleColorVar(r.color ?? '');
             const attributes: Record<string, string> = {};
@@ -358,7 +373,13 @@ export function createSampleReadingHighlighter(
       staleAlias = staleAliasCheck(state, definedIds);
       discarded = discardedSampleCheck(state);
     }
-    highlightTextNodes(el, types, colors, { missing, staleAlias, discarded, noMarkers: state.markersUnread });
+    highlightTextNodes(el, types, colors, {
+      missing,
+      staleAlias,
+      discarded,
+      noMarkers: state.markersUnread,
+      malformedTitle: state.malformedTitle,
+    });
   };
 }
 
@@ -417,7 +438,7 @@ function highlightTextNodes(
     const parent = textNode.parentElement;
     if (!parent) continue;
     // Skip code, links and already-processed spans.
-    if (parent.closest(`code, pre, a, .${SAMPLE_ID_CLASS}, .${ISSUE_MARKER_CLASS}`)) continue;
+    if (parent.closest(`code, pre, a, .${SAMPLE_ID_CLASS}, .${ISSUE_MARKER_CLASS}, .${MALFORMED_MARKER_CLASS}`)) continue;
     if (collectTokenRanges(textNode.data, types, colors).length > 0) targets.push(textNode);
   }
 
