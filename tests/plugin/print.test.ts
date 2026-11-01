@@ -4,7 +4,7 @@ import { buildHwUnitOpMarkdown } from '../../packages/labnoteo-core/src/lib/unit
 import { findUnitOpInsertOffset, rebuildUnitOpToc } from '../../packages/labnoteo-core/src/sections/workflowSectionParser';
 import { listWorksheetUnitOps, paginateWorksheet } from '../../packages/labnoteo-core/src/lib/worksheet';
 import { decodeScanPayload, unitOpFingerprint } from '../../packages/labnoteo-core/src/lib/scanPayload';
-import { buildPrintHtml, escapeHtml, type PrintPage } from '../../src/print/printPages';
+import { buildPrintHtml, escapeHtml, fitBodies, type PrintPage } from '../../src/print/printPages';
 import { plainInline, worksheetPrintPages } from '../../src/print/worksheetPrint';
 import { sliceIntoPages, unitOpOfRenderedHeading, type MeasuredBlock } from '../../src/print/fullNotePrint';
 
@@ -25,6 +25,34 @@ describe('buildPrintHtml', () => {
     expect(html.match(/<div class="qr bl"><svg/g)).toHaveLength(2);
     expect(html).toContain('@page { size: 215.9mm 279.4mm;');
     expect(html).toContain('<title>Note &lt;1&gt;</title>');
+  });
+
+  // #533: a long alias in the title wraps the header over the body.
+  it('starts the body below a header that grew into it, then shrinks its type to fit', () => {
+    const fakeBody = (headBottom: number) => {
+      const body = {
+        offsetTop: 100,
+        clientHeight: 500,
+        style: {} as Record<string, string>,
+        get scrollHeight() {
+          return body.style.fontSize ? 450 : 520;
+        },
+        getBoundingClientRect: () => ({ top: body.style.top ? parseFloat(body.style.top) : 100 }),
+        closest: () => ({
+          querySelector: () => ({ getBoundingClientRect: () => ({ bottom: headBottom }) }),
+        }),
+      };
+      return body;
+    };
+    const tall = fakeBody(130);
+    const short = fakeBody(60);
+    const doc = { querySelectorAll: () => [tall, short] } as unknown as Document;
+    fitBodies(doc, 0.7);
+    expect(tall.style.top).toBe('134px');
+    expect(tall.style.height).toBe('466px');
+    expect(tall.style.fontSize).toBe('9.5pt');
+    expect(short.style.top).toBeUndefined();
+    expect(short.style.height).toBeUndefined();
   });
 
   it('escapes note text', () => {
