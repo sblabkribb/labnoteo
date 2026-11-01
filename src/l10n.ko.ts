@@ -1053,10 +1053,10 @@ const obsidianKo: Record<string, string> = {
     '이 종이에 기록한 뒤 QR 코드가 보이게 사진을 찍거나 스캔해서 스캔 폴더에 넣으세요.',
   'This note has no unit operations to print. Add one with "{0}" first.':
     '출력할 유닛 오퍼레이션이 없습니다. 먼저 "{0}"(으)로 추가하세요.',
-  'This note has only software unit operations. Worksheets are for steps done at the bench.':
-    '이 노트에는 소프트웨어 유닛 오퍼레이션만 있습니다. 기록지는 실험실에서 하는 단계용입니다.',
   'Each unit operation starts on a new page with a QR code in two corners. Lab unit operations are selected; turn on software ones to print them too.':
     '유닛 오퍼레이션마다 새 페이지에서 시작하고, 두 모서리에 QR 코드가 들어갑니다. 실험실 유닛 오퍼레이션은 선택되어 있고, 소프트웨어 유닛 오퍼레이션도 출력하려면 켜세요.',
+  'Each unit operation starts on a new page with a QR code in two corners. This note has only software unit operations, so all of them are selected.':
+    '유닛 오퍼레이션마다 새 페이지에서 시작하고, 두 모서리에 QR 코드가 들어갑니다. 소프트웨어 유닛 오퍼레이션만 있어 모두 켜 두었습니다.',
   Lab: '실험실',
   'Paper size': '용지 크기',
   'Open in browser': '브라우저에서 열기',
