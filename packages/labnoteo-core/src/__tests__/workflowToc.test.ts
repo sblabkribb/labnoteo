@@ -10,6 +10,7 @@ import {
   minimalReplacement,
   computeUnitOpSyncEdits,
   applyTextEdits,
+  resolveGithubAnchor,
   type TextEdit,
 } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
@@ -105,6 +106,29 @@ describe('githubHeadingAnchor', () => {
       '팔레트에-없는-기능-우클릭--클릭-전용'
     );
     expect(githubHeadingAnchor('Greek Θ snake_case x-y')).toBe('greek-Θ-snake_case-x-y');
+  });
+});
+
+// #505: Obsidian resolves `#` links by heading text, so the TOC's anchors need a hand.
+describe('resolveGithubAnchor', () => {
+  it('finds the heading line of every TOC anchor, numbered repeats included', () => {
+    const md = buildNote([
+      ['UHW010', 'Liquid Handling'],
+      ['UHW010', 'Liquid Handling'],
+    ]);
+    const lines = md.split('\n');
+    const anchors = [...md.matchAll(/^- \[.*\]\(#(.*)\)$/gm)].map(m => m[1]);
+    expect(anchors).toHaveLength(2);
+    const targets = anchors.map(a => resolveGithubAnchor(md, `#${a}`));
+    expect(targets[0]).not.toBe(targets[1]);
+    for (const line of targets) expect(lines[line!]).toBe('### [UHW010 Liquid Handling]');
+  });
+
+  it('reads a percent-encoded anchor and gives undefined for no heading', () => {
+    const md = '---\ntitle: x\n---\n\n### [USW340 Computation] 농축 유전자 순위\n';
+    expect(resolveGithubAnchor(md, '#usw340-computation-농축-유전자-순위')).toBe(4);
+    expect(resolveGithubAnchor(md, `#${encodeURIComponent('usw340-computation-농축-유전자-순위')}`)).toBe(4);
+    expect(resolveGithubAnchor(md, '#nothing')).toBeUndefined();
   });
 });
 

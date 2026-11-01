@@ -344,6 +344,22 @@ function headingAnchors(lines: MdLine[]): Map<number, string> {
 }
 
 /**
+ * The line index of the heading `#anchor` reaches on GitHub, or undefined.
+ * Obsidian resolves `#` links by heading text, so the TOC's GitHub anchors
+ * lead nowhere in it without this (#505).
+ */
+export function resolveGithubAnchor(md: string, anchor: string): number | undefined {
+  let target = anchor.replace(/^#/, '');
+  try {
+    target = decodeURIComponent(target);
+  } catch {
+    // A stray `%` is part of the anchor as written.
+  }
+  for (const [line, a] of headingAnchors(scanLines(md))) if (a === target) return line;
+  return undefined;
+}
+
+/**
  * A TOC line split after its `[label](#anchor)` link: `tail` is what the user
  * wrote after it, such as an `@issue` marker or a memo, which a rebuild keeps
  * (#372).

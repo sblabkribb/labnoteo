@@ -25,6 +25,7 @@ export {
   pruneUnitOpTocEntries,
   isUnitOpSectionTitle,
   applyTextEdits,
+  resolveGithubAnchor,
   type TextEdit,
 } from './sections/workflowSectionParser';
 
