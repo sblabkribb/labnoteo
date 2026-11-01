@@ -697,35 +697,25 @@ export function addUnitOpTocEntry(md: string, headingOffset: number): string {
 
 /**
  * The TOC entries rewritten from the headings they point at, in the order the
- * note already has them (#258). Each entry is paired with the nth `### [..]`
- * heading of the same opId, so a renamed unit operation gets its new name and
- * anchor; an entry nothing matches is left alone. This is what runs when
+ * note already has them (#258). Entries pair with headings as in
+ * {@link pairTocEntries}: one with the heading's label first, so two blocks of
+ * one opId the user put in another order keep it (#502), then the nth of the
+ * same opId, so a renamed unit operation gets its new name and anchor; an
+ * entry nothing matches is left alone. This is what runs when
  * "{@link rebuildUnitOpToc}"'s sorting is turned off: names and links stay
  * right without the order being touched.
  */
 export function refreshUnitOpTocEntries(md: string): string {
   const scan = scanUnitOpToc(md);
   if (!scan) return md;
-  const { lines, entryIdxs, entries, entryOpIds } = scan;
-  const fresh = new Map<string, string[]>();
-  entries.forEach((line, k) => {
-    const list = fresh.get(entryOpIds[k]) ?? [];
-    list.push(line);
-    fresh.set(entryOpIds[k], list);
-  });
-  const used = new Map<string, number>();
+  const { lines, entries } = scan;
   const edits: TextEdit[] = [];
-  for (const idx of entryIdxs) {
-    const opId = tocEntryOpId(lines[idx].text);
-    if (!opId) continue;
-    const nth = used.get(opId) ?? 0;
-    used.set(opId, nth + 1);
-    const entry = fresh.get(opId)?.[nth];
-    if (entry === undefined) continue;
-    const line = entry + splitTocEntry(lines[idx].text).tail;
+  for (const [k, idx] of pairTocEntries(scan)) {
+    const line = entries[k] + splitTocEntry(lines[idx].text).tail;
     if (line === lines[idx].text) continue;
     edits.push({ from: lines[idx].start, to: lines[idx].end, insert: line });
   }
+  edits.sort((a, b) => a.from - b.from);
   return applyTextEdits(md, edits);
 }
 

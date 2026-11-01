@@ -836,6 +836,15 @@ describe('refreshUnitOpTocEntries', () => {
     expect(refreshUnitOpTocEntries(md)).toContain('- [UHW010 A | 2차](#uhw010-a-2차)');
   });
 
+  // #502: two blocks of one opId, listed in the order the user chose, went back to note order.
+  it('keeps the order of two entries of one opId that match their headings', () => {
+    const md = note(
+      ['- [UHW010 A | 2차](#uhw010-a-2차)', '- [UHW010 A | 1차](#uhw010-a-1차)'],
+      ['### [UHW010 A] 1차', '', '### [UHW010 A] 2차', '']
+    );
+    expect(refreshUnitOpTocEntries(md)).toBe(md);
+  });
+
   it('leaves an entry no heading matches as it is', () => {
     const md = note(['- [UHW010 A](#uhw010-a)', '- [UHW999 Gone](#uhw999-gone)'], ['### [UHW010 A]', '']);
     expect(refreshUnitOpTocEntries(md)).toContain('- [UHW999 Gone](#uhw999-gone)');
