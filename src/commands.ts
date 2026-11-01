@@ -2098,9 +2098,23 @@ export async function syncWorkflowChecklistCommand(
   let remove: string[] = [];
   const removable = plan.stale.filter(s => s.reason !== 'subfolder');
   if (removable.length > 0) {
-    const list = removable
-      .map(s => `- ${s.link} (${host.t(s.reason === 'missing' ? 'file not found' : 'in another folder')})`)
-      .join('\n');
+    // A note moved to another experiment is not lost, though its link no longer finds it (#494).
+    const movedTo = (link: string): string | undefined => {
+      let name = link;
+      try {
+        name = decodeURI(link);
+      } catch {
+        // kept as written
+      }
+      const file = app.metadataCache?.getFirstLinkpathDest(posix.basename(name), readmePath);
+      return file && !file.path.startsWith(`${labnoteDir}/`) ? posix.dirname(file.path) : undefined;
+    };
+    const why = (s: (typeof removable)[number]): string => {
+      if (s.reason !== 'missing') return host.t('in another folder');
+      const dir = movedTo(s.link);
+      return dir ? host.t('moved to {0}', dir) : host.t('file not found');
+    };
+    const list = removable.map(s => `- ${s.link} (${why(s)})`).join('\n');
     // The files missing from the checklist are added whatever the answer (#459).
     const addNote =
       plan.added.length > 0

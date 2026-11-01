@@ -278,6 +278,7 @@ const obsidianKo: Record<string, string> = {
   'Remove from checklist': '체크리스트에서 지우기',
   'file not found': '파일 없음',
   'in another folder': '다른 폴더',
+  'moved to {0}': '옮겨 감: {0}',
   'No changes made.': '바꾼 것이 없습니다.',
   'The workflow checklist already matches the folder.': '워크플로 체크리스트가 이미 폴더와 일치합니다.',
   'Workflow checklist updated: {0} added, {1} removed.':
