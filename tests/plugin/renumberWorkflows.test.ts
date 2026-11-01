@@ -358,6 +358,20 @@ describe('renumberWorkflowsCommand and entries whose file is gone', () => {
 
     expect(h.calls.at(-1)).toContain(`notify The README checklist lists 1 file(s) that are not in the folder: ${OLD}.`);
   });
+
+  // #511: a pasted second line for one note went unmentioned.
+  it('names a note listed twice instead of saying the numbers already follow', async () => {
+    const h = harness({ relink: false });
+    await h.fs.remove(`${DIR}/${C_OLD}`);
+    await h.fs.write(`${DIR}/${C_NEW}`, 'c');
+    await h.fs.write(README, readme([`- [ ] [WD070 A](./${A})`, `- [ ] [C](./${C_NEW})`, `- [x] [C](./${C_NEW})`]));
+
+    await renumberWorkflowsCommand(h.app, h.host, h.sync);
+
+    expect(h.calls.at(-1)).toBe(
+      `notify The README checklist lists ${C_NEW} more than once. Run "Sync workflow checklist with folder" to remove the extra entries.`
+    );
+  });
 });
 
 // #382: a listed note whose number was deleted from its name.

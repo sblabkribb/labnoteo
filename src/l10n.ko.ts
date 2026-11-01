@@ -238,6 +238,8 @@ const obsidianKo: Record<string, string> = {
   'The block is no longer where it was printed from, so check that the scan went to the right one.':
     '출력한 뒤 블록 위치가 바뀌었습니다. 맞는 블록에 붙었는지 확인하세요.',
   'Workflow numbering already follows the README checklist.': '워크플로 번호가 이미 README 체크리스트 순서와 같습니다.',
+  'The README checklist lists {0} more than once. Run "{1}" to remove the extra entries.':
+    'README 체크리스트에 {0}이(가) 두 번 이상 올라 있습니다. "{1}"을(를) 실행해 남는 줄을 지우세요.',
   'The README checklist lists {0} file(s) that are not in the folder: {1}. Run "{2}" to remove them.':
     'README 체크리스트에 폴더에 없는 파일 {0}개가 있습니다: {1}. "{2}"을(를) 실행하면 지울 수 있습니다.',
   'Point {0} README checklist entry(ies) of {1} back at their file?':

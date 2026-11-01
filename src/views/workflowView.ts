@@ -303,9 +303,14 @@ export class WorkflowTreeView extends ItemView {
     }
     if (!cached) return undefined;
     const folder = posix.dirname(file.path);
+    // A note listed twice counts once, by its first entry, as the checklist sync keeps it (#511).
+    const counted = new Set<string>();
     const present = cached.items.filter(item => {
       const link = item.fileName;
-      return [posix.join(folder, link), link].some(p => this.app.vault.getAbstractFileByPath(p) instanceof TFile);
+      const path = [posix.join(folder, link), link].find(p => this.app.vault.getAbstractFileByPath(p) instanceof TFile);
+      if (path === undefined || counted.has(path)) return false;
+      counted.add(path);
+      return true;
     });
     return { done: present.filter(i => i.done).length, total: present.length };
   }

@@ -1554,9 +1554,21 @@ export async function renumberWorkflowsCommand(
           matched.missing.join(', '),
           host.t('Sync workflow checklist with folder')
         );
+  // Numbers follow an entry's first line; the extra lines are for the sync command to remove (#511).
+  const duplicated = [...new Set(syncPlan?.duplicates ?? [])];
+  const duplicateNote =
+    duplicated.length === 0
+      ? ''
+      : host.t(
+          'The README checklist lists {0} more than once. Run "{1}" to remove the extra entries.',
+          duplicated.join(', '),
+          host.t('Sync workflow checklist with folder')
+        );
   if (renames.length === 0 && unlisted === 0 && relinked === 0) {
     if (syncPlan && !syncPlan.hasSection) host.notify('warn', noSection);
-    else if (missingNote || skippedNote) host.notify('warn', [skippedNote, missingNote].filter(Boolean).join('\n\n'));
+    else if (missingNote || skippedNote || duplicateNote) {
+      host.notify('warn', [skippedNote, missingNote, duplicateNote].filter(Boolean).join('\n\n'));
+    }
     else host.notify('info', host.t('Workflow numbering already follows the README checklist.'));
     return;
   }
@@ -1607,7 +1619,12 @@ export async function renumberWorkflowsCommand(
   const sectionNote = syncPlan && !syncPlan.hasSection ? `\n\n${noSection}` : '';
   const missingPart = missingNote ? `\n\n${missingNote}` : '';
   const skippedPart = skippedNote ? `\n\n${skippedNote}` : '';
-  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}`))) {
+  const duplicatePart = duplicateNote ? `\n\n${duplicateNote}` : '';
+  if (
+    !(await host.confirm(
+      `${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}${duplicatePart}`
+    ))
+  ) {
     return;
   }
 
