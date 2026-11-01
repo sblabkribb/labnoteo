@@ -6,7 +6,7 @@
  * section. The filesystem side (moving the file to trash, sample cleanup) is
  * handled by the command; this module stays pure and unit-testable.
  */
-import { decodeChecklistLink, workflowChecklistSectionRange } from './workflowStructure';
+import { decodeChecklistLink, workflowChecklistEntryLink, workflowChecklistSectionRange } from './workflowStructure';
 import { findSectionMatches, sectionBodyEnd, stepFence, type OpenFence } from '../sections/sectionEdit';
 
 export interface RemoveWorkflowFromReadmeResult {
@@ -24,6 +24,8 @@ export interface RemoveWorkflowFromReadmeResult {
  * — are still recognised for removal.
  */
 function isChecklistLineForFile(line: string, fileName: string): boolean {
+  const entryLink = workflowChecklistEntryLink(line.trim());
+  if (entryLink !== undefined) return (entryLink.replace(/^\.\//, '').split('/').pop() ?? '') === fileName;
   const match = line.trim().match(/^(?:[-*+]\s+)?\[[ xX]\]\s*\[.*?\]\(([^)]+)\)/);
   if (!match) return false;
   const link = match[1].replace(/^\.\//, '');

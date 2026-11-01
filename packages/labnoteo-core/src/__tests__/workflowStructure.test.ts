@@ -1515,6 +1515,36 @@ describe('relinkWorkflowChecklistEntries with a %20 link (#412)', () => {
   });
 });
 
+// #499: a `(재)` in a file name cut the link at its `)`.
+describe('checklist links with parentheses', () => {
+  const file = '002_WL070_성장곡선_(OD600).labnote.md';
+  const md = readmeWith([
+    `- [ ] [WL070 성장곡선 OD600](./${file}) @issue;ISS-a;조건 (재확인)`,
+    '- [ ] [WD020 B](003_WD020_B.labnote.md) 참고 [링크](https://example.org/a_(b))',
+  ]);
+
+  it('reads the whole file name and keeps the tail apart', () => {
+    expect(parseWorkflowChecklistFromReadme(md)).toEqual([
+      { done: false, title: 'WL070 성장곡선 OD600', fileName: file },
+      { done: false, title: 'WD020 B', fileName: '003_WD020_B.labnote.md' },
+    ]);
+    expect(isWorkflowChecklistEntryLine(`- [ ] [A](./${file})`)).toBe(true);
+  });
+
+  it('does not list the file again however often the checklist is synced', () => {
+    const plan = planWorkflowChecklistSync(md, [file, '003_WD020_B.labnote.md']);
+    expect(plan.added).toEqual([]);
+    expect(planWorkflowChecklistSync(plan.content, [file, '003_WD020_B.labnote.md']).content).toBe(md);
+    expect(workflowChecklistOrder(md, ['003_WD020_B.labnote.md', file])).toEqual([file, '003_WD020_B.labnote.md']);
+  });
+
+  it('relinks it with its tail', () => {
+    expect(relinkWorkflowChecklistEntries(md, [{ from: file, to: '001_WL070_성장곡선_(OD600).labnote.md' }])).toContain(
+      '- [ ] [WL070 성장곡선 OD600](./001_WL070_성장곡선_(OD600).labnote.md) @issue;ISS-a;조건 (재확인)'
+    );
+  });
+});
+
 // #95: an alias with brackets must not break the checklist line.
 describe('checklist labels with brackets', () => {
   const md = (entries: string[]) => ['## Related Workflows', '', ...entries, '', '## Notes', ''].join('\n');

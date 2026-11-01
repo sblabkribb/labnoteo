@@ -354,12 +354,13 @@ export function createWorkflowFileName(
  * link or label in place and keep its prefix and tail.
  *
  * The link part stays permissive (optional `./`, any characters up to the
- * suffix) so manually created links with non-ASCII file names are recognised —
- * the same reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the
- * object is safe to share.
+ * first `.labnote.md)`) so manually created links with non-ASCII file names,
+ * or a `(재)` the user put in a file name (#499), are recognised — the same
+ * reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the object is
+ * safe to share.
  */
 const CHECKLIST_ENTRY_RE =
-  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?([^)]+\.labnote\.md)\)(.*)(\r?)$/i;
+  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?(.+?\.labnote\.md)\)(.*)(\r?)$/i;
 
 /** One checklist entry line, split so a writer can change one part of it. */
 interface ChecklistEntryLine {
@@ -429,7 +430,13 @@ function unescapeChecklistLabel(raw: string): string {
  * An `@issue` marker that replaced its link text would stop it being one (#293).
  */
 export function isWorkflowChecklistEntryLine(line: string): boolean {
-  return CHECKLIST_ENTRY_RE.test(line);
+  return parseChecklistEntryLine(line, 0) !== null;
+}
+
+/** The link of a workflow checklist entry line, escapes undone; undefined for any other line. */
+export function workflowChecklistEntryLink(line: string): string | undefined {
+  const e = parseChecklistEntryLine(line, 0);
+  return e ? decodeChecklistLink(e.link) : undefined;
 }
 
 /** The label of a workflow checklist entry line, unescaped; undefined for any other line. */
@@ -1234,11 +1241,10 @@ export function normalizeWorkflowChecklistLinks(
 ): { content: string; count: number } {
   const lines = readmeContent.split('\n');
   let count = 0;
-  for (const { index, link } of checklistEntries(readmeContent)) {
-    const short = normalizeChecklistLink(link, dir);
-    if (short === link) continue;
-    const written = lines[index].includes(`](./${link})`) ? `](./${link})` : `](${link})`;
-    lines[index] = lines[index].replace(written, () => `](${checklistLinkText(short)})`);
+  for (const e of entriesInLines(lines)) {
+    const short = normalizeChecklistLink(e.link, dir);
+    if (short === e.link) continue;
+    lines[e.index] = renderChecklistEntryLine({ ...e, link: short });
     count++;
   }
   return count === 0 ? { content: readmeContent, count } : { content: lines.join('\n'), count };
@@ -1658,11 +1664,10 @@ export function relinkWorkflowChecklistEntries(
 ): string {
   if (links.length === 0) return readmeContent;
   const lines = readmeContent.split('\n');
-  for (const { index, link } of checklistEntries(readmeContent)) {
-    const r = links.find(l => decodeChecklistLink(l.from) === decodeChecklistLink(link));
+  for (const e of entriesInLines(lines)) {
+    const r = links.find(l => decodeChecklistLink(l.from) === decodeChecklistLink(e.link));
     if (!r) continue;
-    const written = lines[index].includes(`](./${link})`) ? `](./${link})` : `](${link})`;
-    lines[index] = lines[index].replace(written, () => `](./${encodeChecklistLink(r.to)})`);
+    lines[e.index] = renderChecklistEntryLine({ ...e, link: r.to });
   }
   return lines.join('\n');
 }
