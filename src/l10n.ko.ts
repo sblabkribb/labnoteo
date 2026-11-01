@@ -50,6 +50,8 @@ const obsidianKo: Record<string, string> = {
   'Insert date and time': '날짜 및 시간 삽입',
   'Switch to the editing view and put the cursor where the date goes, then run this again.':
     '편집 화면으로 바꿔 날짜를 넣을 곳에 커서를 둔 뒤 다시 실행하세요.',
+  'Switch to the editing view and put the cursor on the line to discuss, then run this again.':
+    '편집 화면으로 바꿔 논의할 줄에 커서를 둔 뒤 다시 실행하세요.',
   'Only years 1900–2100 are written; the date in the note was kept.':
     '1900~2100년만 기록합니다. 노트의 날짜는 그대로 두었습니다.',
   'End_date {0} is earlier than Start_date {1}.': 'End_date({0})가 Start_date({1})보다 이릅니다.',

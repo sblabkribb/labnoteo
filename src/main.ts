@@ -437,6 +437,40 @@ export default class LabnotePlugin extends Plugin {
     return true;
   }
 
+  /**
+   * The issue marker command, listed in reading view too (#532): missing from
+   * the palette there, it read as a command that does not exist.
+   */
+  private insertIssueMarkerFromPalette(checking: boolean): boolean {
+    const reading = this.app.workspace.getActiveViewOfType(MarkdownView)?.getMode() === 'preview';
+    const active = this.app.workspace.activeEditor;
+    const editor = active?.editor;
+    if (!reading && !editor) return false;
+    if (checking) return true;
+    if (reading || !editor) {
+      this.host.notify('info', this.t('Switch to the editing view and put the cursor on the line to discuss, then run this again.'));
+      return true;
+    }
+    const path = active?.file?.path ?? '';
+    this.run(async () => {
+      const inserted = await insertIssueMarkerCommand(editor, this.host, path);
+      if (!inserted || this.issueAutomationHintShown) return;
+      const state = await issueAutomationState(this.host);
+      if (state === 'ready') return;
+      this.issueAutomationHintShown = true;
+      this.host.notify(
+        'info',
+        state === 'no-git'
+          ? this.t(
+              'Issue marker inserted. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.',
+              SETUP_DOC_PATH
+            )
+          : this.t('Issue marker inserted. To open it as an issue, run "Setup research automation" first.')
+      );
+    });
+    return true;
+  }
+
   /** What had focus before the command palette or another dialog took it (#405). */
   private lastFocus: Element | null = null;
 
@@ -491,23 +525,7 @@ export default class LabnotePlugin extends Plugin {
     this.addCommand({
       id: 'insert-issue-marker',
       name: this.paletteName('Insert issue marker'),
-      editorCallback: (editor, ctx) =>
-        this.run(async () => {
-          const inserted = await insertIssueMarkerCommand(editor, this.host, ctx.file?.path ?? '');
-          if (!inserted || this.issueAutomationHintShown) return;
-          const state = await issueAutomationState(this.host);
-          if (state === 'ready') return;
-          this.issueAutomationHintShown = true;
-          this.host.notify(
-            'info',
-            state === 'no-git'
-              ? this.t(
-                  'Issue marker inserted. This vault is not a git repository yet, so no issue will open. Finish the repository setup in {0} first.',
-                  SETUP_DOC_PATH
-                )
-              : this.t('Issue marker inserted. To open it as an issue, run "Setup research automation" first.')
-          );
-        }),
+      checkCallback: checking => this.insertIssueMarkerFromPalette(checking),
     });
 
     this.addCommand({
