@@ -873,6 +873,18 @@ describe('TOC entry tails', () => {
     expect(computeUnitOpSyncEdits(md)).toEqual([]);
   });
 
+  // #520: a sync took a hand-written link line in the TOC for an entry and dropped it.
+  it('keeps a hand-written link line in the TOC', () => {
+    const memo = '- [프로토콜 원문](https://example.org/protocol)';
+    const ordered = note(['- [UHW010 A](#uhw010-a)', '- [USW020 B](#usw020-b)', memo], ['### [UHW010 A]', '', '### [USW020 B]', '']);
+    expect(rebuildUnitOpToc(ordered)).toBe(ordered);
+    expect(computeUnitOpSyncEdits(ordered)).toEqual([]);
+    const sorted = rebuildUnitOpToc(
+      note(['- [USW020 B](#usw020-b)', memo, '- [UHW010 A](#uhw010-a)'], ['### [UHW010 A]', '', '### [USW020 B]', ''])
+    );
+    expect(sorted).toBe(ordered);
+  });
+
   it('still reads a reorder when entries have tails', () => {
     const md = note(
       ['- [USW020 B](#usw020-b) 메모', '- [UHW010 A](#uhw010-a)'],

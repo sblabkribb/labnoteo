@@ -314,7 +314,8 @@ function scanLines(md: string): MdLine[] {
   return lines;
 }
 
-const isTocEntry = (line: MdLine): boolean => !line.fenced && /^\s*- \[/.test(line.text);
+/** A `- [OPID ...` line; a hand-written `- [link](..)` among them is the user's (#520). */
+const isTocEntry = (line: MdLine): boolean => !line.fenced && tocEntryOpId(line.text) !== undefined;
 
 /**
  * GitHub's anchor for every ATX heading line, keyed by line index. GitHub
