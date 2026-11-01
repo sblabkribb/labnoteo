@@ -168,6 +168,9 @@ const obsidianKo: Record<string, string> = {
   'Retry line': '재시도 계보',
   'Retry this experiment': '이 실험 다시 하기',
   'Retry experiment {0}': '{0} 다시 하기',
+  '"{0}" is for a failed or needs-repeat experiment, and {1} is {2}. Change its status first.':
+    "'{0}'은(는) failed·needs-repeat 실험에 씁니다. {1}은(는) {2} 상태입니다. 상태를 먼저 바꾸세요.",
+  'To run it again with other conditions, use "{0}".': "조건을 바꿔 다시 하려면 '{0}'을(를) 쓰세요.",
   '{0} (retry)': '{0} 2차',
   'Type @dna (or another type) in a note, or right-click → "{0}" to register a sample.':
     '노트에서 @dna처럼 입력하거나 우클릭 → "{0}"(으)로 샘플을 등록합니다.',

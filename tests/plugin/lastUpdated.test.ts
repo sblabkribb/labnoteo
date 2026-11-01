@@ -268,6 +268,22 @@ describe('changing the status to completed', () => {
     expect(shown[0]).toContain('Discussion flag cleared.');
   });
 
+  // #490: the retry was only on the workflow view's right-click menu.
+  it('points a failed experiment to the retry', async () => {
+    const fs = new MemFileSystem({ [README]: note() });
+    const shown: string[] = [];
+    const host = {
+      fs,
+      t: (s: string, ...args: string[]) => args.reduce((acc, a, i) => acc.replace(`{${i}}`, a), s),
+      notify: (_k: string, m: string) => shown.push(m),
+      pick: async () => 'failed',
+    } as unknown as LabnoteHost;
+    await changeExperimentStatusCommand(makeApp(), host);
+    expect(shown.at(-1)).toBe(
+      'Experiment status changed (001_Test): planned → failed. To run it again with other conditions, use "Retry this experiment".'
+    );
+  });
+
   it('goes ahead without asking when everything is done', async () => {
     const { asked, out } = await run(
       {

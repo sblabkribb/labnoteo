@@ -540,6 +540,36 @@ export async function retryExperimentCommand(app: App, host: LabnoteHost, folder
 }
 
 /**
+ * The palette entry of {@link retryExperimentCommand} (#490), for the open
+ * note's experiment. Listed for every note: a command that shows only for some
+ * statuses reads as missing, so the others are told why it does not run.
+ */
+export async function retryExperimentFromPalette(app: App, host: LabnoteHost): Promise<void> {
+  const folder = await resolveLabnoteDir(app, host);
+  if (!folder) return;
+  const readmePath = posix.join(folder, README);
+  if (!(await host.fs.exists(readmePath))) {
+    host.notify('warn', host.t('This experiment has no README.labnote.md.'));
+    return;
+  }
+  const { frontMatter } = parseFrontMatterYaml((await host.fs.read(readmePath)).replace(/\r\n/g, '\n'));
+  const status = typeof frontMatter.status === 'string' ? frontMatter.status.trim() : '';
+  if (status !== 'failed' && status !== 'needs-repeat') {
+    host.notify(
+      'info',
+      host.t(
+        '"{0}" is for a failed or needs-repeat experiment, and {1} is {2}. Change its status first.',
+        host.t('Retry this experiment'),
+        posix.basename(folder),
+        status || host.t('(none)')
+      )
+    );
+    return;
+  }
+  await retryExperimentCommand(app, host, folder);
+}
+
+/**
  * What each status means, shown under its name in the picker, and the words
  * its search also matches (#249). The stored value stays the English term;
  * only the explanation and the search words are translated, so a Korean user
@@ -660,6 +690,10 @@ export async function changeExperimentStatusCommand(
   await writeNoteThroughVault(app, host, readmePath, stamp(updated));
   let message = host.t('Experiment status changed ({0}): {1} → {2}.', folderName, current ?? host.t('(none)'), chosen);
   if (cleared) message += ` ${host.t('Discussion flag cleared.')}`;
+  // The retry is otherwise only on the workflow view's right-click menu (#490).
+  if (chosen === 'failed' || chosen === 'needs-repeat') {
+    message += ` ${host.t('To run it again with other conditions, use "{0}".', host.t('Retry this experiment'))}`;
+  }
   // Ctrl+Z only reaches the README when it is the open note (#126).
   const active = app.workspace.getActiveFile()?.path;
   if (active !== readmePath) {

@@ -7,7 +7,14 @@ import type { App } from 'obsidian';
 import type { LabnoteHost } from '@labnoteo/core';
 import { parseFrontMatterYaml } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { createExperimentCommand, experimentReadmes, retryExperimentCommand, retryTitle, statusNames } from '../../src/commands';
+import {
+  createExperimentCommand,
+  experimentReadmes,
+  retryExperimentCommand,
+  retryExperimentFromPalette,
+  retryTitle,
+  statusNames,
+} from '../../src/commands';
 import obsidianKo from '../../src/l10n.ko';
 
 const t = (key: string, ...args: string[]) => key.replace(/\{(\d+)\}/g, (_, i: string) => args[Number(i)]);
@@ -116,6 +123,37 @@ describe('retryExperimentCommand', () => {
     const { frontMatter } = parseFrontMatterYaml(await fs.read(path));
     expect(frontMatter.author).toBe('');
     expect(frontMatter.project).toBeNull();
+  });
+});
+
+// #490: the retry was only on the workflow view's right-click menu.
+describe('retryExperimentFromPalette', () => {
+  const run = async (status: string) => {
+    const fs = new MemFileSystem({
+      'labnote/061_Organoid/README.labnote.md': `---\ntitle: 오가노이드 1차\nstatus: ${status}\n---\nbody\n`,
+      'labnote/061_Organoid/001_WB030_A.labnote.md': '---\ntitle: A\n---\n',
+    });
+    const prompt = vi.fn(async (opts: { value?: string }) => opts.value);
+    const notify = vi.fn();
+    const host = { fs, t, prompt, notify, openFile: vi.fn(async () => undefined) };
+    const app = { workspace: { getActiveFile: () => ({ path: 'labnote/061_Organoid/001_WB030_A.labnote.md' }) } } as unknown as App;
+    await retryExperimentFromPalette(app, host as unknown as LabnoteHost);
+    return { fs, prompt, notify };
+  };
+
+  it("retries the open note's failed or needs-repeat experiment", async () => {
+    const { fs } = await run('failed');
+    expect(await fs.exists('labnote/062_오가노이드_2차/README.labnote.md')).toBe(true);
+    expect((await run('needs-repeat')).prompt).toHaveBeenCalled();
+  });
+
+  it('says why it does not run for another status', async () => {
+    const { prompt, notify } = await run('completed');
+    expect(prompt).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith(
+      'info',
+      '"Retry this experiment" is for a failed or needs-repeat experiment, and 061_Organoid is completed. Change its status first.'
+    );
   });
 });
 

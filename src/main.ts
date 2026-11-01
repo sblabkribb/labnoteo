@@ -74,6 +74,7 @@ import { createObsidianHost } from './obsidianHost';
 import {
   createExperimentCommand,
   changeExperimentStatusCommand,
+  retryExperimentFromPalette,
   insertIssueMarkerCommand,
   insertDateCommand,
   focusOnNoteHeader,
@@ -478,6 +479,12 @@ export default class LabnotePlugin extends Plugin {
       name: this.paletteName('Change experiment status'),
       callback: () =>
         this.run(() => changeExperimentStatusCommand(this.app, this.host, this.stampLastUpdated)),
+    });
+
+    this.addCommand({
+      id: 'retry-experiment',
+      name: this.paletteName('Retry this experiment'),
+      callback: () => this.run(() => retryExperimentFromPalette(this.app, this.host)),
     });
 
     this.addCommand({
