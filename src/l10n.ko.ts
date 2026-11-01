@@ -941,6 +941,7 @@ const obsidianKo: Record<string, string> = {
     '{0}줄은 끝난 유닛 오퍼레이션이라 비어 있는 채로 둠(직접 채우세요)',
   '{0} filled although the unit operation has an End_date, as {1} has not come yet':
     '{0}줄은 End_date({1})가 아직 오지 않아 채움',
+  'filled where End_date does not read as a date: {0}': 'End_date를 날짜로 읽을 수 없어 채운 유닛 오퍼레이션: {0}',
   '(empty)': '(비어 있음)',
   '{0} note(s) updated.': '노트 {0}개를 고쳤습니다.',
   'Name this copy of the workflow': '복제한 워크플로의 이름',

@@ -1856,6 +1856,11 @@ export interface WorkflowExperimenterSync {
   futureLines: number;
   /** Those `End_date` values, each once. */
   futureEndDates: string[];
+  /**
+   * Unit ops whose `End_date` does not read as a date (`11/7 예정`): taken as
+   * not ended, so their lines are filled, and named so they can be found (#501).
+   */
+  unreadableEndDates: { unitOp: string; value: string }[];
 }
 
 /**
@@ -1867,7 +1872,8 @@ export interface WorkflowExperimenterSync {
  * outside code blocks; another person's name was written on purpose. A unit op
  * (from its `### [` heading to the next) whose `End_date` is filled in is
  * finished work and keeps who did it (#155), unless that date is after `now`:
- * then it is planned, not finished, and is filled too (#445). The label is
+ * then it is planned, not finished, and is filled too (#445), as is one whose
+ * End_date does not read as a date (#501). The label is
  * the same in every locale. Undefined when `author` is empty, the note has no
  * `experimenter` key, or it already names someone.
  */
@@ -1924,8 +1930,8 @@ export function planWorkflowExperimenterSync(
     fmEnd -= end - i - 1;
   }
   // Experimenter lines to rewrite, grouped by unit op, and which unit ops ended.
-  type Block = { lines: number[]; empty: number; ended: boolean; future?: string };
-  const blocks: Block[] = [{ lines: [], empty: 0, ended: false }];
+  type Block = { name: string; lines: number[]; empty: number; ended: boolean; future?: string; unreadable?: string };
+  const blocks: Block[] = [{ name: '', lines: [], empty: 0, ended: false }];
   let fence: OpenFence | null = null;
   for (let i = fmEnd + 1; i < lines.length; i++) {
     const next = stepFence(lines[i], fence);
@@ -1934,7 +1940,7 @@ export function planWorkflowExperimenterSync(
       continue;
     }
     if (/^###\s+\[/.test(lines[i])) {
-      blocks.push({ lines: [], empty: 0, ended: false });
+      blocks.push({ name: lines[i].replace(/^###\s+/, '').trim(), lines: [], empty: 0, ended: false });
       continue;
     }
     const block = blocks[blocks.length - 1];
@@ -1942,6 +1948,7 @@ export function planWorkflowExperimenterSync(
     const end = date?.field === 'End_date' ? date.value.trim() : '';
     const state = end ? classifyMetaEndDate(end, now) : undefined;
     if (state === 'future') block.future = end;
+    else if (state === 'unreadable') block.unreadable = end;
     else if (state) block.ended = true;
     const m = /^(\s*-\s*Experimenter:)(.*)$/.exec(lines[i]);
     if (m && m[2].trim() === '') {
@@ -1954,6 +1961,7 @@ export function planWorkflowExperimenterSync(
   let skippedEmptyLines = 0;
   let futureLines = 0;
   const futureEndDates: string[] = [];
+  const unreadableEndDates: { unitOp: string; value: string }[] = [];
   for (const block of blocks) {
     if (block.ended) {
       skippedLines += block.lines.length;
@@ -1968,11 +1976,22 @@ export function planWorkflowExperimenterSync(
       futureLines += block.lines.length;
       if (!futureEndDates.includes(block.future)) futureEndDates.push(block.future);
     }
+    if (block.unreadable && block.lines.length > 0) unreadableEndDates.push({ unitOp: block.name, value: block.unreadable });
   }
   const next = lines.join(newline);
   return next === content
     ? undefined
-    : { from, to, content: next, unitOpLines, skippedLines, skippedEmptyLines, futureLines, futureEndDates };
+    : {
+        from,
+        to,
+        content: next,
+        unitOpLines,
+        skippedLines,
+        skippedEmptyLines,
+        futureLines,
+        futureEndDates,
+        unreadableEndDates,
+      };
 }
 
 /**

@@ -2083,6 +2083,14 @@ export async function syncWorkflowChecklistCommand(
                 ),
               ]
             : []),
+          ...(e.unreadableEndDates.length > 0
+            ? [
+                host.t(
+                  'filled where End_date does not read as a date: {0}',
+                  e.unreadableEndDates.map(u => `${u.unitOp} (${u.value})`).join(', ')
+                ),
+              ]
+            : []),
         ].join(', ');
         return `- ${e.name}: ${e.from || host.t('(empty)')} → ${e.to} (${counts})`;
       })

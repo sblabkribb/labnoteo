@@ -178,6 +178,7 @@ describe('planWorkflowExperimenterSync', () => {
       skippedEmptyLines: 0,
       futureLines: 0,
       futureEndDates: [],
+      unreadableEndDates: [],
     });
   });
 
@@ -216,6 +217,21 @@ describe('planWorkflowExperimenterSync', () => {
       )
     );
     expect(out).toMatchObject({ unitOpLines: 1, skippedLines: 2, futureLines: 1, futureEndDates: ['2026-10-30 18:00'] });
+  });
+
+  // #501: `11/7 예정` was taken for a finished unit op, and nothing said which one.
+  it('fills a unit op whose End_date is not a date, and names it', () => {
+    const op = (who: string, end: string) => `\n- Experimenter: ${who}\n- End_date: '${end}'\n`;
+    const body = `### [USW130 Call] 클론3${op('', '2026-10-30')}### [USW130 Call] 조상주${op('', '11/7 예정')}`;
+    const out = planWorkflowExperimenterSync(note("experimenter: ''", body), '최윤아', '2026-10-31 10:00');
+    expect(out?.content).toBe(
+      note('experimenter: 최윤아', `### [USW130 Call] 클론3${op('', '2026-10-30')}### [USW130 Call] 조상주${op('최윤아', '11/7 예정')}`)
+    );
+    expect(out).toMatchObject({
+      unitOpLines: 1,
+      skippedEmptyLines: 1,
+      unreadableEndDates: [{ unitOp: '[USW130 Call] 조상주', value: '11/7 예정' }],
+    });
   });
 
   it('fills an empty experimenter and keeps CRLF', () => {
