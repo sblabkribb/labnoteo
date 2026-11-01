@@ -1,17 +1,29 @@
 WEBVTT
 
 1
-00:00:00.021 --> 00:00:02.534
+00:00:00.024 --> 00:00:02.535
 Insert sample list of this experiment
 
 2
-00:00:02.534 --> 00:00:10.982
+00:00:02.535 --> 00:00:11.726
 Put the cursor under Summary in the README
 
 3
-00:00:10.982 --> 00:00:17.820
+00:00:11.726 --> 00:00:19.080
 Run Insert sample list of this experiment
 
 4
-00:00:17.820 --> 00:00:23.440
+00:00:19.080 --> 00:00:22.882
 Local samples and the Global ones in use go in as a table
+
+5
+00:00:22.882 --> 00:00:32.841
+Run it again and it asks instead of adding a second table
+
+6
+00:00:32.841 --> 00:00:36.779
+Pick Replace the existing table(s) with the current samples
+
+7
+00:00:36.779 --> 00:00:42.017
+A notice says the table now has the current samples

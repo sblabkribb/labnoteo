@@ -86,7 +86,7 @@
   <h2>5분 따라하기</h2>
   <article class="feature" id="create-experiment">
     <h3>실험 만들기</h3>
-    <p>명령 팔레트 → <code>실험 생성 (Create experiment)</code> → 제목 입력. 입력 창 아래에 폴더 이름 기준 글자 수가 나오고, <code>labnote/###_제목/README.labnote.md</code>가 만들어져 바로 열립니다. <strong>열리자마자 머리말의 <code>author</code>를 채우세요.</strong> 이후 만드는 워크플로의 실험자가 여기서 들어갑니다.</p>
+    <p>명령 팔레트 → <code>실험 생성 (Create experiment)</code> → 제목 입력. 입력 창 아래에 폴더 이름 기준 글자 수가 나오고, <code>labnote/###_제목/README.labnote.md</code>가 만들어져 바로 열립니다. <strong>열리자마자 머리말의 <code>author</code>를 채우세요.</strong> 이후 만드는 워크플로의 실험자가 여기서 들어갑니다. 탐색기에서 실험 폴더 이름을 바꾸면, 옛 이름이 README 제목에서 만든 이름과 같았을 때 <code>실험 제목 바꾸기</code> 창으로 README 제목도 바꿀지 묻습니다.</p>
     <figure class="clip" data-clip="create-experiment"><figcaption>실험 생성과 author 채우기</figcaption></figure>
     <p class="more"><a href="https://github.com/sblabkribb/labnoteo/blob/main/automation/templates/QUICKSTART.md#1-실험-만들기">QUICKSTART · 1. 실험 만들기</a> (폴더 이름 규칙)</p>
   </article>
@@ -106,14 +106,15 @@
   <article class="feature" id="experiment-retry">
     <h3>실험 다시 하기</h3>
     <p>워크플로 뷰에서 <code>failed</code>·<code>needs-repeat</code> 실험을 우클릭 → <code>이 실험 다시 하기</code>를 고르면 다음 번호로 <code>planned</code> 실험을 만듭니다. 그 실험의 노트를 열어 두고 명령 팔레트 → <code>이 실험 다시 하기 (Retry this experiment)</code>로 실행해도 같습니다. 제목은 원래 제목에 차수를 붙여 미리 채워지고(<code>… 1차</code> → <code>… 2차</code>, 그 차수의 실험이 이미 있으면 다음 차수) 고칠 수 있습니다. 차수는 <code>retry_of</code>로 이어진 실험을 모두 세므로, 제목을 바꿔 만든 재시도도 셉니다. 새 README는 원래 실험의 <code>author</code>·<code>project</code>를 그대로 가져와 <code>담당자별</code>·<code>과제별</code>에서 같은 묶음에 들어가고, 머리말의 <code>retry_of</code>에 원래 실험 README로 가는 링크가 들어갑니다. 워크플로 노트는 복사하지 않습니다.</p>
-    <p>워크플로 뷰에서 마우스를 올리면 두 실험의 재시도 관계가 보이고, 검색 칸에 원래 실험 번호를 치면 둘이 함께 남습니다. 탐색기에서 <code>failed</code>·<code>needs-repeat</code> 실험 폴더를 복제할 때도 <code>재실험으로 표시</code>할지 묻습니다.</p>
+    <p>워크플로 뷰에서 마우스를 올리면 두 실험의 재시도 관계가 보이고, 검색 칸에 원래 실험 번호를 치면 둘이 함께 남습니다. 탐색기에서 <code>failed</code>·<code>needs-repeat</code> 실험 폴더를 복제할 때도 <code>재실험으로 표시</code>할지 묻습니다. 상태를 <code>failed</code>·<code>needs-repeat</code>로 바꾸면 알림이 <code>이 실험 다시 하기</code>를 안내하고, 다른 상태의 실험에서 실행하면 상태부터 바꾸라고 알려 줍니다.</p>
     <figure class="clip" data-clip="experiment-retry"><figcaption>담당자별 묶음 → 우클릭 이 실험 다시 하기 → 새 README의 retry_of</figcaption></figure>
     <p class="more"><a href="https://github.com/sblabkribb/labnoteo/blob/main/automation/templates/QUICKSTART.md#2-진행-상태-바꾸기">QUICKSTART · 2. 진행 상태 바꾸기</a> (재시도 실험)</p>
   </article>
   <article class="feature" id="issue-marker-discussion">
     <h3>논의가 필요한 곳 표시하기</h3>
     <p>질문이 떠오른 문장을 선택하고 <code>논의 이슈 마커 삽입 (Insert issue marker)</code>을 실행하면 <code>@issue;ISS-…;주제</code> 마커가 붙습니다. 실험 전체를 논의하려면 <code>논의 표시 전환 (Toggle discussion flag)</code>을 씁니다. push하면 GitHub Issue가 열립니다(연구노트 자동화를 설정한 보관함).</p>
-    <figure class="clip" data-clip="issue-marker-discussion"><figcaption>이슈 마커와 논의 표시</figcaption></figure>
+    <p>ID나 주제 문장이 빠진 마커는 색 대신 물결 밑줄로 보이고(마우스를 올리면 무엇이 빠졌는지 나옴), 이슈가 열리지 않을 뿐 아니라 push 전 검사가 실패합니다. 직접 치지 말고 명령으로 다시 넣으세요. 읽기 화면에서 실행하면 편집 화면으로 바꿔 다시 실행하라고 안내합니다.</p>
+    <figure class="clip" data-clip="issue-marker-discussion"><figcaption>이슈 마커 → ID 없는 마커의 물결 밑줄 → 논의 표시</figcaption></figure>
     <p class="more"><a href="https://github.com/sblabkribb/labnoteo/blob/main/automation/templates/QUICKSTART.md#3-기록하다-논의가-필요하면-그-자리에-표시하기">QUICKSTART · 3. 논의 표시</a></p>
   </article>
   <article class="feature" id="commit-push">
@@ -222,8 +223,9 @@
   </article>
   <article class="feature" id="insert-experiment-samples-table">
     <h3>이 실험의 시료를 표로</h3>
-    <p><code>이 실험의 시료 목록 삽입 (Insert sample list of this experiment)</code>은 이 실험의 로컬 샘플과 본문이 참조하는 전역 샘플을 ID·별칭·설명·보관 위치·범위·폐기 열의 표로 넣습니다.</p>
-    <figure class="clip" data-clip="insert-experiment-samples-table"><figcaption>시료 목록 표 삽입</figcaption></figure>
+    <p><code>이 실험의 시료 목록 삽입 (Insert sample list of this experiment)</code>은 이 실험의 로컬 샘플과 본문이 참조하는 전역 샘플을 ID·별칭·설명·보관 위치·범위·폐기 열의 표로 넣습니다. 노트에 시료 목록 표가 이미 있으면 먼저 묻습니다. <code>기존 표를 최신으로 바꾸기</code>는 그 표를 지금 시료로 바꾸고(손으로 넣은 줄과 순서는 사라짐), <code>새 표 하나 더 넣기</code>는 표를 하나 더 넣습니다.</p>
+    <figure class="clip" data-clip="insert-experiment-samples-table"><figcaption>시료 목록 표 삽입 → 다시 실행 → 기존 표를 최신으로 바꾸기</figcaption></figure>
+    <p class="more"><a href="https://github.com/sblabkribb/labnoteo/blob/main/automation/templates/QUICKSTART.md#샘플-뷰">QUICKSTART · 샘플 뷰</a> (시료 목록 표)</p>
   </article>
   <article class="feature" id="custom-sample-type">
     <h3>사용자 정의 샘플 타입</h3>
@@ -233,7 +235,7 @@
   <article class="feature" id="partbank-samples">
     <h3>partbank 부품을 샘플로</h3>
     <p>설정 → Labnote Assistant의 <code>partbank</code>에 <code>partbank 서버</code>(팀이 함께 쓰는 보관함이면 이쪽)나 이 PC의 <code>partbank 데스크톱 앱</code> 주소와 API 키를 넣고 <code>연결 확인</code>을 누릅니다. 키는 보관함이 아니라 이 PC에만 저장되어 보관함을 함께 쓰는 사람에게 넘어가지 않습니다. 연결 전에는 partbank 메뉴와 명령이 보이지 않습니다.</p>
-    <p>본문에서 <code>@DNA;</code>처럼 치면 자동완성 맨 아래에 <code>partbank에서 검색</code>이 생깁니다. 검색은 내 항목과 내 그룹에 공유된 항목만 찾고, 고른 항목은 상세와 보관 위치까지 읽어 샘플로 등록한 뒤 본문에 참조를 넣습니다. 이미 등록한 항목이면 새로 만들지 않고 그 ID를 씁니다. 샘플 뷰 우클릭이나 샘플 정의 창의 <code>partbank에서 보관 위치 갱신</code>으로 위치를 다시 읽고, 팔레트의 <code>partbank에서 보관 위치 일괄 갱신</code>으로 보관함 전체를 한 번에 맞춥니다. <code>partbank에서 열기</code>는 그 항목을 브라우저나 데스크톱 앱으로 열고, 열지 못하면 링크를 클립보드에 복사합니다. 데스크톱 앱과 오가는 모습은 <a href="#partbank-desktop">partbank 데스크톱 앱과 함께</a>에 있습니다.</p>
+    <p>본문에서 <code>@DNA;</code>처럼 치면 자동완성 맨 아래에 <code>partbank에서 검색</code>이 생깁니다. 검색은 내 항목과 내 그룹에 공유된 항목만 찾고, 고른 항목은 상세와 보관 위치까지 읽어 샘플로 등록한 뒤 본문에 참조를 넣습니다. 이미 등록한 항목이면 새로 만들지 않고 그 ID를 씁니다. 같은 항목은 없지만 등록할 곳(이 실험 또는 Global)에 같은 타입·같은 별칭의 시료가 있으면 <code>있는 샘플 {ID} 쓰기</code>와 <code>그래도 새로 만들기</code> 중에서 고릅니다. partbank에서 보관 위치를 얻지 못했는데 다른 실험에 같은 항목이 한 가지 위치로 적혀 있으면 그 위치를 쓸지 묻습니다(<code>이 위치 쓰기</code>). 샘플 뷰 우클릭이나 샘플 정의 창의 <code>partbank에서 보관 위치 갱신</code>으로 위치를 다시 읽고, 팔레트의 <code>partbank에서 보관 위치 일괄 갱신</code>으로 보관함 전체를 한 번에 맞춥니다. <code>partbank에서 열기</code>는 그 항목을 브라우저나 데스크톱 앱으로 열고, 열지 못하면 링크를 클립보드에 복사합니다. 데스크톱 앱과 오가는 모습은 <a href="#partbank-desktop">partbank 데스크톱 앱과 함께</a>에 있습니다.</p>
     <p>partbank에서 가져온 샘플을 쓴 랩노트는 그 항목의 partbank 화면에 본인에게만 보입니다. 보내는 것은 보관함 이름, 노트 경로·제목, 실험 폴더 이름, 그 샘플이 나오는 절 제목이고 노트 본문은 보내지 않습니다. partbank 화면에서 노트를 누르면 Obsidian에서 그 절 위치로 열립니다(<code>obsidian://labnoteo-open</code>). partbank의 <code>labnoteo로 보내기</code>는 반대로 Obsidian을 띄워 그 항목을 등록합니다(<code>obsidian://labnoteo-import</code>). 사용처를 보내기 싫으면 설정 <code>partbank</code> 절의 <code>노트 사용처를 partbank에 보내기</code>를 끄면 되고, 끄면 이 PC가 보낸 기록을 partbank에서 지웁니다.</p>
     <figure class="clip" data-clip="partbank-samples"><figcaption>@DNA; → partbank에서 검색 → 샘플 등록 → 샘플 정의 보기의 partbank 연결</figcaption></figure>
     <p class="hint">설정 화면에는 계정 이름이 보여서 영상은 연결을 마친 상태에서 시작합니다.</p>

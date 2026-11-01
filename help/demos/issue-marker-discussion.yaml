@@ -19,6 +19,16 @@ steps:
     highlight: { selector: .labnote-issue-marker }
     poster: true
     hold: 1500
+  - tool: editor_move
+    args: { text: { ko: 단일 밴드를 확인했다, en: A single band at about 750 bp }, ch: end }
+  - tool: ui_press
+    args: { keys: Enter }
+  - caption: { ko: ID 없이 직접 친 마커는 물결 밑줄로 보입니다, en: A marker typed by hand without an ID gets a wavy underline }
+    tool: ui_type
+    args: { text: { ko: '@issue;음성 대조군 다시 확인', en: '@issue;Recheck the negative control' } }
+  - caption: { ko: 이런 마커는 push 전 검사에서 막히니 다시 넣으세요, en: "The pre-push check fails on it, so insert it again with the command" }
+    highlight: { selector: .labnote-issue-marker-malformed }
+    hold: 1500
   - caption: { ko: 실험 전체를 논의하려면 논의 표시 전환, en: "To discuss the whole experiment, toggle the discussion flag" }
     palette: toggle-discussion-flag
     hold: 1500

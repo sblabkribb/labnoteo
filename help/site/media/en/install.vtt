@@ -5,41 +5,37 @@ WEBVTT
 Installation
 
 2
-00:00:02.514 --> 00:00:05.098
+00:00:02.514 --> 00:00:05.251
 Open Settings → Community plugins
 
 3
-00:00:05.098 --> 00:00:07.374
+00:00:05.251 --> 00:00:07.626
 Turn off restricted mode
 
 4
-00:00:07.374 --> 00:00:14.112
+00:00:07.626 --> 00:00:14.970
 Browse and search for BRAT
 
 5
-00:00:14.112 --> 00:00:24.211
+00:00:14.970 --> 00:00:24.804
 Install it, then enable it
 
 6
-00:00:24.211 --> 00:00:30.327
-Run BRAT: Add a beta plugin for testing
+00:00:24.804 --> 00:00:31.247
+Run BRAT's Add a beta plugin command
 
 7
-00:00:30.327 --> 00:00:35.487
+00:00:31.247 --> 00:00:36.720
 Enter the repository sblabkribb/labnoteo
 
 8
-00:00:35.487 --> 00:00:40.529
+00:00:36.720 --> 00:00:42.033
 Pick latest under Select a version
 
 9
-00:00:40.529 --> 00:00:43.262
+00:00:42.033 --> 00:00:46.685
 Press Add plugin to install and enable it
 
 10
-00:00:43.262 --> 00:00:45.624
-Waiting (fast-forward)
-
-11
-00:00:45.624 --> 00:00:53.288
-Workflows and Samples icons appear in the ribbon
+00:00:46.685 --> 00:00:54.376
+Workflows, Samples and scan icons appear in the ribbon
