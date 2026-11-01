@@ -6,7 +6,7 @@ Follow these steps top to bottom. Steps 1–5 are enough to start taking notes; 
 needed for the GitHub automation.
 
 > The Korean [`INSTALL.md`](./INSTALL.md) covers the same path with a verification checkpoint after
-> each step and more troubleshooting. Use it if you read Korean.
+> each step. Use it if you read Korean.
 
 ## Prerequisites (for automation)
 
@@ -32,12 +32,12 @@ Settings → Community plugins → **Turn on community plugins**. This turns off
 
 It is not in the community directory yet, so a helper plugin fetches it from the GitHub releases.
 
-1. In **Browse**, search for `BRAT`, install **Obsidian42 - BRAT** (by TfTHacker), and enable it.
+1. In **Browse**, search for `BRAT`, install **BRAT** (by TfTHacker), and enable it.
 2. Run **`BRAT: Plugins: Add a beta plugin for testing (with or without version)`** from the
    command palette — searching `beta plugin` finds it (older BRAT shows it as
    `BRAT: Add a beta plugin for testing`).
 3. Enter `sblabkribb/labnoteo`, leave the version at **Latest version** with **Enable after
-   installing the plugin** checked, and click **Add Plugin**.
+   installing the plugin** checked, and click **Add plugin**.
 4. If needed, refresh Settings → Community plugins and confirm **Labnote Assistant** is enabled.
 
 <details>
@@ -76,7 +76,9 @@ the **[Copilot agents guide](./COPILOT.md)** (Korean). Skip it if you only use m
 Do this after step 6 so `.gitignore` exists first.
 
 1. Create an **empty private** repository at [github.com/new](https://github.com/new) — do **not**
-   add a README, `.gitignore`, or license, or the first push will be rejected. Copy its HTTPS URL.
+   add a README, `.gitignore`, or license, or the first push will be rejected. Keep it **Private**:
+   besides exposing your notes, a public repository lets fork pull requests abuse the workflows.
+   Copy its HTTPS URL.
 2. **Path A (recommended):** tell the connected agent, e.g. *"Initialize this folder as a git repo,
    set the hook, then commit everything and push to `<URL>`."* It follows `AGENTS.md` (sets
    `core.hooksPath`, no `--no-verify`).
@@ -94,6 +96,8 @@ Do this after step 6 so `.gitignore` exists first.
    ```
 
 Both paths may pop up a GitHub sign-in (Git Credential Manager) on the first push — that is normal.
+Afterwards the repository's **Actions** tab should show a `validate` run (the workflow runs only for
+pushes that include files under `labnote/`).
 
 ### Why this order
 

@@ -272,7 +272,7 @@ push하고 잠시 뒤, GitHub 저장소의 **Issues 탭**을 열어 보세요.
 | AI로 방법 초안/결과 요약 | 명령 팔레트 → `AI: Draft Method section` / `AI: Summarize workflow results`(README에서는 `AI: Summarize experiment results`) |
 | 실험실에 들고 갈 기록지 출력 | 워크플로 노트에서 → `Print experiment worksheet` (페이지마다 QR) |
 | 손으로 적은 기록지를 노트에 붙이기 | 사진·스캔을 스캔 폴더에 넣거나 `Import scanned pages` 창에 끌어다 놓기 ([출력본 스캔 붙이기](#출력본%20스캔%20붙이기)) |
-| 플러그인 업데이트 | BRAT가 앱 시작 시 자동 확인 · 수동은 `Check for updates to all beta plugins and UPDATE` |
+| 플러그인 업데이트 | BRAT가 앱 시작 시 자동 확인 · 수동은 `BRAT: Plugins: Check for updates to all beta plugins and UPDATE` |
 | 이 문서 다시 열기 | 명령 팔레트 → `Open user guide` (설정의 Labnote Assistant 탭 맨 위 버튼도 같음). 이 설명서가 설치된 플러그인보다 오래됐으면 새 버전으로 바꾸고, 블록을 고친 적이 있으면 먼저 묻습니다 |
 
 ---
@@ -1172,8 +1172,8 @@ API 키는 OpenAI 계열에만 전송되며 Ollama로는 절대 나가지 않습
 - 지금 당장 돌리고 싶다면 **Actions 탭 → `experiment-issues` → `Run workflow`** 를 누르세요. 수동 실행은 바뀐 파일이 아니라 **모든 실험 폴더**를 훑으므로, 그동안 처리되지 않고 남아 있던 마커가 한꺼번에 이슈로 열립니다.
 
 **플러그인은 어떻게 업데이트하나요?**
-- BRAT가 앱을 켤 때 자동으로 최신 릴리스를 확인·설치합니다(설정 → `Obsidian42 - BRAT`에서 자동 갱신을 끌 수 있음).
-- 지금 바로 받으려면 명령 팔레트 → `Check for updates to all beta plugins and UPDATE`.
+- BRAT가 앱을 켤 때 자동으로 최신 릴리스를 확인·설치합니다(설정 → `BRAT`에서 자동 갱신을 끌 수 있음).
+- 지금 바로 받으려면 명령 팔레트 → `BRAT: Plugins: Check for updates to all beta plugins and UPDATE`.
 - 업데이트 뒤 Obsidian을 켜면 직접 고치지 않은 자동화 파일(이 문서, `.labnoteo/` 스크립트 등)이 새 버전으로 자동 갱신되고 "자동화 파일 N개를 이 플러그인 버전에 맞게 갱신했습니다" 알림이 뜹니다. 설치 기록(`.labnoteo/installed.json`)이 없는 오래된 보관함도, 이전 버전이 만든 그대로인 파일은 자동으로 갱신됩니다.
 - "설치 후 내용이 바뀌었거나 이전 버전 기록으로 확인할 수 없어 그대로 두었습니다" 알림이 뜨면 명령 팔레트 → `Setup research automation`을 실행하세요. 파일마다 덮어쓸지 묻습니다. 이 알림과 "보관함에 없습니다" 알림은 새 버전마다 한 번만 뜹니다.
 - 보관함 최상위의 `AGENTS.md`·`CLAUDE.md`·`QUICKSTART.md`·`wiki-staging/`은 AI 에이전트와 자동화가 그 이름으로만 찾으므로 이름을 바꾸지 마세요. 바꾸면 경고와 함께 원래 이름으로 되돌릴지 묻습니다. 바뀐 채로 `Setup research automation`을 실행하면 기본 내용으로 새로 만들고(그동안 적은 연구실 규칙은 바뀐 이름의 파일에만 남음) "없어서 새로 만든 파일: …"로 알려 줍니다.

@@ -46,7 +46,7 @@ Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 �
      **BYOK**에 등록하면 목록에 나타납니다.
    - Default model을 지정하지 않으면(`Agent default`) 새 세션이 opencode가 운영하는
      클라우드의 무료 모델(예: `opencode/Big Pickle`)로 시작합니다.
-4. **Default backend**를 opencode로 둡니다.
+4. **Default agent**를 opencode로 둡니다(Copilot 4.0.15 이하에서는 이름이 `Default backend`입니다).
 
 > **노트를 외부로 보내지 않으려면** — opencode의 Free 모델에 보낸 내용은 opencode
 > 클라우드로 전송되고, Big Pickle 등 일부는 무료 기간 동안 보낸 데이터를 모델 개선에
@@ -62,7 +62,7 @@ Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 �
 
 Copilot의 Claude 백엔드는 이 컴퓨터의 Claude Code 설치와 Anthropic 로그인을 그대로
 씁니다. **Claude Code는 유료 플랜 전용**입니다(Pro/Max/Team/Enterprise/Console — 무료
-Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Claude Code 2.1.206 이상**이
+Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Claude Code 2.1.281 이상**이
 필요합니다.
 
 1. Claude Code를 공식 경로로 설치합니다.
@@ -92,8 +92,8 @@ Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Cla
 > - 환경변수 `ANTHROPIC_API_KEY`가 있으면 구독 로그인보다 **우선 적용**되어 그 키로
 >   과금됩니다. 구독으로 쓰려면 비워 두세요.
 > - Copilot은 Claude Code의 로그인만 봅니다 — 이 대화창에 API 키를 넣지 마세요.
->   "installed version is unsupported"가 뜨면 Claude Code를 업데이트하고 다시
->   Auto-detect 하세요.
+>   "Claude Code X is not supported. Copilot requires Claude Code Y or newer."가 뜨면
+>   Claude Code를 업데이트하고 다시 Auto-detect 하세요.
 > - Windows 상세 절차는 [Copilot 공식 Windows 설정 문서](https://docs.obsidiancopilot.com/agent-mode-windows-setup/)를
 >   참고하세요.
 
@@ -113,8 +113,8 @@ Codex 백엔드는 Codex CLI와 네이티브 `codex-acp` 어댑터가 모두 필
 
 ### 연결 마무리
 
-1. **Default backend**로 기본 에이전트를 지정합니다.
-2. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행해 대화창을 엽니다.
+1. **Default agent**로 기본 에이전트를 지정합니다.
+2. 명령 팔레트에서 **Open Copilot Agent Chat window**를 실행해 대화창을 엽니다.
 3. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성
    노트를 대화에 추가할 수 있습니다.
 
@@ -323,4 +323,4 @@ OAuth가 아니라 베어러 토큰이므로 클라이언트가 커스텀 `Autho
 - **Copilot `Reset Settings` 후 에이전트 모델이 비어 있습니다** — 키는 보존되지만
   백엔드 모델 활성화가 초기화되므로 `Basic → Agents`에서 다시 켜세요.
 - **에이전트를 고를 수 없거나 말해도 반응이 없습니다** — 에이전트가 설치·로그인되어
-  있는지, `Default backend`가 지정됐는지 확인하세요.
+  있는지, `Default agent`가 지정됐는지 확인하세요.
