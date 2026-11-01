@@ -12,7 +12,7 @@ steps:
     args: { text: pGFP-c1, ch: 0 }
   - highlight: { selector: .cm-line, text: pGFP-c1 }
     hold: 1200
-  - caption: { ko: "팔레트에서 AI: 샘플 추출", en: "Run AI: Extract samples from the palette" }
+  - caption: { ko: "팔레트에서 AI: 샘플 정의 추출", en: "Run AI: Extract sample definitions from the palette" }
     palette: ai-extract-samples
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }

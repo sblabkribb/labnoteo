@@ -13,7 +13,7 @@ labnoteo 내장 AI 명령과는 다른 층입니다: 내장 AI는 Obsidian *안�
 [연구노트 자동화](../README.md#연구노트-자동화)를 설정했다면 생성된 `AGENTS.md`/`CLAUDE.md`를
 같은 에이전트가 터미널에서든 Copilot 에이전트 모드에서든 자동으로 읽습니다.
 
-> **먼저 [설치 가이드](./INSTALL.md)의 3~6단계**(Obsidian → 커뮤니티 플러그인 → 자동화
+> **먼저 [설치 가이드](./INSTALL.md)의 1~6단계**(Obsidian → 커뮤니티 플러그인 → 자동화
 > 설정)를 마쳤다고 가정합니다. `AGENTS.md`가 생긴 뒤에 에이전트를 연결해야 규칙이
 > 처음부터 적용됩니다.
 
@@ -46,7 +46,7 @@ Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 �
      **BYOK**에 등록하면 목록에 나타납니다.
    - Default model을 지정하지 않으면(`Agent default`) 새 세션이 opencode가 운영하는
      클라우드의 무료 모델(예: `opencode/Big Pickle`)로 시작합니다.
-4. **Default backend**를 opencode로 둡니다.
+4. **Default agent**를 opencode로 둡니다(Copilot 4.0.15 이하에서는 이름이 `Default backend`입니다).
 
 > **노트를 외부로 보내지 않으려면** — opencode의 Free 모델에 보낸 내용은 opencode
 > 클라우드로 전송되고, Big Pickle 등 일부는 무료 기간 동안 보낸 데이터를 모델 개선에
@@ -62,7 +62,7 @@ Copilot은 최소 한 개의 에이전트를 연결하면 됩니다. **어느 �
 
 Copilot의 Claude 백엔드는 이 컴퓨터의 Claude Code 설치와 Anthropic 로그인을 그대로
 씁니다. **Claude Code는 유료 플랜 전용**입니다(Pro/Max/Team/Enterprise/Console — 무료
-Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Claude Code 2.1.206 이상**이
+Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Claude Code 2.1.281 이상**이
 필요합니다.
 
 1. Claude Code를 공식 경로로 설치합니다.
@@ -92,8 +92,8 @@ Claude.ai 플랜으로는 동작하지 않습니다). Copilot 연동에는 **Cla
 > - 환경변수 `ANTHROPIC_API_KEY`가 있으면 구독 로그인보다 **우선 적용**되어 그 키로
 >   과금됩니다. 구독으로 쓰려면 비워 두세요.
 > - Copilot은 Claude Code의 로그인만 봅니다 — 이 대화창에 API 키를 넣지 마세요.
->   "installed version is unsupported"가 뜨면 Claude Code를 업데이트하고 다시
->   Auto-detect 하세요.
+>   "Claude Code X is not supported. Copilot requires Claude Code Y or newer."가 뜨면
+>   Claude Code를 업데이트하고 다시 Auto-detect 하세요.
 > - Windows 상세 절차는 [Copilot 공식 Windows 설정 문서](https://docs.obsidiancopilot.com/agent-mode-windows-setup/)를
 >   참고하세요.
 
@@ -113,8 +113,8 @@ Codex 백엔드는 Codex CLI와 네이티브 `codex-acp` 어댑터가 모두 필
 
 ### 연결 마무리
 
-1. **Default backend**로 기본 에이전트를 지정합니다.
-2. 명령 팔레트에서 **Open Copilot Agent Chat Window**를 실행해 대화창을 엽니다.
+1. **Default agent**로 기본 에이전트를 지정합니다.
+2. 명령 팔레트에서 **Open Copilot Agent Chat window**를 실행해 대화창을 엽니다.
 3. 노트에서 텍스트를 선택하면 에이전트 모드의 컨텍스트 컨트롤로 선택 텍스트·활성
    노트를 대화에 추가할 수 있습니다.
 
@@ -167,7 +167,7 @@ Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.
 
 | 층 | 모델·인증 | 설정 위치 | 쓰임 |
 | --- | --- | --- | --- |
-| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더** — [README 설정](../README.md#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안` 등) |
+| **labnoteo 자체 AI** | Ollama 또는 OpenAI 호환 엔드포인트 + 자체 `API 키` | 설정 → Labnote Assistant → **AI 프로바이더** — [README 설정](../README.md#설정) 참고 | 노트 안 초안·요약 (`AI: Method 섹션 초안 작성` 등) |
 | **Copilot Agent Chat** (opencode / Claude / Codex) | **에이전트 로그인** — BYOK 키는 쓰지 않습니다(Claude/Codex). opencode는 Copilot 라이선스 또는 BYOK | `Basic → Agents`의 각 에이전트 탭 | git 커밋·이슈 신호·Wiki 초안 |
 | **Copilot Quick Chat** | Copilot-hosted 또는 **BYOK** 모델. Agent Chat 모델과 **별개 목록**입니다 | `Settings → Copilot → BYOK` + `Basic → Agents → Quick Chat` | Copilot 채팅창에서의 짧은 질의 |
 
@@ -323,4 +323,4 @@ OAuth가 아니라 베어러 토큰이므로 클라이언트가 커스텀 `Autho
 - **Copilot `Reset Settings` 후 에이전트 모델이 비어 있습니다** — 키는 보존되지만
   백엔드 모델 활성화가 초기화되므로 `Basic → Agents`에서 다시 켜세요.
 - **에이전트를 고를 수 없거나 말해도 반응이 없습니다** — 에이전트가 설치·로그인되어
-  있는지, `Default backend`가 지정됐는지 확인하세요.
+  있는지, `Default agent`가 지정됐는지 확인하세요.

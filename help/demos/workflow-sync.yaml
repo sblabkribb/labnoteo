@@ -1,7 +1,7 @@
 id: workflow-sync
 order: 12
 section: record
-title: { ko: 폴더와 워크플로 체크리스트 맞추기, en: Sync folder and workflow checklist }
+title: { ko: 폴더와 워크플로 체크리스트 맞추기, en: Sync workflow checklist with folder }
 seed: workflow-mess
 steps:
   - caption: { ko: 004는 체크리스트에 없고 001은 라벨이 다릅니다, en: 004 is not in the checklist; the 001 label differs }
@@ -11,7 +11,7 @@ steps:
     args: { text: '[WB030', ch: 0 }
   - highlight: { selector: .cm-line, text: WB030 }
     hold: 1200
-  - caption: { ko: 팔레트에서 폴더와 워크플로 체크리스트 맞추기, en: Run Sync folder and workflow checklist }
+  - caption: { ko: 팔레트에서 폴더와 워크플로 체크리스트 맞추기, en: Run Sync workflow checklist with folder }
     palette: sync-workflow-checklist
   - caption: { ko: "옛 라벨 → 새 라벨 목록을 보고 고칩니다", en: "Check the old label → new label list and update" }
     tool: modal_button

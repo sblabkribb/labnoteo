@@ -50,16 +50,21 @@ everything changed while it was open.
   slashes, or with single digits, such as `2026.10.23 14:00`, `2026/10/23` or `2026-1-5 9:30`, are
   read and shown; a value the field cannot read is left as it is too, and the field says it starts
   at another time. An empty value shows the current time, and Enter writes it.
-- With a `Start_date` in the same block, the `End_date` calendar starts at that date, and closing
-  with an end earlier than the start says so (the value is still written).
+- With a `Start_date` in the same block, the `End_date` calendar does not offer a day before it,
+  and closing with an end that is still earlier than the start says so (the value is still
+  written).
+- The 📅 icon shows whether the line has a value or not.
 - Years outside 1900–2100, such as 0001 after stepping the year with the arrow keys or the digits
   passed through while typing a year, are not written; closing says the date was kept.
 - Works in editing views only, including notes opened in a separate window.
 
 ### Last updated date
 
-With **Auto-update last updated date** on, editing a lab note sets its `last_updated_date` to today
-once a day. A note whose date you edited by hand keeps it that day. Deleting the
+With **Auto-update last updated date** on, editing a lab note (ticking a checkbox in Live Preview
+included) sets its `last_updated_date` to today (Asia/Seoul) once a day. Editing a workflow note, or creating
+one, updates the experiment README's date too. Changes pulled with git and the plugin's own
+automatic tidy-ups do not count. A note whose date you edited by hand keeps it that day (on a day
+you edited the README's date by hand, editing a workflow note does not overwrite it). Deleting the
 `last_updated_date` line from the front matter stops the automatic date, since the line is never
 added back, and a notice says so once; put the line back to have it recorded again.
 
@@ -77,6 +82,16 @@ Create a new `.labnote.md` experiment note.
   instead: record in that experiment, or give this one another title. Creating is not blocked. The
   title prompts of `Retry this experiment` and of a copied experiment folder warn the same way.
 - On Windows, it warns when the path including the vault folder reaches 260 characters.
+- The folder name is made from the title: spaces become `_`, hyphens, dashes and tildes (`–`, `~`)
+  become `-`, and other symbols are dropped (`Media opt (M1–M8)` → `001_Media_opt_M1-M8`). A minus
+  sign before a number and a decimal point between digits stay (`−80°C` → `-80C`,
+  `OD600 0.4~0.8` → `OD600_0.4-0.8`). Between digits, `×` becomes `x`, a thousands comma is dropped
+  (`2,500` → `2500`), and `/`, `:`, `±` and the like become `_` so the numbers do not run together
+  (`pH 7.0/8.0` → `pH_7.0_8.0`). A title made only of symbols or emoji cannot make a folder name, so
+  no experiment is created. The README `title` keeps the title as typed.
+- **Fill in the README's `author` right away.** Left empty, every workflow and unit operation created
+  in the experiment afterwards gets an empty `Experimenter`, without a warning. Write several people
+  as a list (`author: [Seoyeon Lee, Haneul Park]`; `[[name]]` links are read as names).
 
 ### Change experiment status
 
@@ -84,6 +99,12 @@ Update the active experiment's `status` frontmatter via a picker.
 
 - Each status is listed with what it means, and its search also matches words for it (in the
   Korean UI, Korean ones). The stored value is the English term either way.
+- The status goes into the experiment's **README** whichever note of the experiment you run it in,
+  so run from a workflow note, Ctrl+Z does not reach it. The notice then says the README was changed
+  rather than this note and how to undo (run the command again and pick the old value); it also
+  shows the old value (`planned → in-progress`).
+- Picking `needs-review` opens a review Issue on the next push. Before Setup research automation,
+  or while the vault is not a git repository yet, the notice says that no Issue will open.
 - Also on an experiment's right-click menu in the workflow view, where it changes that experiment
   (the picker title and notice name the experiment folder). In a list filtered by a search, the
   experiment stays listed until the search changes, so it can be right-clicked again to undo.
@@ -143,6 +164,8 @@ Turn the active experiment's `discuss` flag on or off, so the next push opens a 
   `true`.
 - Like Change experiment status, it changes only the `discuss` line (turning it off removes the
   line) and keeps the other lines and their `#` comments.
+- The flag, like `status: needs-review`, opens one `[<experiment ID>] <title>` Issue: a discussion
+  thread for the whole experiment. Closed and flagged again later, the same Issue reopens.
 
 ### Insert issue marker
 
@@ -177,6 +200,14 @@ listed and says to switch to the editing view and put the cursor on the line fir
 - A marker missing its ID or topic (`@issue;;…`, `@issue;ISS-…;`) opens no Issue and fails
   `validate`. Editing and reading views give it a wavy warning underline instead of the marker
   colour, with a tooltip naming what is missing.
+- Each marker opens an Issue titled `[<experiment ID>/ISS-…] <topic>`, whose body links to the
+  marker's line. The experiment ID is the front matter `id` (`EXP-###`) or else the folder name.
+  Deleting the marker does not close its Issue, and a closed marker Issue is not reopened; start a
+  new discussion with a new marker.
+- Do not copy a line with its marker into another note: the ID goes with it and the two questions
+  merge into one Issue. Within one experiment, markers sharing an ID get a wavy underline in the
+  editing view (the tooltip names the other note), a notice once on save, and fail `validate` with
+  `duplicate marker ID`. Delete the copied marker and insert a new one.
 - Markers inside code blocks, inline code (`` `@issue;…` ``) or comments are not highlighted, open
   no Issue, are not validated and keep their IDs when a note is copied. Commenting out a marker
   leaves an Issue it already opened as it is. Rerun `Setup research automation` after updating for
@@ -368,7 +399,11 @@ or IDs, export again to bring the CSV up to date.
   `^6` (`<sub>` just loses its tags), and HTML entities are decoded (`&lt;0.1` → `<0.1`, `&nbsp;` a space).
 - A cell starting with `=` or `@`, or with a `+`/`-` that is not part of a number, gets a leading
   tab so Excel shows it as typed instead of evaluating it. Numbers like `-80` are left alone. In a
-  column where such a cell appears, like `+/-`, a lone `+` or `-` gets the tab too.
+  column where such a cell appears, like `+/-`, a lone `+` or `-` gets the tab too. Read with pandas
+  or R, such a cell keeps its tab; strip it with `str.strip()` (`trimws()` in R).
+- The file is saved as UTF-8 with a BOM so Excel shows Korean text correctly. pandas and readr read
+  it as is; open it with `encoding='utf-8-sig'` in Python's `csv` module and
+  `fileEncoding='UTF-8-BOM'` in R's `read.csv`.
 - Opening the CSV by double-clicking it in Excel turns `3-1`, `1/2` and `SEPT9` into dates,
   `2:1`, `10:30` and `1:80` (a dilution) into times, `(1)` and `(0.05)` into negative numbers,
   numbers of 16 digits or more (barcodes, LIMS IDs) into ones with zeros past the 15th digit,
@@ -432,6 +467,26 @@ explorer.
   alias, numbers by their size (`WTR-2` before `WTR-10`), then those without an alias by ID.
 - Choosing `{Type} catalog search` in autocomplete opens the catalog search with what you typed
   after `;` already searched.
+- In a lab note (`.labnote.md`), an ID no registry has gets a **red wavy underline**, with
+  `Not in the sample registry` on hover, in editing and reading view: it was deleted from the
+  registry, moved to another experiment, the Global sample folder setting changed, or it was only
+  referred to, never defined. Defining it in that note (`@type;ID`) or registering it in the sample
+  view clears it. IDs in a product catalog count as registered. When a registry JSON cannot be read
+  (git conflict markers, say), nothing is underlined.
+- A reference whose alias was edited in the note so it differs from the registry gets an **orange
+  dotted underline**, with `The registry calls this sample COL-001` on hover. Editing the note does
+  not change the registry; change the alias with Edit sample. A sample the note itself defines
+  (`@type;ID;alias`) is not flagged, since saving puts that alias in the registry.
+- A reference (`ID;alias`) alone never registers a sample, not even an unknown ID. Samples are made
+  only through autocomplete (`Generate new … ID`, `Enter info`, catalog search), an
+  `@type;ID;alias;description` definition, or **Add sample** in the sample view.
+- Editing the description of a definition and saving replaces the description that note added
+  before, instead of piling up. Descriptions added by other notes or by Edit sample stay.
+- A custom sample type name takes letters, digits and `_` only. A name with a space or `-` would not
+  autocomplete, so the settings field does not save it and suggests one (`Cell_Line`). `_` is
+  allowed only between ASCII letters and digits; next to other letters (Korean, say) it turns the
+  name italic in the reading view, so the field suggests the joined name instead. Names saved by
+  older versions stay, with a warning. A Korean type (`배지`) autocompletes as `@배지`.
 - Changing only the letter case of a saved custom sample type (`Media` → `media`) is not saved:
   its samples and the IDs already written in notes keep the old spelling, so the name goes back
   and a notice says so.
@@ -493,8 +548,11 @@ type.
   already has (case and spacing aside; the question spells it as that sample has it); for a Local
   sample whose alias only Global samples have, a notice says so.
   **Change type** names the samples of the new type that already have its alias.
-- **Delete** shows the sample's alias, description, location, scope and discard date in the
-  confirmation, and the notice names it as `ID;alias`.
+- **Delete** is refused while note text uses the sample: the notice names each note by its full
+  vault path (a Local sample is checked in its experiment and in the notes outside experiments
+  above, a Global one in the whole vault). Remove the references first, or use **Mark as
+  discarded** to keep the record. Otherwise it shows the sample's alias, description, location,
+  scope and discard date in the confirmation, and the notice names it as `ID;alias`.
 - **Move to Global / Move to Local** asks first when notes outside the experiment use a Global
   sample being made Local, and when the destination already has another sample of the same type
   and alias; moving then shows two samples with the same text in autocomplete (they are not
@@ -545,6 +603,13 @@ refused; lone brackets such as `[uninoculated]` show as written and are accepted
 registered before a rule are left as they are. For one already holding `[text](target)`, reading
 view sees the alias only up to the link, and that alone no longer marks the reference with the
 "registry calls this sample" warning.
+
+Changing an alias with Edit sample lists the notes whose references and definitions use the old
+alias, with a count per note, and changes them after asking (a Local sample: its experiment and the
+notes outside experiments that use it; a Global one: the whole vault). Only references that match
+the old alias exactly are changed, and an open note undoes them with one Ctrl+Z. Declining leaves
+those notes showing the old alias while the registry keeps the new one. Giving a sample its first
+alias also offers to add `;alias` to the references written as the ID alone (`DNA-123`).
 
 A note's `@type;ID;alias` definition sets the registry alias when the definition is new or its
 alias changed, not on every save, so an unrelated edit of a note with an older alias does not take
@@ -792,7 +857,9 @@ file is written. To remove a scan for good, use **undo** in the results, or dele
 
 ### Process scan folder now
 
-Process the PC scan folder set in settings right away (desktop only).
+Process the PC scan folder set in settings right away (desktop only). Otherwise the folder is
+checked every 30 seconds. HEIC photos (the iPhone default) and TIFF scans cannot be opened: set the
+iPhone to Settings → Camera → Formats → Most Compatible, or send JPEG or PDF.
 
 ### Assign unmatched scans
 
@@ -814,6 +881,14 @@ with the reason for each, and file each by choosing the note, unit operation, an
   duplicate instead of filed twice. This holds for pages sent to unmatched scans from 0.135.0 on.
 
 ## AI
+
+Set up under Settings → Labnote Assistant → AI provider; with **Provider** left at `Disabled` the AI
+commands do nothing. When a request fails, the notice names the cause and the setting to fix: the
+endpoint when the server cannot be reached (is Ollama running?), the API key on 401/403, the model
+when it is not found (for Ollama, was it pulled with `ollama pull`?), the endpoint path on any other
+404 (the server address only, without `/v1` or `/api`), and how to write the endpoint when it is not
+an `http://` or `https://` address (a typo such as `htp://`). The original error stays in the
+developer console (Ctrl+Shift+I, Cmd+Option+I on macOS).
 
 ### AI: Draft Method section
 
@@ -865,7 +940,10 @@ README, which has the next command.
 - Moving to another note while waiting opens the answer dialog, as for the Method draft.
 - Inserting the summary leaves the cursor where it was, so text typed while waiting does not end
   up inside the callout.
-- The summary and the Method draft ask the model to write in Obsidian's interface language.
+- The summary and the Method draft ask the model to write in Obsidian's interface language, even
+  for a note written in English. The Method draft keeps sample IDs, units, numbers and quoted text
+  exactly as the note has them; the two summaries keep units, numbers and quoted text, but not
+  sample IDs (see the next point).
 - Both summaries ask the model to call samples by their alias rather than copy `ID;alias`
   references. `@issue` markers are sent as their topic sentences, and any `@issue;` or `@issue:`
   left in the reply loses its `@`, so a summary opens no issue and does not fail `validate`.
@@ -909,9 +987,14 @@ Extract samples from note text with the configured LLM.
 State a goal and let the model reach it with Labnote's tools; it also reads the start of the
 current note.
 
+- Before each write it shows the target path and asks; replacing a section's content also shows
+  how many lines would go.
 - The final answer opens in a dialog with `Insert into note`, `Copy`, and `Close` — nothing is
-  added to the note on its own.
-- With no answer and no tool called, it says the request may be outside the tools it can use.
+  added to the note on its own. `Insert into note` puts it after the cursor's line (at the end of
+  the note when the cursor is in the front matter or above the first heading), and not at all when
+  another note was opened meanwhile.
+- With no answer and no tool called, it says the request may be outside the tools it can use (there
+  is no tool for changing an experiment's status, for example).
 - The end notice counts changes made, lookups, writes you denied, and failed calls, and says when
   nothing in the vault changed. Failed or denied calls are named with their target and reason, up
   to three (`Failed: update_section (Method) — …`, then `+N more`).
@@ -929,6 +1012,12 @@ Start or stop the local MCP server. See the [Copilot guide](./COPILOT.md) (Korea
 Reveal the sidebar view and move focus into its list; arrow keys move, →← expand and collapse,
 Enter opens, and Shift+F10 or the menu key opens the right-click menu.
 
+- The workflow view's **Experiments** section lists each experiment as `001 · title (2/5)`: its
+  number, title, and the checked and total workflows of its README checklist. Hovering shows the
+  folder, status, project, author and last updated date (and retry links and the `@issue` marker
+  count, when there are any). A status that is not an allowed value (such as `Failed`) is grouped
+  under its value marked `(not an allowed status)`, whose tooltip lists the allowed ones. The
+  grouping you pick is kept for next time.
 - The workflow view's **Experiments** section groups experiments by status, by project, by author
   (the README `author`, empty ones under **(no author)**), or by discussion. **By discussion** puts
   the ones flagged for discussion or with at least one `@issue` marker (counted in the notes

@@ -82,7 +82,7 @@ GitHub 릴리스에서 받습니다. 보관함마다 한 번씩 해야 합니다
 ### 4-1. BRAT 설치
 
 1. **커뮤니티 플러그인 → 탐색**(Browse)에서 `BRAT`를 검색합니다.
-2. **Obsidian42 - BRAT**(제작자 TfTHacker)를 골라 **설치**(Install) → **활성화**(Enable).
+2. **BRAT**(제작자 TfTHacker)를 골라 **설치**(Install) → **활성화**(Enable).
 
 ### 4-2. BRAT로 Labnote Assistant 추가
 
@@ -93,12 +93,12 @@ GitHub 릴리스에서 받습니다. 보관함마다 한 번씩 해야 합니다
 2. 저장소 칸에 `sblabkribb/labnoteo`(또는 전체 URL
    `https://github.com/sblabkribb/labnoteo`, 끝에 `/` 없이)를 입력합니다.
 3. 버전은 **Latest version**으로 두고, **Enable after installing the plugin**
-   (설치 후 활성화)이 체크된 채로 **Add Plugin**을 누릅니다.
+   (설치 후 활성화)이 체크된 채로 **Add plugin**을 누릅니다.
 4. 잠시 뒤 BRAT가 설치 완료를 알립니다. 필요하면 **설정 → 커뮤니티 플러그인**에서
    목록을 새로고침하고 **Labnote Assistant**가 켜져 있는지 확인합니다.
 
 > BRAT는 이후 앱을 켤 때 자동으로 업데이트를 확인합니다(설정에서 끌 수 있음).
-> 수동 갱신은 `Check for updates to all beta plugins and UPDATE` 명령으로 합니다.
+> 수동 갱신은 `BRAT: Plugins: Check for updates to all beta plugins and UPDATE` 명령으로 합니다.
 
 <details>
 <summary><b>BRAT 없이 수동 설치</b>(자동 업데이트 없음)</summary>
@@ -155,7 +155,7 @@ GitHub 자동화가 필요 없다면 [QUICKSTART](https://github.com/sblabkribb/
 보세요.
 
 **✅ 확인** — Copilot 설정 → `Basic → Agents`에서 에이전트 상태가 **Ready**이고,
-`Default backend`가 지정돼 있습니다.
+`Default agent`(Copilot 4.0.15 이하는 `Default backend`)가 지정돼 있습니다.
 
 ## 8. GitHub 저장소 개설 + 첫 커밋·push
 
@@ -213,8 +213,8 @@ git push -u origin main
 ## 9. (선택) LLM 제공자 설정
 
 Obsidian *안에서* 방법 초안·결과 요약을 하려면 설정 → **Labnote Assistant** →
-**AI 프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI 호환`을 고르고 엔드포인트·모델명을
-채웁니다. 기본값 `Disabled`에서는 AI 명령이 동작하지 않습니다. 이 층은 7번의 Copilot
+**AI 프로바이더** → **프로바이더**에서 `Ollama`(로컬) 또는 `OpenAI-compatible`을 고르고 엔드포인트·모델명을
+채웁니다. 기본값 `비활성화됨`에서는 AI 명령이 동작하지 않습니다. 이 층은 7번의 Copilot
 에이전트와 별개입니다 — 층 구분은 [Copilot 가이드의 모델 설정](./COPILOT.md#copilot-llm-설정)을
 참고하세요.
 
