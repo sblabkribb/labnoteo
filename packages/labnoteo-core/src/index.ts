@@ -137,6 +137,7 @@ export {
   ISSUE_MARKER_ID_PREFIX,
   parseIssueMarkers,
   findIssueMarkerRanges,
+  findMalformedIssueMarkerRanges,
   markerSpanAcrossRuns,
   type InlineRun,
   fencedCodeRanges,

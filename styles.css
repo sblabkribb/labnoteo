@@ -150,6 +150,12 @@
   text-underline-offset: 3px;
 }
 
+/* A marker without an ID or topic sentence: validate fails the push on it. */
+.labnote-issue-marker-malformed {
+  text-decoration: wavy underline var(--text-warning);
+  text-underline-offset: 3px;
+}
+
 /* --- Meta date fields (click to pick a date/time) ------------------------ */
 .labnote-date-value {
   cursor: pointer;

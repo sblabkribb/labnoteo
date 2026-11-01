@@ -15,6 +15,7 @@ import {
   markerHiddenRanges,
   findEnclosingHeading,
   findIssueMarkerRanges,
+  findMalformedIssueMarkerRanges,
   generateIssueMarkerId,
   issueSentenceRange,
   lineHasSampleReference,
@@ -156,6 +157,28 @@ describe('parseIssueMarkers', () => {
 
   it('returns nothing for a note with no markers', () => {
     expect(parseIssueMarkers('# Results\n수율 40%')).toEqual({ markers: [], malformed: [] });
+  });
+});
+
+// #519: a marker validate fails looked like plain text.
+describe('findMalformedIssueMarkerRanges', () => {
+  it('finds the lines parseIssueMarkers reports as malformed, with the same reason', () => {
+    const text = ['ok @issue;ISS-a;topic', 'a @issue;;no id', 'b @issue;ISS-b;  ', 'c @issue;ISS-c', 'plain'].join('\n');
+    const ranges = findMalformedIssueMarkerRanges(text);
+    expect(ranges.map(r => [text.slice(r.start, r.end), r.reason])).toEqual([
+      ['@issue;;no id', 'missing-id'],
+      ['@issue;ISS-b;  ', 'missing-title'],
+      ['@issue;ISS-c', 'missing-title'],
+    ]);
+    expect(parseIssueMarkers(text).malformed.map(m => [m.text, m.reason])).toEqual(
+      ranges.map(r => [text.slice(r.start, r.end), r.reason])
+    );
+  });
+
+  it('skips a hidden candidate as findIssueMarkerRanges does', () => {
+    const text = '<!-- @issue;; --> @issue;;x';
+    const ranges = findMalformedIssueMarkerRanges(text, at => at < 17);
+    expect(ranges).toEqual([{ start: 18, end: text.length, reason: 'missing-id' }]);
   });
 });
 

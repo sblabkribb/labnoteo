@@ -52,6 +52,25 @@ describe('markers of a note that is not read for markers', () => {
   });
 });
 
+// #519: a marker validate fails looked like plain text.
+describe('markers without an ID or topic', () => {
+  const malformedTitle = (reason: 'missing-id' | 'missing-title') => (reason === 'missing-id' ? 'no id' : 'no topic');
+
+  it('marks them with the reason as the tooltip, over the sample IDs inside', () => {
+    const text = '@issue;;RNA-1 확인';
+    expect(collectTokenRanges(text, on.types, on.colors, { malformedTitle })).toEqual([
+      { start: 0, end: text.length, cls: 'labnote-issue-marker-malformed', title: 'no id' },
+    ]);
+    expect(collectTokenRanges('@issue;ISS-1;', [], {}, { malformedTitle })[0].title).toBe('no topic');
+  });
+
+  it('finds them without options, and drops them in code or a note not read for markers', () => {
+    expect(collectTokenRanges('@issue;;x', [], {}).map(r => r.cls)).toEqual(['labnote-issue-marker-malformed']);
+    expect(collectTokenRanges('@issue;;x', [], {}, { inCode: () => true })).toEqual([]);
+    expect(collectTokenRanges('@issue;;x', [], {}, { noMarkers: true })).toEqual([]);
+  });
+});
+
 // #210: a sample ID the note cannot resolve is underlined with a tooltip.
 describe('sample IDs missing from the registry', () => {
   const types = ['DNA', 'RNA'];

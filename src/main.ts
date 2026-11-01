@@ -2889,6 +2889,10 @@ export default class LabnotePlugin extends Plugin {
     const missingTitle = this.t('Not in the sample registry');
     const staleAliasTitle = (alias: string): string => this.t('The registry calls this sample {0}', alias);
     const discardedTitle = (date: string): string => this.t('Marked discarded on {0}', date);
+    const malformedTitle = (reason: 'missing-id' | 'missing-title'): string =>
+      reason === 'missing-id'
+        ? this.t('This marker has no ID. Insert it again with "{0}".', this.t('Insert issue marker'))
+        : this.t('This marker has no topic sentence.');
     const getState = (path: string | undefined): HighlightState => {
       const tracked = this.sampleTrackingFor(path);
       const base: HighlightState = tracked
@@ -2909,8 +2913,8 @@ export default class LabnotePlugin extends Plugin {
         : base;
       const others = markers.othersFor(path);
       const withMarkers = others
-        ? { ...samples, otherMarkerIds: others.ids, markerVersion: others.version, duplicateTitle }
-        : samples;
+        ? { ...samples, otherMarkerIds: others.ids, markerVersion: others.version, duplicateTitle, malformedTitle }
+        : { ...samples, malformedTitle };
       return path !== undefined && !markerExperimentDir(path) ? { ...withMarkers, markersUnread: true } : withMarkers;
     };
     this.registerIssueMarkerIndex(markers);

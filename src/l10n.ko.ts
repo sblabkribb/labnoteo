@@ -379,6 +379,8 @@ const obsidianKo: Record<string, string> = {
     '이 노트의 마커는 이슈로 열리지 않습니다. 실험 폴더 바로 안의 README와 워크플로 노트(.labnote.md)만 읽습니다. 그 노트에 마커를 넣으세요.',
   'This marker ID appears more than once in this note.': '이 마커 ID는 이 노트에 두 번 이상 있습니다.',
   'This marker ID is already used in {0}.': '이 마커 ID는 이미 {0}에서 쓰고 있습니다.',
+  'This marker has no ID. Insert it again with "{0}".': "마커 ID가 없습니다. '{0}'(으)로 다시 넣으세요.",
+  'This marker has no topic sentence.': '주제 문장이 없습니다.',
   'Marker ID {0} appears twice in this note, so the two questions merge into one issue. Delete one of these markers and insert it again with "Insert issue marker".':
     '마커 ID {0}이(가) 이 노트에 두 번 있어 두 질문이 한 이슈로 합쳐집니다. 그중 하나를 지우고 "논의 이슈 마커 삽입"으로 다시 넣으세요.',
   'Marker ID {0} is also used in {1}, so the two questions merge into one issue. Delete the marker in this note (underlined) and insert it again with "Insert issue marker".':
