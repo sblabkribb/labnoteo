@@ -960,16 +960,22 @@ export async function setSampleDiscardedInteractive(
 ): Promise<boolean> {
   const { folder, type, id, discarded } = opts;
   const location = discarded ? (await loadSamplesByType(plugin.fs, folder, type))[id]?.location : undefined;
-  const clearLocation =
-    !!location &&
-    (await plugin.host.confirm(
-      plugin.t(
-        '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.',
-        id,
-        location
-      ),
-      { confirmLabel: plugin.t('Empty location') }
-    ));
+  // Three answers, so dismissing the question does not discard the sample (#524).
+  const clearLocation = location
+    ? await plugin.host.pick<boolean | null>(
+        [
+          {
+            label: plugin.t('Empty location and mark discarded'),
+            value: true,
+            description: plugin.t('The old location is kept and comes back if you unmark it.'),
+          },
+          { label: plugin.t('Keep location and mark discarded'), value: false },
+          { label: plugin.t('Cancel'), value: null },
+        ],
+        { title: plugin.t('{0} is stored at {1}. Mark it discarded?', id, location) }
+      )
+    : false;
+  if (clearLocation === undefined || clearLocation === null) return false;
   const found = await setSampleDiscarded(plugin.fs, folder, type, id, discarded ? getSeoulDateString() : null, {
     clearLocation,
   });

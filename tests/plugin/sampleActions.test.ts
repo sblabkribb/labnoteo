@@ -890,7 +890,7 @@ describe('listSampleDefinitions', () => {
 
 // #458
 describe('setSampleDiscardedInteractive', () => {
-  const confirm = vi.fn();
+  const pick = vi.fn();
   const discard = (discarded: boolean) =>
     setSampleDiscardedInteractive(
       {
@@ -899,7 +899,7 @@ describe('setSampleDiscardedInteractive', () => {
           workspace: { getLeavesOfType: () => [] },
           vault: { getMarkdownFiles: () => [], getFileByPath: () => null },
         },
-        host: { confirm },
+        host: { pick },
         settings: { globalSampleFolder: GLOBAL, customSampleTypes: [] },
       } as unknown as LabnotePlugin,
       { folder: FOLDER, type: 'RNA', id: 'RNA-1', discarded }
@@ -907,24 +907,33 @@ describe('setSampleDiscardedInteractive', () => {
   const stored = async () => JSON.parse(await fs.read(REGISTRY))['RNA-1'];
 
   beforeEach(async () => {
-    confirm.mockReset();
+    pick.mockReset();
     await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: null, description: null, location: 'Freezer-2' });
   });
 
-  it('empties the location once confirmed and puts it back on unmark', async () => {
-    confirm.mockResolvedValue(true);
+  it('empties the location when picked and puts it back on unmark', async () => {
+    pick.mockResolvedValue(true);
     expect(await discard(true)).toBe(true);
-    expect(confirm.mock.calls[0][0]).toContain('RNA-1 is stored at Freezer-2. Empty its storage location?');
+    expect(pick.mock.calls[0][1].title).toBe('RNA-1 is stored at Freezer-2. Mark it discarded?');
     expect(await stored()).toMatchObject({ location: null, discardedLocation: 'Freezer-2' });
     await discard(false);
-    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(pick).toHaveBeenCalledTimes(1);
     expect(await stored()).toMatchObject({ location: 'Freezer-2' });
   });
 
-  it('keeps the location when the question is dismissed', async () => {
-    confirm.mockResolvedValue(false);
-    await discard(true);
+  it('keeps the location when asked to', async () => {
+    pick.mockResolvedValue(false);
+    expect(await discard(true)).toBe(true);
     expect(await stored()).toMatchObject({ location: 'Freezer-2', discarded: expect.any(String) });
+  });
+
+  // #524: Esc on the question still marked the sample discarded.
+  it('marks nothing when the question is cancelled or dismissed', async () => {
+    for (const answer of [null, undefined]) {
+      pick.mockResolvedValueOnce(answer);
+      expect(await discard(true)).toBe(false);
+      expect((await stored()).discarded).toBeUndefined();
+    }
   });
 });
 
