@@ -261,7 +261,9 @@ describe('ScanPipeline.run', () => {
     }
     expect(results.find(r => r.input === 'other.jpg')!.unmatchedPath).toContain('_LN-ZZZZZZZZ_');
     // #349: the rest of the QR code and the reason stay with the page.
-    expect(results.find(r => r.input === 'gone.jpg')!.unmatchedPath).toContain(`_${ID}_q5-UHW999-1o2-261015_no-unit-op_gone.jpg`);
+    expect(results.find(r => r.input === 'gone.jpg')!.unmatchedPath).toContain(
+      `_${ID}_q5-UHW999-1o2-261015_no-unit-op_h555555555555-jpg_gone.jpg`
+    );
     expect(s.writes).toEqual([]);
     expect(s.edits).toEqual([]);
   });
@@ -476,6 +478,25 @@ describe('ScanPipeline.fileManually', () => {
     const result = await s.pipeline.fileManually(file(QUEUED), file(NOTE), 2, { page: 1, pageCount: 1 });
     expect(result).toMatchObject({ status: 'unmatched', reason: 'renamed', unmatchedPath: QUEUED });
     expect([...s.binary.keys()]).toEqual([QUEUED]);
+  });
+
+  // #495: the page filed by hand got the hash of the queue's JPEG, so importing the scan again missed it.
+  it('records the hash and the name the scan was imported with, and knows the page when it comes again', async () => {
+    // The block was renamed after printing, so the page cannot be placed by its QR code.
+    const s = setup(
+      { [NOTE]: buildNote(ID, ['UHW010', 'UHW020']) },
+      { 'scan_1-1.png': [page(pagePayload({ unitOpIndex: 2, fingerprint: 'ZZZZ' }), '953d461ec519')] }
+    );
+    const [first] = await s.pipeline.run([input('scan_1-1.png')]);
+    expect(first).toMatchObject({ status: 'unmatched', reason: 'renamed' });
+    expect(first.unmatchedPath).toContain('_renamed_h953d461ec519-png_scan_1-1.jpg');
+
+    const result = await s.pipeline.fileManually(file(first.unmatchedPath!), file(NOTE), 2, { page: 1, pageCount: 1 });
+    expect(result).toMatchObject({ status: 'filed', hash: '953d461ec519' });
+    expect(s.text.get(NOTE)!).toMatch(/· scan_1-1\.png\*/);
+
+    const again = await s.pipeline.run([input('scan_1-1.png')]);
+    expect(again.map(r => r.status)).toEqual(['duplicate']);
   });
 
   it('writes the print date the user gave', async () => {

@@ -32,6 +32,7 @@ import {
   sourceNameFromUnmatched,
   timestamp,
   unmatchedFileName,
+  unmatchedInfoFromName,
 } from './imageStore';
 
 export interface ScanInput {
@@ -232,14 +233,15 @@ export class ScanPipeline {
     base.notePath = notePath;
 
     const text = await this.readNote(notePath, noteText);
+    // Before the block is looked for: a page filed by hand after its block was renamed is there (#495).
+    const filed = listFiledScans(text);
+    const same = filed.filter(s => s.hash === page.hash);
+    if (same.some(s => this.imageExists(s.embed, notePath))) return { ...base, status: 'duplicate' };
     const target = resolveScanTarget(listUnitOpBlocks(text), payload.unitOpIndex, payload.opId, payload.fingerprint);
     if (target.kind === 'missing') return this.unmatched(page, base, 'no-unit-op');
     if (target.kind === 'ambiguous') return this.unmatched(page, base, 'ambiguous');
     if (target.kind === 'renamed') return this.unmatched(page, base, 'renamed');
     if (batchHashes.has(page.hash)) return { ...base, status: 'duplicate' };
-    const filed = listFiledScans(text);
-    const same = filed.filter(s => s.hash === page.hash);
-    if (same.some(s => this.imageExists(s.embed, notePath))) return { ...base, status: 'duplicate' };
     // Its image was deleted: file it again in place of the entry left behind (#432).
     const replacesMissing = same.length > 0;
     batchHashes.add(page.hash);
@@ -336,7 +338,11 @@ export class ScanPipeline {
 
   private async unmatched(page: DecodedPage, base: ScanResult, reason: UnmatchedReason): Promise<ScanResult> {
     const payload = base.payload && isPagePayload(base.payload) ? base.payload : undefined;
-    const name = unmatchedFileName(timestamp(), page.source, base.payload?.noteId, page.sourcePage, { payload, reason });
+    const name = unmatchedFileName(timestamp(), page.source, base.payload?.noteId, page.sourcePage, {
+      payload,
+      reason,
+      hash: page.hash,
+    });
     const file = await saveBinary(this.deps.app, UNMATCHED_FOLDER, name, await page.render());
     return { ...base, status: 'unmatched', reason, unmatchedPath: file.path };
   }
@@ -415,7 +421,8 @@ export class ScanPipeline {
     const noteId = ensured.id;
     if (!noteId) return { source: image.name, status: 'error', message: 'front matter could not be read' };
     const bytes = await app.vault.readBinary(image);
-    const hash = shortHash(await sha256Hex(bytes));
+    // The queue keeps the page as JPEG; the hash of the scan as imported is in its name (#495).
+    const hash = unmatchedInfoFromName(image.name).hash ?? shortHash(await sha256Hex(bytes));
     const block = unitOpIndex > 0 ? listUnitOpBlocks(await app.vault.read(note))[unitOpIndex - 1] : undefined;
     const payload: PagePayload = {
       noteId,

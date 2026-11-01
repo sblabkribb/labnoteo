@@ -142,6 +142,27 @@ describe('scan file names', () => {
     expect(sourceNameFromUnmatched('20261016-093012_unknown_photo1.jpg')).toBe('photo1.jpg');
     expect(sourceNameFromUnmatched('IMG_9.jpg')).toBe('IMG_9.jpg');
   });
+
+  // #495: the page's hash and the scanned file's extension go along.
+  it('keeps the hash and the extension of the scanned file', () => {
+    const name = unmatchedFileName('20261031-185455', 'scan_1-1.png', 'LN-7K3M9QX2', undefined, {
+      reason: 'renamed',
+      hash: '953d461ec519',
+    });
+    expect(name).toBe('20261031-185455_LN-7K3M9QX2_renamed_h953d461ec519-png_scan_1-1.jpg');
+    expect(unmatchedInfoFromName(name)).toEqual({
+      noteId: 'LN-7K3M9QX2',
+      reason: 'renamed',
+      hash: '953d461ec519',
+      sourceExt: 'png',
+    });
+    expect(sourceNameFromUnmatched(name)).toBe('scan_1-1.png');
+    const pdf = unmatchedFileName('20261031-185455', 'run.pdf', undefined, 2, { hash: 'aaaaaaaaaaaa' });
+    expect(sourceNameFromUnmatched(pdf)).toBe('run.pdf p.2');
+    expect(sourceNameFromUnmatched(unmatchedFileName('20261031-185455', 'IMG_p2.png', undefined, undefined, { hash: 'aaaaaaaaaaaa' }))).toBe(
+      'IMG_p2.png'
+    );
+  });
 });
 
 describe('planScanMoves', () => {
