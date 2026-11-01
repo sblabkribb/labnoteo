@@ -40,7 +40,7 @@ import {
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import * as posix from '@labnoteo/core/posix';
 import type LabnotePlugin from '../main';
-import { loadCatalogSamples } from '../sampleActions';
+import { loadCatalogSamples, pickAliasSibling } from '../sampleActions';
 import { confirmModal } from '../modals';
 import type { PartbankClient } from './client';
 import { linkedSamplesIn, vaultSampleFolders } from './partbankLocation';
@@ -62,6 +62,8 @@ export interface RegisteredPartbankSample {
   requestedType?: string;
   /** For a reused sample marked used up (#387): the date it was marked. */
   discarded?: string;
+  /** For a reused sample: picked because it has the item's alias, not linked to the item (#504). */
+  sameAlias?: boolean;
   /** For a new sample: other experiments' samples for the same item (#446). */
   elsewhere?: Array<{ folder: string; id: string }>;
 }
@@ -178,8 +180,24 @@ export async function registerPartbankItem(
     };
   }
 
-  const id = generateSampleId(type);
   const alias = aliasForItem(item);
+  const sibling = alias ? await pickAliasSibling(plugin.app, plugin, folder, type, alias) : null;
+  if (sibling === undefined) return undefined;
+  if (sibling !== null) {
+    const siblingAlias = sibling.record?.alias ?? null;
+    return {
+      type,
+      id: sibling.id,
+      alias: siblingAlias,
+      referenceText: buildSampleReferenceText(sibling.id, siblingAlias),
+      folder,
+      reused: true,
+      sameAlias: true,
+      foundIn: isSameSampleFolder(folder, plugin.settings.globalSampleFolder) ? 'global' : 'local',
+      ...(sibling.record?.discarded ? { discarded: sibling.record.discarded } : {}),
+    };
+  }
+  const id = generateSampleId(type);
   // Best-effort: an item with no visible stock, or a lookup that fails, simply
   // leaves the location empty rather than failing the registration.
   let location: string | null = null;
@@ -373,8 +391,9 @@ export function noticeForRegistration(
   if (result.reused) {
     const elsewhere =
       result.foundIn === 'global' || (chosenFolder !== undefined && !isSameSampleFolder(result.folder, chosenFolder));
-    const main =
-      result.foundIn === 'catalog'
+    const main = result.sameAlias
+      ? plugin.t('Using the existing sample {0} instead of creating one.', result.id)
+      : result.foundIn === 'catalog'
         ? plugin.t('Used {0} from the partbank catalog ({1}).', result.id, result.folder)
         : elsewhere
           ? plugin.t(

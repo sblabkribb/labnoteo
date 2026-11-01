@@ -114,6 +114,15 @@ function fitScript(): string {
 
 export function fitBodies(doc: Document, minScale: number): void {
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>('.body'))) {
+    // A long title wraps the header down past the body's top: start the body below it.
+    const head = el.closest('.page')?.querySelector<HTMLElement>('.head');
+    if (head) {
+      const overlap = Math.ceil(head.getBoundingClientRect().bottom + 4 - el.getBoundingClientRect().top);
+      if (overlap > 0) {
+        el.style.top = `${el.offsetTop + overlap}px`;
+        el.style.height = `${Math.max(0, el.clientHeight - overlap)}px`;
+      }
+    }
     let scale = 1;
     while (el.scrollHeight > el.clientHeight + 1 && scale > minScale) {
       scale = Math.round((scale - 0.05) * 100) / 100;

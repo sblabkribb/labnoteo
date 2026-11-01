@@ -7,6 +7,7 @@ import {
   isEndBeforeStart,
   isPlausibleMetaDate,
   metaEndDateInFuture,
+  classifyMetaEndDate,
   shouldWriteOnCommit,
   clampDateTimeLocal,
   fromDateTimeLocalValue,
@@ -37,6 +38,18 @@ describe('metaEndDateInFuture', () => {
   it('treats a value that is not a date as past', () => {
     expect(metaEndDateInFuture('next week', now)).toBe(false);
     expect(metaEndDateInFuture('', now)).toBe(false);
+  });
+});
+
+// #509, #501: one reading of End_date for every feature.
+describe('classifyMetaEndDate', () => {
+  const now = '2026-10-31 23:10';
+  it('tells a past, a coming and an unreadable End_date apart', () => {
+    expect(classifyMetaEndDate('2026-10-30', now)).toBe('ended');
+    expect(classifyMetaEndDate('2026-10-31 23:10', now)).toBe('ended');
+    expect(classifyMetaEndDate('2026-11-14 17:00', now)).toBe('future');
+    expect(classifyMetaEndDate('2026.11.07', now)).toBe('future');
+    expect(classifyMetaEndDate('11/14 예정', now)).toBe('unreadable');
   });
 });
 

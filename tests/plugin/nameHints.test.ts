@@ -72,6 +72,16 @@ describe('name prompt hints', () => {
     expect(workflowAliasHint(host, 'WD020', 'Design', files)('1차 설계').warn).toBe(false);
   });
 
+  // #492: two long aliases alike only where the file name cuts them.
+  it('compares a cut file name by its full checklist label', () => {
+    const start = '가'.repeat(80);
+    const files = [`001_WD010_Design_${start.slice(0, 80 - 'WD010_Design_'.length)}.labnote.md`];
+    const labels = new Map([[files[0], `WD010 Design ${start} 첫째`]]);
+    const hint = workflowAliasHint(host, 'WD010', 'Design', files, labels);
+    expect(hint(`${start} 둘째`).text).not.toContain('already has');
+    expect(hint(`${start} 첫째`).warn).toBe(true);
+  });
+
   it('only counts a unit operation alias', () => {
     expect(unitOpAliasHint(host)(' 1차 37도 ')).toEqual({ text: '6 characters · no limit (not used in a file name)' });
   });

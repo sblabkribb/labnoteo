@@ -52,6 +52,7 @@ import {
   parseExperimenterFromReadme,
   workflowAliasProblem,
   findSameAliasWorkflow,
+  workflowChecklistLabels,
 } from '../lib/workflowStructure';
 import {
   findSectionMatches,
@@ -604,7 +605,8 @@ async function resolveWorkflowCreate(
   const info = { id: wf.id, name: wf.name, description: wf.description };
   const names = await ctx.fs.list(labnoteDir);
   const sequence = getNextWorkflowNumber(names);
-  const sameAliasAs = findSameAliasWorkflow(names, info.id, info.name, alias ?? '');
+  const labels = workflowChecklistLabels(await ctx.fs.read(readmePath));
+  const sameAliasAs = findSameAliasWorkflow(names, info.id, info.name, alias ?? '', labels);
   return {
     labnoteDir,
     readmePath,

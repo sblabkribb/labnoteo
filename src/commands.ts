@@ -81,6 +81,7 @@ import {
   insertWorkflowChecklistEntries,
   hasWorkflowChecklistSection,
   findSameAliasWorkflow,
+  workflowChecklistLabels,
   isWorkflowChecklistEntryLine,
   workflowChecklistEntryLabel,
   parseExperimenterFromReadme,
@@ -344,6 +345,12 @@ export function workflowAliasValidator(
   };
 }
 
+/** The README checklist label of each workflow in experiment folder `labnoteDir`; empty without a README. */
+export async function readChecklistLabels(fs: LabnoteHost['fs'], labnoteDir: string): Promise<Map<string, string>> {
+  const readmePath = posix.join(labnoteDir, README);
+  return (await fs.exists(readmePath)) ? workflowChecklistLabels(await fs.read(readmePath)) : new Map();
+}
+
 /**
  * How much of a workflow alias fits in the file name after `ID_name_` (#213);
  * the room differs per workflow. Never blocks: past it only the file name is cut.
@@ -353,11 +360,13 @@ export function workflowAliasHint(
   id: string,
   name: string,
   /** The experiment folder's file names: an alias another workflow of this ID has is flagged (#297). */
-  existing: readonly string[] = []
+  existing: readonly string[] = [],
+  /** The README checklist labels of `existing` (see {@link readChecklistLabels}). */
+  labels?: ReadonlyMap<string, string>
 ): (value: string) => PromptHint {
   const budget = workflowAliasBudget(id, name);
   return value => {
-    const twin = findSameAliasWorkflow(existing, id, name, value);
+    const twin = findSameAliasWorkflow(existing, id, name, value, labels);
     if (twin) {
       return {
         text: host.t(
@@ -807,7 +816,12 @@ export function insertDateCommand(
               '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.',
               plan.key
             )
-          : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
+          : plan.reason === 'listValue'
+            ? host.t(
+                '{0} has its value on the lines below, such as a list, so no date was put on its line. Add the date as a new "- " item under it.',
+                plan.key
+              )
+            : host.t('A date cannot go on a front matter line that has a value. Run this in the body or on an empty value.')
     );
     return false;
   }
@@ -1130,6 +1144,7 @@ async function createWorkflowFile(
 ): Promise<CreatedWorkflow | undefined> {
   // Listed before the prompt, which warns about an alias already in use (#297).
   const existingFiles = await host.fs.list(labnoteDir);
+  const existingLabels = await readChecklistLabels(host.fs, labnoteDir);
   // Ask for an optional per-instance alias. The catalog name stays inside the
   // `[id name]` prefix; the alias (if any) is appended after it.
   const alias = await workflowAliasModal(app, {
@@ -1139,7 +1154,7 @@ async function createWorkflowFile(
     placeholder: host.t('Enter a name for this workflow'),
     about: workflowConcept(host),
     description: chosen.description ? catalogDescription(chosen.id, chosen.description) : undefined,
-    hint: workflowAliasHint(host, chosen.id, chosen.name, existingFiles),
+    hint: workflowAliasHint(host, chosen.id, chosen.name, existingFiles, existingLabels),
     validate: workflowAliasValidator(host),
   });
   if (alias === undefined) return undefined; // cancelled
@@ -1549,9 +1564,21 @@ export async function renumberWorkflowsCommand(
           matched.missing.join(', '),
           host.t('Sync workflow checklist with folder')
         );
+  // Numbers follow an entry's first line; the extra lines are for the sync command to remove (#511).
+  const duplicated = [...new Set(syncPlan?.duplicates ?? [])];
+  const duplicateNote =
+    duplicated.length === 0
+      ? ''
+      : host.t(
+          'The README checklist lists {0} more than once. Run "{1}" to remove the extra entries.',
+          duplicated.join(', '),
+          host.t('Sync workflow checklist with folder')
+        );
   if (renames.length === 0 && unlisted === 0 && relinked === 0) {
     if (syncPlan && !syncPlan.hasSection) host.notify('warn', noSection);
-    else if (missingNote || skippedNote) host.notify('warn', [skippedNote, missingNote].filter(Boolean).join('\n\n'));
+    else if (missingNote || skippedNote || duplicateNote) {
+      host.notify('warn', [skippedNote, missingNote, duplicateNote].filter(Boolean).join('\n\n'));
+    }
     else host.notify('info', host.t('Workflow numbering already follows the README checklist.'));
     return;
   }
@@ -1602,7 +1629,12 @@ export async function renumberWorkflowsCommand(
   const sectionNote = syncPlan && !syncPlan.hasSection ? `\n\n${noSection}` : '';
   const missingPart = missingNote ? `\n\n${missingNote}` : '';
   const skippedPart = skippedNote ? `\n\n${skippedNote}` : '';
-  if (!(await host.confirm(`${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}`))) {
+  const duplicatePart = duplicateNote ? `\n\n${duplicateNote}` : '';
+  if (
+    !(await host.confirm(
+      `${question}${relinkNote}${preview}${addNote}${sectionNote}${missingPart}${skippedPart}${duplicatePart}`
+    ))
+  ) {
     return;
   }
 
@@ -2075,6 +2107,14 @@ export async function syncWorkflowChecklistCommand(
                   '{0} filled although the unit operation has an End_date, as {1} has not come yet',
                   String(e.futureLines),
                   e.futureEndDates.join(', ')
+                ),
+              ]
+            : []),
+          ...(e.unreadableEndDates.length > 0
+            ? [
+                host.t(
+                  'filled where End_date does not read as a date: {0}',
+                  e.unreadableEndDates.map(u => `${u.unitOp} (${u.value})`).join(', ')
                 ),
               ]
             : []),

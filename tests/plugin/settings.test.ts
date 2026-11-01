@@ -29,6 +29,7 @@ describe('partitionCustomSampleTypes', () => {
       legacyItalic: [],
       caseDuplicates: [],
       legacyCaseDuplicates: [],
+      caseRenamed: [],
     });
   });
 
@@ -79,6 +80,18 @@ describe('partitionCustomSampleTypes', () => {
       { name: 'dna', clashesWith: 'DNA' },
       { name: 'strain', clashesWith: 'Strain' },
     ]);
+  });
+
+  // #497: CellLine → cellline left the ids already written as CellLine-… unmarked.
+  it('keeps the stored spelling of a type typed again in another case', () => {
+    const out = partitionCustomSampleTypes('cellline, Strain, CELLLINE', ['CellLine']);
+    expect(out.save).toEqual(['CellLine', 'Strain']);
+    expect(out.caseRenamed).toEqual([
+      { name: 'cellline', stored: 'CellLine' },
+      { name: 'CELLLINE', stored: 'CellLine' },
+    ]);
+    expect(out.caseDuplicates).toEqual([]);
+    expect(partitionCustomSampleTypes('CellLine', ['CellLine']).caseRenamed).toEqual([]);
   });
 });
 

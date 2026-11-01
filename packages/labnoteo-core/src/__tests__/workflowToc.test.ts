@@ -10,6 +10,7 @@ import {
   minimalReplacement,
   computeUnitOpSyncEdits,
   applyTextEdits,
+  resolveGithubAnchor,
   type TextEdit,
 } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
@@ -105,6 +106,29 @@ describe('githubHeadingAnchor', () => {
       '팔레트에-없는-기능-우클릭--클릭-전용'
     );
     expect(githubHeadingAnchor('Greek Θ snake_case x-y')).toBe('greek-Θ-snake_case-x-y');
+  });
+});
+
+// #505: Obsidian resolves `#` links by heading text, so the TOC's anchors need a hand.
+describe('resolveGithubAnchor', () => {
+  it('finds the heading line of every TOC anchor, numbered repeats included', () => {
+    const md = buildNote([
+      ['UHW010', 'Liquid Handling'],
+      ['UHW010', 'Liquid Handling'],
+    ]);
+    const lines = md.split('\n');
+    const anchors = [...md.matchAll(/^- \[.*\]\(#(.*)\)$/gm)].map(m => m[1]);
+    expect(anchors).toHaveLength(2);
+    const targets = anchors.map(a => resolveGithubAnchor(md, `#${a}`));
+    expect(targets[0]).not.toBe(targets[1]);
+    for (const line of targets) expect(lines[line!]).toBe('### [UHW010 Liquid Handling]');
+  });
+
+  it('reads a percent-encoded anchor and gives undefined for no heading', () => {
+    const md = '---\ntitle: x\n---\n\n### [USW340 Computation] 농축 유전자 순위\n';
+    expect(resolveGithubAnchor(md, '#usw340-computation-농축-유전자-순위')).toBe(4);
+    expect(resolveGithubAnchor(md, `#${encodeURIComponent('usw340-computation-농축-유전자-순위')}`)).toBe(4);
+    expect(resolveGithubAnchor(md, '#nothing')).toBeUndefined();
   });
 });
 
@@ -836,6 +860,15 @@ describe('refreshUnitOpTocEntries', () => {
     expect(refreshUnitOpTocEntries(md)).toContain('- [UHW010 A | 2차](#uhw010-a-2차)');
   });
 
+  // #502: two blocks of one opId, listed in the order the user chose, went back to note order.
+  it('keeps the order of two entries of one opId that match their headings', () => {
+    const md = note(
+      ['- [UHW010 A | 2차](#uhw010-a-2차)', '- [UHW010 A | 1차](#uhw010-a-1차)'],
+      ['### [UHW010 A] 1차', '', '### [UHW010 A] 2차', '']
+    );
+    expect(refreshUnitOpTocEntries(md)).toBe(md);
+  });
+
   it('leaves an entry no heading matches as it is', () => {
     const md = note(['- [UHW010 A](#uhw010-a)', '- [UHW999 Gone](#uhw999-gone)'], ['### [UHW010 A]', '']);
     expect(refreshUnitOpTocEntries(md)).toContain('- [UHW999 Gone](#uhw999-gone)');
@@ -871,6 +904,18 @@ describe('TOC entry tails', () => {
     const md = note(['- [UHW010 A](#uhw010-a) @issue;ISS-a;x'], ['### [UHW010 A]', '']);
     expect(rebuildUnitOpToc(md)).toBe(md);
     expect(computeUnitOpSyncEdits(md)).toEqual([]);
+  });
+
+  // #520: a sync took a hand-written link line in the TOC for an entry and dropped it.
+  it('keeps a hand-written link line in the TOC', () => {
+    const memo = '- [프로토콜 원문](https://example.org/protocol)';
+    const ordered = note(['- [UHW010 A](#uhw010-a)', '- [USW020 B](#usw020-b)', memo], ['### [UHW010 A]', '', '### [USW020 B]', '']);
+    expect(rebuildUnitOpToc(ordered)).toBe(ordered);
+    expect(computeUnitOpSyncEdits(ordered)).toEqual([]);
+    const sorted = rebuildUnitOpToc(
+      note(['- [USW020 B](#usw020-b)', memo, '- [UHW010 A](#uhw010-a)'], ['### [UHW010 A]', '', '### [USW020 B]', ''])
+    );
+    expect(sorted).toBe(ordered);
   });
 
   it('still reads a reorder when entries have tails', () => {

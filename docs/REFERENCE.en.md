@@ -19,7 +19,9 @@ name alone.
 
 Insert the current date. Inside the front matter it only fills a date line (a key with `date` or
 `time` in its name) with an empty value such as `end_date: ''`; on a line that has a value, or an
-empty line that is not a date's such as `author:`, it inserts nothing and warns. On an empty
+empty line that is not a date's such as `author:`, it inserts nothing and warns. A key whose value
+continues on the lines below, such as a `review_dates:` list (`- …`) or a `|` block, is left alone
+too, and the notice says to add the date as a new `- ` item under it. On an empty
 `Start_date`/`End_date` line of a unit operation's `#### Meta` it fills that value (with a value
 already there, it points to the 📅 picker). Right after a sample reference with an alias
 (`DNA-…;T7-frag1`), a space goes in first, so the date is not read as part of the alias.
@@ -84,7 +86,8 @@ Update the active experiment's `status` frontmatter via a picker.
   experiment stays listed until the search changes, so it can be right-clicked again to undo.
 - Picking `completed` while checklist workflows are unchecked, or while workflow notes have an
   empty `end_date`, shows the counts and the note names and asks first. A note whose front matter
-  `end_date` is empty but whose unit operations all have an `End_date` counts as finished. An
+  `end_date` is empty but whose unit operations all have an `End_date` that has passed counts as
+  finished; an `End_date` still ahead or not readable as a date does not. An
   experiment with no workflow at all, in the checklist or the folder, is asked about too.
 - Only the `status` line is rewritten (with the `discuss` line, when the flag is cleared); the
   other front matter lines, `#` comments included, stay as written. Obsidian's Properties editor
@@ -187,7 +190,8 @@ Create a numbered workflow note and add it to the README checklist.
   turning the warning colour past it. Saving is not blocked.
 - If the experiment already has a workflow with the same ID and alias (both empty included), the
   prompt warns with that file's name, since the two would read the same in the checklist. Saving
-  is not blocked.
+  is not blocked. A file name cut at the length cap is compared by its full README checklist label,
+  so two long aliases alike only at the start are not flagged.
 - An alias with `#`, with `*`, or with `_` anywhere but between ASCII letters and digits is refused
   with the reason: `#` breaks links to the heading, and the others turn part of the heading, TOC
   entry and checklist label italic in the reading view. Use a space; the file name gets `_` for it
@@ -215,7 +219,9 @@ put, with a notice.
 - A checklist entry whose file is gone is pointed at an unlisted file of the same workflow ID and
   name (such as a note renumbered by hand), shown in the same confirmation.
 - Nothing changes when the numbers already follow the checklist; a README without the section is
-  reported.
+  reported. When the checklist lists a workflow more than once, it names the file instead of calling
+  the folder up to date, and points at `Sync workflow checklist with folder` to remove the extra
+  entries.
 - When two notes share a number, moving a note in, renaming a note to another's number and
   `Sync workflow checklist with folder` point at this command.
 - Renaming a note by hand while a CSV of its new name is there keeps its CSVs on the old name and
@@ -236,6 +242,9 @@ file is gone. Also on the README and experiment-folder right-click menus.
 - Entries whose label no longer matches the file name are shown as `old label → new label` and
   fixed after asking. Duplicate entries for the same workflow are reduced to one after asking, and
   labels with brackets are fixed so they show as links.
+- A checklist line written as a wikilink (`[[001_….labnote]]`, `[[001_….labnote|label]]`) or
+  linking a file name with `(…)` in it counts as a workflow entry. A line the command changes is
+  rewritten as `[label](./file)`.
 - A link Obsidian rewrote to a vault path such as `labnote/<experiment>/…` because another
   experiment uses the same file name (or one already broken into `./labnote/<experiment>/…`) is
   set back to `./<file name>` with its checkmark kept. Renaming the file fixes it too.
@@ -244,7 +253,8 @@ file is gone. Also on the README and experiment-folder right-click menus.
   with an `End_date`, keeps its experimenter, and the dialog lists its empty lines apart for you to
   fill in. An `End_date` still ahead (an end planned in advance) does not count as finished: those
   lines are filled, and the dialog says so with the date. A value with a time is compared to the
-  minute, a date alone by the day.
+  minute, a date alone by the day. An `End_date` that does not read as a date does not count as
+  finished either; its lines are filled and the result notice names the unit operation.
 - A README `author` written as a YAML list or as `[[name]]` links is read as those names, joined
   with commas, here and for new workflows and unit operations.
 - Local samples the notes use but that only another experiment's registry holds are brought into
@@ -288,6 +298,13 @@ the alias goes into no file name. The same characters are refused as in Create w
 - A note or `@issue` marker written after a TOC entry's link stays on that line when the TOC is
   rebuilt, and `[`/`]` in an alias are written `\[`/`\]` in the TOC, so an unmatched one does not
   break the link.
+- A link line you wrote into the TOC section yourself (`- [protocol](https://…)`, any line not
+  starting with a unit-operation ID) is not a TOC entry and is not removed. With auto-sync on, such
+  a line placed between entries moves below them.
+- TOC links use GitHub's anchors (`#uhw010-…`), so they work when the note is viewed on GitHub.
+  Clicking one in Obsidian's **reading view** scrolls to its block too (`-1` links of a repeated
+  unit operation included); in the editing view use the **Outline** view. Obsidian's Outgoing links
+  pane still lists them as unresolved.
 
 ### Update catalogs
 
@@ -395,6 +412,9 @@ explorer.
   alias, numbers by their size (`WTR-2` before `WTR-10`), then those without an alias by ID.
 - Choosing `{Type} catalog search` in autocomplete opens the catalog search with what you typed
   after `;` already searched.
+- Changing only the letter case of a saved custom sample type (`Media` → `media`) is not saved:
+  its samples and the IDs already written in notes keep the old spelling, so the name goes back
+  and a notice says so.
 - The **Global sample folder** setting refuses a folder inside an experiment (its
   `resources/labsamples/` is that experiment's Local registry) and puts the previous value back.
   When the old Global folder was such a folder, its samples are not moved to the new one; use
@@ -531,10 +551,11 @@ it faded as `(discarded)` in the sample view.
 - The definition window has `Mark as discarded` / `Unmark discarded` next to `Delete sample` (not
   for catalog samples). The `Open sample definition` list shows discarded samples faded and tagged
   `(discarded)`, after the samples in use of the same scope.
-- Marking a sample with a location as discarded asks whether to clear the location. Cleared, the
-  old location is kept apart and shown as `(emptied, was freezer B3)` in tables and the definition
-  window; location searches no longer find it, and partbank's bulk location refresh skips
-  discarded samples. Closing the question with Esc keeps the location and still marks the sample.
+- Marking a sample with a location as discarded offers `Empty location and mark discarded`,
+  `Keep location and mark discarded` and `Cancel`. Emptied, the old location is kept apart and
+  shown as `(emptied, was freezer B3)` in tables and the definition window; location searches no
+  longer find it, and partbank's bulk location refresh skips discarded samples. `Cancel`, or
+  closing the question with Esc, leaves the sample unmarked.
   Unmarking puts the old location back when the location is empty, and keeps one written in the
   meantime.
 
@@ -596,6 +617,10 @@ and inserts `ID;alias`.
   an experiment. The KID is kept with the link rather than as the sample ID, and shows in the
   sample definition window. The description holds the KID, the name and partbank's description up
   to 1000 characters, cut between words beyond that (for samples registered from 0.125.0 on).
+- When the item is not registered but the registry it goes into (this experiment or Global) has a
+  sample of the same type and alias, you choose between `Use the existing sample {ID}` and
+  `Create a new sample anyway` before a new ID is made, as when creating a sample. Closing the
+  question registers and inserts nothing.
 - One experiment does not use another's samples, so **an item registered only in other
   experiments** gets a new ID here, and the notice adds `Other experiments have this partbank item
   too: DNA-3 (002_…)`. When partbank gives no storage location and those experiments' samples (the
@@ -761,6 +786,9 @@ with the reason for each, and file each by choosing the note, unit operation, an
 - Pages sent to unmatched scans before 0.126.0 kept only the note ID, so only the note is offered.
 - A page filed from here is captioned with its original file name, not the name it was kept under
   in `unmatched/`.
+- A page filed from here is checked for duplicates by its original photo too, so importing the
+  same photo again (even when a renamed block keeps the QR code from placing it) is reported as a
+  duplicate instead of filed twice. This holds for pages sent to unmatched scans from 0.135.0 on.
 
 ## AI
 
@@ -956,7 +984,8 @@ its view is left as it is.
 - A renamed note takes its `_tableN.csv` files along. An entry whose label matched the old file
   name follows the new name, and so do the note's `title` and `## [ID name]` heading if they
   matched it. Labels and titles you edited by hand are kept.
-- If a rename breaks the `###_….labnote.md` format, you are warned and offered a fixed name. When
+- If a rename breaks the `###_….labnote.md` format, you are warned and offered a fixed name (for
+  `….labnote.md.md`, the name without the extra `.md`). When
   there is no fix (the number became `01_`, say) or its name is taken, you are offered the old name
   back. Once the format is back (by accepting either offer or fixing it by hand), the checklist
   follows the file again.

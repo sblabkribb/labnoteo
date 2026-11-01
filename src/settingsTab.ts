@@ -243,8 +243,10 @@ export class LabnoteSettingTab extends PluginSettingTab {
           this.scheduleSampleTypesRefresh();
         });
       t.inputEl.addEventListener('blur', () => {
-        const { rejected, italic, caseDuplicates } = partitionCustomSampleTypes(t.getValue(), storedTypes);
-        if (rejected.length === 0 && italic.length === 0 && caseDuplicates.length === 0) return;
+        const { rejected, italic, caseDuplicates, caseRenamed } = partitionCustomSampleTypes(t.getValue(), storedTypes);
+        if (rejected.length === 0 && italic.length === 0 && caseDuplicates.length === 0 && caseRenamed.length === 0) {
+          return;
+        }
         if (rejected.length > 0) {
           new Notice(
             this.plugin.t(
@@ -271,6 +273,16 @@ export class LabnoteSettingTab extends PluginSettingTab {
               '{0}: differs from {1} only in letter case, so on Windows both would share one {Type}.json and their samples would mix. It was not saved.',
               caseDuplicates.map(d => d.name).join(', '),
               caseDuplicates.map(d => d.clashesWith).join(', ')
+            ),
+            8000
+          );
+        }
+        if (caseRenamed.length > 0) {
+          new Notice(
+            this.plugin.t(
+              '{0}: only the letter case of {1} changed. Its samples and the IDs already written in notes keep {1}, so the change was not saved.',
+              caseRenamed.map(d => d.name).join(', '),
+              caseRenamed.map(d => d.stored).join(', ')
             ),
             8000
           );

@@ -28,6 +28,7 @@ import {
   parseFrontMatterYaml,
   reassignIssueMarkerIds,
   removeAllScanEntries,
+  resolveGithubAnchor,
   setFrontMatterKeys,
 } from '@labnoteo/core';
 import {
@@ -95,6 +96,7 @@ import {
   experimentReadmes,
   experimentTitleHint,
   workflowAliasHint,
+  readChecklistLabels,
   workflowAliasValidator,
   workflowConcept,
   rebuildExperimentReadmeFile,
@@ -2213,7 +2215,13 @@ export default class LabnotePlugin extends Plugin {
       value: originalAlias,
       about: workflowConcept(this.host),
       description,
-      hint: workflowAliasHint(this.host, heading.id, heading.name, await this.fs.list(posix.dirname(copyPath))),
+      hint: workflowAliasHint(
+        this.host,
+        heading.id,
+        heading.name,
+        await this.fs.list(posix.dirname(copyPath)),
+        await readChecklistLabels(this.fs, posix.dirname(copyPath))
+      ),
       validate: workflowAliasValidator(this.host, originalAlias),
     });
     if (alias === undefined || this.unloaded) return;
@@ -2879,6 +2887,12 @@ export default class LabnotePlugin extends Plugin {
     );
     this.registerEditorExtension(createSampleHighlightPlugin(getState));
     this.registerMarkdownPostProcessor(createSampleReadingHighlighter(getState));
+    this.registerMarkdownPostProcessor((el, ctx) => {
+      if (!isValidWorkflowPath(ctx.sourcePath)) return;
+      for (const link of Array.from(el.querySelectorAll<HTMLElement>('a.internal-link[data-href^="#"]'))) {
+        link.addEventListener('click', event => this.followTocAnchor(event, link));
+      }
+    });
     // An experiment's `sample_tracking` lives in its README (#105); editors
     // re-check their state on the update this sends.
     this.registerEvent(
@@ -2886,6 +2900,22 @@ export default class LabnotePlugin extends Plugin {
         if (file.name === 'README.labnote.md') this.app.workspace.updateOptions();
       })
     );
+  }
+
+  /**
+   * Scroll to the heading a TOC link's GitHub anchor names (#505). Obsidian
+   * looks `#` links up by heading text and finds none, so the click went nowhere.
+   */
+  private followTocAnchor(event: MouseEvent, link: HTMLElement): void {
+    const view = this.app.workspace
+      .getLeavesOfType('markdown')
+      .map(leaf => leaf.view)
+      .find((v): v is MarkdownView => v instanceof MarkdownView && v.containerEl.contains(link));
+    const line = view && resolveGithubAnchor(view.getViewData(), link.dataset.href ?? '');
+    if (!view || line === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    view.setEphemeralState({ line });
   }
 
   /**

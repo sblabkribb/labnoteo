@@ -85,6 +85,22 @@ describe('date insertion and the front matter', () => {
     }
   });
 
+  // #526: the date went on the key line and joined the list below into one string.
+  it('refuses a date key whose list or block value is below it', () => {
+    const doc = ['---', 'review_dates:', '  - 2026-10-28', 'due_dates:', '- 2026-11-02', 'log_time: |', '  x', 'end_date:', '---', ''].join(
+      '\n'
+    );
+    const lineAt = (line: number): number =>
+      doc
+        .split('\n')
+        .slice(0, line)
+        .reduce((n, l) => n + l.length + 1, 0);
+    expect(planDateInsertion(doc, lineAt(1), lineAt(1), 'D')).toEqual({ reason: 'listValue', key: 'review_dates' });
+    expect(planDateInsertion(doc, lineAt(3), lineAt(3), 'D')).toEqual({ reason: 'listValue', key: 'due_dates' });
+    expect(planDateInsertion(doc, lineAt(5), lineAt(5), 'D')).toEqual({ reason: 'frontMatter' });
+    expect(planDateInsertion(doc, lineAt(7), lineAt(7), 'D')).toMatchObject({ text: 'end_date: D' });
+  });
+
   it('takes date and time keys of any case as date keys', () => {
     for (const key of ['created_date', 'End_Date', 'start_time', 'DATE']) expect(isDateLikeKey(key)).toBe(true);
     for (const key of ['author', 'project', 'tags', 'status']) expect(isDateLikeKey(key)).toBe(false);
@@ -273,5 +289,14 @@ describe('setFrontMatterKeys', () => {
 
   it('leaves a missing key out when adding is off', () => {
     expect(setFrontMatterKeys(readme, { retry_of: 'x' }, { add: false })).toBe(readme);
+  });
+
+  // #517: turning discuss off took the comment on its line with it.
+  it('keeps the comment of a dropped key as a line of its own', () => {
+    const doc = '---\ntitle: x\ndiscuss: true # 다음 랩미팅 안건\nstatus: planned\n---\n';
+    expect(setFrontMatterKeys(doc, { discuss: undefined })).toBe(
+      '---\ntitle: x\n# 다음 랩미팅 안건\nstatus: planned\n---\n'
+    );
+    expect(setFrontMatterKeys("---\ndiscuss: 'a # b'\n---\n", { discuss: undefined })).toBe('---\n---\n');
   });
 });

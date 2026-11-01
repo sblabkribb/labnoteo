@@ -3,7 +3,7 @@
  */
 
 import * as path from '../util/posixPath';
-import { getSeoulDateString, getSeoulDateTimeString, findMetaDateFieldInLine, metaEndDateInFuture } from './dateUtils';
+import { getSeoulDateString, getSeoulDateTimeString, findMetaDateFieldInLine, classifyMetaEndDate } from './dateUtils';
 import {
   sanitizePathSegment,
   legacySanitizePathSegment,
@@ -120,6 +120,11 @@ export function diagnoseWorkflowPath(filePath: string): WorkflowPathDiagnosis {
 export function suggestWorkflowFileName(baseName: string): string | undefined {
   if (!/^\d{3}_/.test(baseName) || !/\.md$/i.test(baseName)) return undefined;
   if (baseName.toLowerCase().endsWith('.labnote.md')) return undefined;
+  const repeatedMd = baseName.match(/^(.*)\.labnote(?:\.md){2,}$/i);
+  if (repeatedMd) {
+    const trimmed = `${repeatedMd[1]}.labnote.md`;
+    return suggestLinkableFileName(trimmed) ?? trimmed;
+  }
   const moved = `${baseName.slice(0, -'.md'.length).replace(/\.labnote/i, '')}.labnote.md`;
   return suggestLinkableFileName(moved) ?? moved;
 }
@@ -354,12 +359,20 @@ export function createWorkflowFileName(
  * link or label in place and keep its prefix and tail.
  *
  * The link part stays permissive (optional `./`, any characters up to the
- * suffix) so manually created links with non-ASCII file names are recognised —
- * the same reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the
- * object is safe to share.
+ * first `.labnote.md)`) so manually created links with non-ASCII file names,
+ * or a `(재)` the user put in a file name (#499), are recognised — the same
+ * reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the object is
+ * safe to share.
  */
 const CHECKLIST_ENTRY_RE =
-  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?([^)]+\.labnote\.md)\)(.*)(\r?)$/i;
+  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?(.+?\.labnote\.md)\)(.*)(\r?)$/i;
+
+/**
+ * The same entry written as an Obsidian wikilink, `[[file.labnote|label]]`
+ * (#525). A writer that changes it writes the standard Markdown link back.
+ */
+const CHECKLIST_WIKILINK_ENTRY_RE =
+  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[\[([^\]|#]+?\.labnote(?:\.md)?)(?:\|([^\]]*))?\]\](.*)(\r?)$/i;
 
 /** One checklist entry line, split so a writer can change one part of it. */
 interface ChecklistEntryLine {
@@ -381,8 +394,13 @@ interface ChecklistEntryLine {
 
 function parseChecklistEntryLine(line: string, index: number): ChecklistEntryLine | null {
   const m = CHECKLIST_ENTRY_RE.exec(line);
-  if (!m) return null;
-  return { index, prefix: m[1], box: m[2], raw: m[3], link: m[4], tail: m[5], eol: m[6] };
+  if (m) return { index, prefix: m[1], box: m[2], raw: m[3], link: m[4], tail: m[5], eol: m[6] };
+  const w = CHECKLIST_WIKILINK_ENTRY_RE.exec(line);
+  if (!w) return null;
+  const target = w[3].trim();
+  const link = /\.md$/i.test(target) ? target : `${target}.md`;
+  const label = w[4]?.trim() || (link.split('/').pop() ?? link).replace(/\.labnote\.md$/i, '');
+  return { index, prefix: w[1], box: w[2], raw: escapeChecklistLabel(label), link, tail: w[5], eol: w[6] };
 }
 
 /**
@@ -429,7 +447,13 @@ function unescapeChecklistLabel(raw: string): string {
  * An `@issue` marker that replaced its link text would stop it being one (#293).
  */
 export function isWorkflowChecklistEntryLine(line: string): boolean {
-  return CHECKLIST_ENTRY_RE.test(line);
+  return parseChecklistEntryLine(line, 0) !== null;
+}
+
+/** The link of a workflow checklist entry line, escapes undone; undefined for any other line. */
+export function workflowChecklistEntryLink(line: string): string | undefined {
+  const e = parseChecklistEntryLine(line, 0);
+  return e ? decodeChecklistLink(e.link) : undefined;
 }
 
 /** The label of a workflow checklist entry line, unescaped; undefined for any other line. */
@@ -1234,11 +1258,10 @@ export function normalizeWorkflowChecklistLinks(
 ): { content: string; count: number } {
   const lines = readmeContent.split('\n');
   let count = 0;
-  for (const { index, link } of checklistEntries(readmeContent)) {
-    const short = normalizeChecklistLink(link, dir);
-    if (short === link) continue;
-    const written = lines[index].includes(`](./${link})`) ? `](./${link})` : `](${link})`;
-    lines[index] = lines[index].replace(written, () => `](${checklistLinkText(short)})`);
+  for (const e of entriesInLines(lines)) {
+    const short = normalizeChecklistLink(e.link, dir);
+    if (short === e.link) continue;
+    lines[e.index] = renderChecklistEntryLine({ ...e, link: short });
     count++;
   }
   return count === 0 ? { content: readmeContent, count } : { content: lines.join('\n'), count };
@@ -1289,16 +1312,36 @@ export function labelMatchesFileName(label: string, fileName: string): boolean {
  * A workflow file among `names` that a new workflow `id name alias` would be
  * indistinguishable from (#297): same ID and alias, both possibly empty, so
  * its checklist label and file name differ only by number. Compared like
- * {@link labelMatchesFileName}.
+ * {@link labelMatchesFileName}. A file name cut at the length cap keeps only
+ * the start of its alias, so when `labels` (see {@link workflowChecklistLabels})
+ * has the file's full label, that label is compared instead (#492).
  */
 export function findSameAliasWorkflow(
   names: readonly string[],
   id: string,
   name: string,
-  alias: string
+  alias: string,
+  labels?: ReadonlyMap<string, string>
 ): string | undefined {
   const label = [id, name, alias.trim()].filter(Boolean).join(' ');
-  return names.find(file => parseWorkflowFileName(file)?.id === id && labelMatchesFileName(label, file));
+  return names.find(file => {
+    if (parseWorkflowFileName(file)?.id !== id) return false;
+    const full = labels?.get(file);
+    if (full !== undefined && labelMatchesFileName(full, file)) {
+      const sanitized = sanitizePathSegment(full);
+      if (capPathSegment(sanitized, WORKFLOW_FILE_NAME_MAX) !== sanitized) {
+        return sanitizePathSegment(label) === sanitized;
+      }
+    }
+    return labelMatchesFileName(label, file);
+  });
+}
+
+/** The README checklist's label of each workflow file it lists, by file name. */
+export function workflowChecklistLabels(readmeContent: string): Map<string, string> {
+  return new Map(
+    parseWorkflowChecklistFromReadme(readmeContent).map(item => [path.basename(item.fileName), item.title])
+  );
 }
 
 /** The `## [ID name] alias` heading a workflow note starts with. */
@@ -1658,11 +1701,10 @@ export function relinkWorkflowChecklistEntries(
 ): string {
   if (links.length === 0) return readmeContent;
   const lines = readmeContent.split('\n');
-  for (const { index, link } of checklistEntries(readmeContent)) {
-    const r = links.find(l => decodeChecklistLink(l.from) === decodeChecklistLink(link));
+  for (const e of entriesInLines(lines)) {
+    const r = links.find(l => decodeChecklistLink(l.from) === decodeChecklistLink(e.link));
     if (!r) continue;
-    const written = lines[index].includes(`](./${link})`) ? `](./${link})` : `](${link})`;
-    lines[index] = lines[index].replace(written, () => `](./${encodeChecklistLink(r.to)})`);
+    lines[e.index] = renderChecklistEntryLine({ ...e, link: r.to });
   }
   return lines.join('\n');
 }
@@ -1839,6 +1881,11 @@ export interface WorkflowExperimenterSync {
   futureLines: number;
   /** Those `End_date` values, each once. */
   futureEndDates: string[];
+  /**
+   * Unit ops whose `End_date` does not read as a date (`11/7 예정`): taken as
+   * not ended, so their lines are filled, and named so they can be found (#501).
+   */
+  unreadableEndDates: { unitOp: string; value: string }[];
 }
 
 /**
@@ -1850,16 +1897,18 @@ export interface WorkflowExperimenterSync {
  * outside code blocks; another person's name was written on purpose. A unit op
  * (from its `### [` heading to the next) whose `End_date` is filled in is
  * finished work and keeps who did it (#155), unless that date is after `now`:
- * then it is planned, not finished, and is filled too (#445). The label is
+ * then it is planned, not finished, and is filled too (#445), as is one whose
+ * End_date does not read as a date (#501). The label is
  * the same in every locale. Undefined when `author` is empty, the note has no
  * `experimenter` key, or it already names someone.
  */
 /**
  * Whether the workflow note `content` has unit operations and each has its
  * Meta `End_date` filled: the work is done even if the front matter
- * `end_date`, which nothing fills, is still empty (#355).
+ * `end_date`, which nothing fills, is still empty (#355). An End_date after
+ * `now`, or one that does not read as a date, is not ended (#509).
  */
-export function unitOpsAllEnded(content: string): boolean {
+export function unitOpsAllEnded(content: string, now: string = getSeoulDateTimeString()): boolean {
   const lines = content.split(/\r?\n/);
   const ended: boolean[] = [];
   let fence: OpenFence | null = null;
@@ -1874,7 +1923,9 @@ export function unitOpsAllEnded(content: string): boolean {
       continue;
     }
     const date = findMetaDateFieldInLine(line);
-    if (ended.length > 0 && date?.field === 'End_date' && date.value.trim() !== '') ended[ended.length - 1] = true;
+    if (ended.length > 0 && date?.field === 'End_date' && date.value.trim() !== '') {
+      ended[ended.length - 1] = classifyMetaEndDate(date.value.trim(), now) === 'ended';
+    }
   }
   return ended.length > 0 && ended.every(Boolean);
 }
@@ -1904,8 +1955,8 @@ export function planWorkflowExperimenterSync(
     fmEnd -= end - i - 1;
   }
   // Experimenter lines to rewrite, grouped by unit op, and which unit ops ended.
-  type Block = { lines: number[]; empty: number; ended: boolean; future?: string };
-  const blocks: Block[] = [{ lines: [], empty: 0, ended: false }];
+  type Block = { name: string; lines: number[]; empty: number; ended: boolean; future?: string; unreadable?: string };
+  const blocks: Block[] = [{ name: '', lines: [], empty: 0, ended: false }];
   let fence: OpenFence | null = null;
   for (let i = fmEnd + 1; i < lines.length; i++) {
     const next = stepFence(lines[i], fence);
@@ -1914,14 +1965,16 @@ export function planWorkflowExperimenterSync(
       continue;
     }
     if (/^###\s+\[/.test(lines[i])) {
-      blocks.push({ lines: [], empty: 0, ended: false });
+      blocks.push({ name: lines[i].replace(/^###\s+/, '').trim(), lines: [], empty: 0, ended: false });
       continue;
     }
     const block = blocks[blocks.length - 1];
     const date = findMetaDateFieldInLine(lines[i]);
     const end = date?.field === 'End_date' ? date.value.trim() : '';
-    if (end && metaEndDateInFuture(end, now)) block.future = end;
-    else if (end) block.ended = true;
+    const state = end ? classifyMetaEndDate(end, now) : undefined;
+    if (state === 'future') block.future = end;
+    else if (state === 'unreadable') block.unreadable = end;
+    else if (state) block.ended = true;
     const m = /^(\s*-\s*Experimenter:)(.*)$/.exec(lines[i]);
     if (m && m[2].trim() === '') {
       block.lines.push(i);
@@ -1933,6 +1986,7 @@ export function planWorkflowExperimenterSync(
   let skippedEmptyLines = 0;
   let futureLines = 0;
   const futureEndDates: string[] = [];
+  const unreadableEndDates: { unitOp: string; value: string }[] = [];
   for (const block of blocks) {
     if (block.ended) {
       skippedLines += block.lines.length;
@@ -1947,11 +2001,22 @@ export function planWorkflowExperimenterSync(
       futureLines += block.lines.length;
       if (!futureEndDates.includes(block.future)) futureEndDates.push(block.future);
     }
+    if (block.unreadable && block.lines.length > 0) unreadableEndDates.push({ unitOp: block.name, value: block.unreadable });
   }
   const next = lines.join(newline);
   return next === content
     ? undefined
-    : { from, to, content: next, unitOpLines, skippedLines, skippedEmptyLines, futureLines, futureEndDates };
+    : {
+        from,
+        to,
+        content: next,
+        unitOpLines,
+        skippedLines,
+        skippedEmptyLines,
+        futureLines,
+        futureEndDates,
+        unreadableEndDates,
+      };
 }
 
 /**

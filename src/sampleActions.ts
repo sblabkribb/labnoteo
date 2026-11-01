@@ -412,6 +412,82 @@ export interface CreatedSample {
 }
 
 /**
+ * Before a new `type` sample with `alias` is written to `folder`: when the
+ * folder already has samples with that alias, ask whether to use one of them.
+ * A twin in the same folder is worse than a Global one (#125): autocomplete
+ * shows the two with identical text and no Local/Global tag to tell them
+ * apart. Asked before the sample is written (#248), on every path that makes
+ * one, partbank included (#504). Every one is listed (#274): when two already
+ * share the alias, offering only the first hides the one the user may have
+ * meant.
+ *
+ * Resolves the sample picked, `null` to create a new one (or when there is no
+ * such sample), and undefined when the user cancelled.
+ */
+export async function pickAliasSibling(
+  app: App,
+  plugin: LabnotePlugin,
+  folder: string,
+  type: string,
+  alias: string
+): Promise<{ id: string; record: SampleRecord | undefined } | null | undefined> {
+  const siblings = await samplesWithAliasIn(plugin.fs, folder, type, alias);
+  if (siblings.length === 0) return null;
+  const records = await loadSamplesByType(plugin.fs, folder, type);
+  const inGlobal = isSameSampleFolder(folder, plugin.settings.globalSampleFolder);
+  const labels = siblings.map(s => aliasSiblingLabel(plugin, s, records[s]));
+  // Discarded ones go below "Create a new sample anyway", so Enter on the
+  // first item does not take a tube that is gone (#419), as in autocomplete.
+  const reuseItem = (sibling: string) => {
+    const discarded = records[sibling]?.discarded;
+    return {
+      label: `${plugin.t('Use the existing sample {0}', sibling)}${discarded ? ` ${plugin.t('(discarded)')}` : ''}`,
+      value: sibling,
+      description:
+        [discarded && plugin.t('Marked discarded on {0}', discarded), records[sibling]?.descriptions?.[0], records[sibling]?.location]
+          .filter(Boolean)
+          .join(' · ') || plugin.t('Nothing is registered; its ID goes where this one would have.'),
+    };
+  };
+  const live = siblings.filter(s => !records[s]?.discarded);
+  const reuse = await pickModal<string | null>(
+    app,
+    [
+      ...live.map(reuseItem),
+      {
+        label: plugin.t('Create a new sample anyway'),
+        value: null,
+        description: plugin.t('Both keep the alias, and only their descriptions tell them apart.'),
+      },
+      ...siblings.filter(s => records[s]?.discarded).map(reuseItem),
+    ],
+    {
+      title:
+        live.length === 0
+          ? plugin.t('Only discarded samples have the alias {0} ({1}).', alias, siblings.join(', '))
+          : siblings.length === 1
+            ? plugin.t(
+                inGlobal
+                  ? 'Global samples already have the alias {0} ({1}).'
+                  : 'This experiment already has the alias {0} ({1}).',
+                alias,
+                labels[0]
+              )
+            : plugin.t(
+                inGlobal
+                  ? '{0} Global samples already have the alias {1} ({2}).'
+                  : '{0} samples in this experiment already have the alias {1} ({2}).',
+                String(siblings.length),
+                alias,
+                labels.join(', ')
+              ),
+    }
+  );
+  if (reuse === undefined) return undefined;
+  return reuse === null ? null : { id: reuse, record: records[reuse] };
+}
+
+/**
  * Interactively create a sample (generate a new id or enter one manually),
  * persist it, and return the created record + its `@type;id;...` definition
  * text. Returns undefined, registering nothing, when any step is cancelled
@@ -490,80 +566,23 @@ export async function createSampleInteractive(
     return undefined;
   }
 
-  // A twin in the same folder is worse than a Global one (#125): autocomplete
-  // shows the two with identical text and no Local/Global tag to tell them
-  // apart. Ask before the remaining prompts rather than after the sample is
-  // written (#248); re-entering a known id is the merge flow, which stays.
-  // Every one is listed (#274): when two already share the alias, offering only
-  // the first hides the one the user may have meant.
-  const siblings = alias && !existing ? await samplesWithAliasIn(plugin.fs, folder, type, alias) : [];
-  if (siblings.length > 0) {
-    const records = await loadSamplesByType(plugin.fs, folder, type);
-    const inGlobal = isSameSampleFolder(folder, plugin.settings.globalSampleFolder);
-    const labels = siblings.map(s => aliasSiblingLabel(plugin, s, records[s]));
-    // Discarded ones go below "Create a new sample anyway", so Enter on the
-    // first item does not take a tube that is gone (#419), as in autocomplete.
-    const reuseItem = (sibling: string) => {
-      const discarded = records[sibling]?.discarded;
-      return {
-        label: `${plugin.t('Use the existing sample {0}', sibling)}${discarded ? ` ${plugin.t('(discarded)')}` : ''}`,
-        value: sibling,
-        description:
-          [discarded && plugin.t('Marked discarded on {0}', discarded), records[sibling]?.descriptions?.[0], records[sibling]?.location]
-            .filter(Boolean)
-            .join(' · ') || plugin.t('Nothing is registered; its ID goes where this one would have.'),
-      };
+  // Re-entering a known id is the merge flow, which stays.
+  const sibling = alias && !existing ? await pickAliasSibling(app, plugin, folder, type, alias) : null;
+  if (sibling === undefined) return undefined;
+  if (sibling !== null) {
+    const { id: reuse, record } = sibling;
+    const reusedAlias = record?.alias ?? null;
+    const reusedDesc = record?.descriptions?.[0] ?? null;
+    new Notice(plugin.t('Using the existing sample {0} instead of creating one.', reuse));
+    if (record?.discarded) new Notice(plugin.t('{0} was marked discarded on {1}.', reuse, record.discarded));
+    return {
+      id: reuse,
+      alias: reusedAlias,
+      description: reusedDesc,
+      definitionText: buildSampleDefinitionText(type, reuse, reusedAlias, reusedDesc),
+      referenceText: buildSampleReferenceText(reuse, reusedAlias),
+      reused: true,
     };
-    const live = siblings.filter(s => !records[s]?.discarded);
-    const reuse = await pickModal<string | null>(
-      app,
-      [
-        ...live.map(reuseItem),
-        {
-          label: plugin.t('Create a new sample anyway'),
-          value: null,
-          description: plugin.t('Both keep the alias, and only their descriptions tell them apart.'),
-        },
-        ...siblings.filter(s => records[s]?.discarded).map(reuseItem),
-      ],
-      {
-        title:
-          live.length === 0
-            ? plugin.t('Only discarded samples have the alias {0} ({1}).', alias!, siblings.join(', '))
-            : siblings.length === 1
-              ? plugin.t(
-                  inGlobal
-                    ? 'Global samples already have the alias {0} ({1}).'
-                    : 'This experiment already has the alias {0} ({1}).',
-                  alias!,
-                  labels[0]
-                )
-              : plugin.t(
-                  inGlobal
-                    ? '{0} Global samples already have the alias {1} ({2}).'
-                    : '{0} samples in this experiment already have the alias {1} ({2}).',
-                  String(siblings.length),
-                  alias!,
-                  labels.join(', ')
-                ),
-      }
-    );
-    if (reuse === undefined) return undefined;
-    if (reuse !== null) {
-      const record = records[reuse];
-      const reusedAlias = record?.alias ?? null;
-      const reusedDesc = record?.descriptions?.[0] ?? null;
-      new Notice(plugin.t('Using the existing sample {0} instead of creating one.', reuse));
-      if (record?.discarded) new Notice(plugin.t('{0} was marked discarded on {1}.', reuse, record.discarded));
-      return {
-        id: reuse,
-        alias: reusedAlias,
-        description: reusedDesc,
-        definitionText: buildSampleDefinitionText(type, reuse, reusedAlias, reusedDesc),
-        referenceText: buildSampleReferenceText(reuse, reusedAlias),
-        reused: true,
-      };
-    }
   }
 
   const descRaw = await promptModal(app, {
@@ -614,7 +633,10 @@ export async function createSampleInteractive(
 
   // Only Global holds the alias: the two are told apart by the Local/Global
   // tag in autocomplete, so a notice is enough (#109).
-  const twins = alias && siblings.length === 0 ? await globalSamplesWithAlias(plugin, type, folder, alias) : [];
+  const twins =
+    alias && (await samplesWithAliasIn(plugin.fs, folder, type, alias)).length === 0
+      ? await globalSamplesWithAlias(plugin, type, folder, alias)
+      : [];
   if (twins.length > 0) {
     new Notice(
       plugin.t(
@@ -938,16 +960,22 @@ export async function setSampleDiscardedInteractive(
 ): Promise<boolean> {
   const { folder, type, id, discarded } = opts;
   const location = discarded ? (await loadSamplesByType(plugin.fs, folder, type))[id]?.location : undefined;
-  const clearLocation =
-    !!location &&
-    (await plugin.host.confirm(
-      plugin.t(
-        '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.',
-        id,
-        location
-      ),
-      { confirmLabel: plugin.t('Empty location') }
-    ));
+  // Three answers, so dismissing the question does not discard the sample (#524).
+  const clearLocation = location
+    ? await plugin.host.pick<boolean | null>(
+        [
+          {
+            label: plugin.t('Empty location and mark discarded'),
+            value: true,
+            description: plugin.t('The old location is kept and comes back if you unmark it.'),
+          },
+          { label: plugin.t('Keep location and mark discarded'), value: false },
+          { label: plugin.t('Cancel'), value: null },
+        ],
+        { title: plugin.t('{0} is stored at {1}. Mark it discarded?', id, location) }
+      )
+    : false;
+  if (clearLocation === undefined || clearLocation === null) return false;
   const found = await setSampleDiscarded(plugin.fs, folder, type, id, discarded ? getSeoulDateString() : null, {
     clearLocation,
   });

@@ -37,6 +37,8 @@ import {
   planTableCsvNames,
   tableCsvName,
   labelMatchesFileName,
+  findSameAliasWorkflow,
+  workflowChecklistLabels,
   workflowAliasProblem,
   decodeChecklistLink,
   workflowLabelFor,
@@ -178,6 +180,7 @@ describe('planWorkflowExperimenterSync', () => {
       skippedEmptyLines: 0,
       futureLines: 0,
       futureEndDates: [],
+      unreadableEndDates: [],
     });
   });
 
@@ -216,6 +219,21 @@ describe('planWorkflowExperimenterSync', () => {
       )
     );
     expect(out).toMatchObject({ unitOpLines: 1, skippedLines: 2, futureLines: 1, futureEndDates: ['2026-10-30 18:00'] });
+  });
+
+  // #501: `11/7 예정` was taken for a finished unit op, and nothing said which one.
+  it('fills a unit op whose End_date is not a date, and names it', () => {
+    const op = (who: string, end: string) => `\n- Experimenter: ${who}\n- End_date: '${end}'\n`;
+    const body = `### [USW130 Call] 클론3${op('', '2026-10-30')}### [USW130 Call] 조상주${op('', '11/7 예정')}`;
+    const out = planWorkflowExperimenterSync(note("experimenter: ''", body), '최윤아', '2026-10-31 10:00');
+    expect(out?.content).toBe(
+      note('experimenter: 최윤아', `### [USW130 Call] 클론3${op('', '2026-10-30')}### [USW130 Call] 조상주${op('최윤아', '11/7 예정')}`)
+    );
+    expect(out).toMatchObject({
+      unitOpLines: 1,
+      skippedEmptyLines: 1,
+      unreadableEndDates: [{ unitOp: '[USW130 Call] 조상주', value: '11/7 예정' }],
+    });
   });
 
   it('fills an empty experimenter and keeps CRLF', () => {
@@ -911,6 +929,29 @@ describe('labelMatchesFileName', () => {
   });
 });
 
+describe('findSameAliasWorkflow', () => {
+  const info = { id: 'WD030', name: 'Design', description: '' };
+  const longAlias = `${'가'.repeat(80)} 첫째`;
+  const cut = createWorkflowFileName('001', info, longAlias);
+  const readme = `## 🔗 Related Workflows\n\n- [ ] [WD030 Design ${longAlias}](./${cut})\n`;
+
+  // #492: only the start of a long alias reaches the file name.
+  it('compares a cut file name by its full checklist label', () => {
+    const labels = workflowChecklistLabels(readme);
+    expect(labels.get(cut)).toBe(`WD030 Design ${longAlias}`);
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', `${'가'.repeat(80)} 둘째`)).toBe(cut);
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', `${'가'.repeat(80)} 둘째`, labels)).toBeUndefined();
+    expect(findSameAliasWorkflow([cut], 'WD030', 'Design', longAlias, labels)).toBe(cut);
+  });
+
+  it('compares the file name when it is not cut or the label is not its own', () => {
+    const files = ['001_WD030_Design_1차.labnote.md'];
+    const labels = new Map([[files[0], 'My own label']]);
+    expect(findSameAliasWorkflow(files, 'WD030', 'Design', '1차', labels)).toBe(files[0]);
+    expect(findSameAliasWorkflow(files, 'WD030', 'Design', '2차', labels)).toBeUndefined();
+  });
+});
+
 describe('workflowLabelFor', () => {
   const FILE = '002_WT020_ProteinEnzyme_Expression_2차_발현.labnote.md';
   const h2 = '## [WT020 Protein/Enzyme Expression] 2차 발현\n';
@@ -1309,6 +1350,11 @@ describe('suggestWorkflowFileName', () => {
   it('leaves out characters no link can reach (#326)', () => {
     expect(suggestWorkflowFileName('001_WB030_Gibson.labnote #2.md')).toBe('001_WB030_Gibson 2.labnote.md');
   });
+
+  it('drops a repeated .md instead of moving .labnote (#523)', () => {
+    expect(suggestWorkflowFileName('001_WB030_Gibson.labnote.md.md')).toBe('001_WB030_Gibson.labnote.md');
+    expect(suggestWorkflowFileName('001_WB030_Gibson.labnote.md.MD.md')).toBe('001_WB030_Gibson.labnote.md');
+  });
 });
 
 describe('rebuildExperimentReadme (#340)', () => {
@@ -1512,6 +1558,67 @@ describe('relinkWorkflowChecklistEntries with a %20 link (#412)', () => {
     expect(
       relinkWorkflowChecklistEntries(md, [{ from: 'sub/001_WT030_A B.labnote.md', to: '001_WT030_A B.labnote.md' }])
     ).toBe(['## Related Workflows', '- [x] [A B](./001_WT030_A%20B.labnote.md)'].join('\n'));
+  });
+});
+
+// #499: a `(재)` in a file name cut the link at its `)`.
+describe('checklist links with parentheses', () => {
+  const file = '002_WL070_성장곡선_(OD600).labnote.md';
+  const md = readmeWith([
+    `- [ ] [WL070 성장곡선 OD600](./${file}) @issue;ISS-a;조건 (재확인)`,
+    '- [ ] [WD020 B](003_WD020_B.labnote.md) 참고 [링크](https://example.org/a_(b))',
+  ]);
+
+  it('reads the whole file name and keeps the tail apart', () => {
+    expect(parseWorkflowChecklistFromReadme(md)).toEqual([
+      { done: false, title: 'WL070 성장곡선 OD600', fileName: file },
+      { done: false, title: 'WD020 B', fileName: '003_WD020_B.labnote.md' },
+    ]);
+    expect(isWorkflowChecklistEntryLine(`- [ ] [A](./${file})`)).toBe(true);
+  });
+
+  it('does not list the file again however often the checklist is synced', () => {
+    const plan = planWorkflowChecklistSync(md, [file, '003_WD020_B.labnote.md']);
+    expect(plan.added).toEqual([]);
+    expect(planWorkflowChecklistSync(plan.content, [file, '003_WD020_B.labnote.md']).content).toBe(md);
+    expect(workflowChecklistOrder(md, ['003_WD020_B.labnote.md', file])).toEqual([file, '003_WD020_B.labnote.md']);
+  });
+
+  it('relinks it with its tail', () => {
+    expect(relinkWorkflowChecklistEntries(md, [{ from: file, to: '001_WL070_성장곡선_(OD600).labnote.md' }])).toContain(
+      '- [ ] [WL070 성장곡선 OD600](./001_WL070_성장곡선_(OD600).labnote.md) @issue;ISS-a;조건 (재확인)'
+    );
+  });
+});
+
+// #525: Obsidian links a note as `[[file|label]]` by default.
+describe('checklist entries written as wikilinks', () => {
+  const B = '001_WB120_B.labnote.md';
+  const C = '002_WB110_C.labnote.md';
+  const md = readmeWith([`- [ ] [[002_WB110_C.labnote|WB110 새로 제작]] 메모`, `- [x] [[${B}]]`, '- [ ] [[회의록]]']);
+
+  it('reads the file and label, and leaves other wikilinks alone', () => {
+    expect(parseWorkflowChecklistFromReadme(md)).toEqual([
+      { done: false, title: 'WB110 새로 제작', fileName: C },
+      { done: true, title: '001_WB120_B', fileName: B },
+    ]);
+    expect(isWorkflowChecklistEntryLine('- [ ] [[회의록]]')).toBe(false);
+  });
+
+  it('orders by them and adds no second line', () => {
+    expect(workflowChecklistOrder(md, [B, C])).toEqual([C, B]);
+    expect(planWorkflowChecklistSync(md, [B, C]).added).toEqual([]);
+    expect(planWorkflowRenumber([B, C], workflowChecklistOrder(md, [B, C]))).toEqual([
+      { from: C, to: '001_WB110_C.labnote.md' },
+      { from: B, to: '002_WB120_B.labnote.md' },
+    ]);
+  });
+
+  it('writes a Markdown link back only where it changes the entry', () => {
+    const out = relinkWorkflowChecklistEntries(md, [{ from: C, to: '001_WB110_C.labnote.md' }]);
+    expect(out).toContain('- [ ] [WB110 새로 제작](./001_WB110_C.labnote.md) 메모');
+    expect(out).toContain(`- [x] [[${B}]]`);
+    expect(removeWorkflowChecklistEntries(md, [B])).not.toContain(B);
   });
 });
 
@@ -1903,6 +2010,14 @@ describe('unitOpsAllEnded', () => {
     expect(unitOpsAllEnded(`---\nend_date: ''\n---\n${op('2026-10-25 09:00')}${op('2026-10-25 10:00')}`)).toBe(true);
     expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('')}`)).toBe(false);
     expect(unitOpsAllEnded('# no unit operations\n')).toBe(false);
+  });
+
+  // #509: a planned or unreadable End_date counted as ended.
+  it('does not count an End_date still to come or not a date as ended', () => {
+    const now = '2026-10-31 23:10';
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('2026-11-14 17:00')}`, now)).toBe(false);
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('11/14 예정')}`, now)).toBe(false);
+    expect(unitOpsAllEnded(`${op('2026-10-25 09:00')}${op('2026.10.31')}`, now)).toBe(true);
   });
 });
 

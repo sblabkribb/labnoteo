@@ -238,6 +238,8 @@ const obsidianKo: Record<string, string> = {
   'The block is no longer where it was printed from, so check that the scan went to the right one.':
     '출력한 뒤 블록 위치가 바뀌었습니다. 맞는 블록에 붙었는지 확인하세요.',
   'Workflow numbering already follows the README checklist.': '워크플로 번호가 이미 README 체크리스트 순서와 같습니다.',
+  'The README checklist lists {0} more than once. Run "{1}" to remove the extra entries.':
+    'README 체크리스트에 {0}이(가) 두 번 이상 올라 있습니다. "{1}"을(를) 실행해 남는 줄을 지우세요.',
   'The README checklist lists {0} file(s) that are not in the folder: {1}. Run "{2}" to remove them.':
     'README 체크리스트에 폴더에 없는 파일 {0}개가 있습니다: {1}. "{2}"을(를) 실행하면 지울 수 있습니다.',
   'Point {0} README checklist entry(ies) of {1} back at their file?':
@@ -376,6 +378,8 @@ const obsidianKo: Record<string, string> = {
     '머리말(front matter)의 값이 있는 줄에는 날짜를 넣을 수 없습니다. 본문이나 빈 값 칸에서 실행하세요.',
   '{0} is not a date field, so no date was put there. Run this on an empty date line such as end_date, or in the body.':
     '{0}은(는) 날짜 칸이 아니어서 날짜를 넣지 않았습니다. end_date처럼 빈 날짜 줄이나 본문에서 실행하세요.',
+  '{0} has its value on the lines below, such as a list, so no date was put on its line. Add the date as a new "- " item under it.':
+    '{0}은(는) 아래 줄에 목록 같은 값이 있어 그 줄에 날짜를 넣지 않았습니다. 아래에 "- " 항목을 새로 만들어 날짜를 넣으세요.',
   'This Start_date/End_date already has a value. Use the 📅 picker next to it to change the date.':
     '이 Start_date/End_date에는 이미 값이 있습니다. 날짜를 바꾸려면 옆의 📅 피커를 쓰세요.',
   'This line already has an issue marker. A line can hold only one.':
@@ -516,9 +520,11 @@ const obsidianKo: Record<string, string> = {
   '{0} is no longer marked discarded.': '{0}의 폐기 표시를 해제했습니다.',
   '(discarded)': '(폐기)',
   'Discarded': '폐기',
-  '{0} is stored at {1}. Empty its storage location? The old location is kept and comes back if you unmark it.':
-    '{0}은(는) {1}에 보관되어 있습니다. 보관 위치를 비울까요? 원래 위치는 따로 남겨 두었다가 폐기 표시를 해제하면 되돌립니다.',
-  'Empty location': '위치 비우기',
+  '{0} is stored at {1}. Mark it discarded?': '{0}은(는) {1}에 보관되어 있습니다. 폐기로 표시할까요?',
+  'Empty location and mark discarded': '위치를 비우고 폐기',
+  'Keep location and mark discarded': '위치를 남기고 폐기',
+  'The old location is kept and comes back if you unmark it.':
+    '원래 위치는 따로 남겨 두었다가 폐기 표시를 해제하면 되돌립니다.',
   '(emptied, was {0})': '(비움, 원래 위치 {0})',
   'Move to Global': '전역으로 이동',
   'Move to Local': '로컬로 이동',
@@ -727,6 +733,8 @@ const obsidianKo: Record<string, string> = {
     '{0}은(는) _ 때문에 읽기 화면에서 기울임으로 보입니다. 계속 쓸 수는 있으며, 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
   '{0}: differs from {1} only in letter case, so on Windows both would share one {Type}.json and their samples would mix. It was not saved.':
     '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
+  '{0}: only the letter case of {1} changed. Its samples and the IDs already written in notes keep {1}, so the change was not saved.':
+    '{0}: {1}의 대소문자만 바꿨습니다. 이 타입의 시료와 노트에 이미 쓴 ID는 {1} 철자를 쓰므로 바꾸지 않고 저장된 이름을 유지했습니다.',
   '{0} differs from {1} only in letter case: on Windows both share one {Type}.json, so their samples mix. Keep one of them.':
     '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞이니 하나만 남기세요.',
   '{0}: {1} sample(s)': '{0}: 샘플 {1}개',
@@ -935,6 +943,7 @@ const obsidianKo: Record<string, string> = {
     '{0}줄은 끝난 유닛 오퍼레이션이라 비어 있는 채로 둠(직접 채우세요)',
   '{0} filled although the unit operation has an End_date, as {1} has not come yet':
     '{0}줄은 End_date({1})가 아직 오지 않아 채움',
+  'filled where End_date does not read as a date: {0}': 'End_date를 날짜로 읽을 수 없어 채운 유닛 오퍼레이션: {0}',
   '(empty)': '(비어 있음)',
   '{0} note(s) updated.': '노트 {0}개를 고쳤습니다.',
   'Name this copy of the workflow': '복제한 워크플로의 이름',

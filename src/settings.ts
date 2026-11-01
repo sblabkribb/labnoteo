@@ -189,6 +189,8 @@ export interface CustomSampleTypesInput {
   caseDuplicates: { name: string; clashesWith: string }[];
   /** Such names kept from before, so their samples stay linked. */
   legacyCaseDuplicates: { name: string; clashesWith: string }[];
+  /** Stored names typed again in another letter case; the stored spelling is kept (#497). */
+  caseRenamed: { name: string; stored: string }[];
 }
 
 /**
@@ -200,7 +202,9 @@ export interface CustomSampleTypesInput {
  * Names that differ only in case (`dna` next to the built-in `DNA`) are
  * refused the same way (#222): on a case-insensitive file system both types
  * read and write the one `dna.json`, and their samples mix. So is a name
- * whose `_` the reading view turns into italics (#252).
+ * whose `_` the reading view turns into italics (#252). A stored name typed in
+ * another case (`CellLine` → `cellline`) keeps its stored spelling (#497): its
+ * samples and the ids already written in notes carry that spelling.
  */
 export function partitionCustomSampleTypes(
   input: string,
@@ -214,13 +218,20 @@ export function partitionCustomSampleTypes(
     legacyItalic: [],
     caseDuplicates: [],
     legacyCaseDuplicates: [],
+    caseRenamed: [],
   };
   const taken = new Map<string, string>(SAMPLE_TYPES.map(t => [t.toLowerCase(), t]));
   const names = input
     .split(',')
     .map(x => x.trim())
     .filter(Boolean);
-  for (const name of names) {
+  for (const typed of names) {
+    const stored = previouslySaved.includes(typed)
+      ? undefined
+      : previouslySaved.find(p => p.toLowerCase() === typed.toLowerCase());
+    if (stored !== undefined) out.caseRenamed.push({ name: typed, stored });
+    const name = stored ?? typed;
+    if (stored !== undefined && out.save.includes(stored)) continue;
     const clashesWith = taken.get(name.toLowerCase());
     if (clashesWith !== undefined && clashesWith !== name) {
       const clash = { name, clashesWith };
