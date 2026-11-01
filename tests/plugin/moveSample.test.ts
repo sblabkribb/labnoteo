@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { App } from 'obsidian';
 import { TFile } from '../stubs/obsidian';
 import type LabnotePlugin from '../../src/main';
-import { moveSampleInteractive } from '../../src/sampleActions';
+import { moveSampleInteractive, storedAlias } from '../../src/sampleActions';
 import { confirmModal } from '../../src/modals';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
 import {
@@ -267,8 +267,9 @@ describe('moveSampleInteractive — same alias in the destination', () => {
 
     expect(await move(plugin)).toBe(false);
 
+    // #507: the alias as Reagent-9 has it, not as the moved sample spells it.
     expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
-      'Global samples already have the alias Buffer (Reagent-9). Move Reagent-2 there anyway?'
+      'Global samples already have the alias buffer (Reagent-9). Move Reagent-2 there anyway?'
     );
     expect(vi.mocked(confirmModal).mock.calls[0][2]).toBe('Move anyway');
     expect((await loadSamplesByType(fs, RENDERED_LOCAL, TYPE))['Reagent-2']).toBeDefined();
@@ -281,5 +282,14 @@ describe('moveSampleInteractive — same alias in the destination', () => {
 
     expect(await move(plugin)).toBe(true);
     expect(Object.keys(await loadSamplesByType(fs, GLOBAL, TYPE)).sort()).toEqual(['Reagent-2', 'Reagent-9']);
+  });
+});
+
+// #507: the alias questions named the alias as typed, not as the sample has it.
+describe('storedAlias', () => {
+  it('takes the first registered alias of the samples, else the typed one', () => {
+    const records = { 'DNA-1': record(''), 'DNA-2': record(' T7-Frag '), 'DNA-3': record('t7-frag') };
+    expect(storedAlias(records, ['DNA-1', 'DNA-2', 'DNA-3'], 't7-FRAG')).toBe('T7-Frag');
+    expect(storedAlias(records, ['DNA-4'], 't7-FRAG')).toBe('t7-FRAG');
   });
 });

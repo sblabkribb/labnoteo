@@ -581,8 +581,9 @@ describe('editSampleInteractive alias rewrite', () => {
 
     expect(await edit(FOLDER, 'SIKIF ')).toBe(false);
 
+    // #507: named as RNA-2 has it.
     expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
-      'This experiment already has the alias SIKIF (RNA-2). Save RNA-1 anyway?'
+      'This experiment already has the alias siKIF (RNA-2). Save RNA-1 anyway?'
     );
     expect(JSON.parse(await fs.read(`${FOLDER}/RNA.json`))['RNA-1'].alias).toBe('si KIF');
   });
