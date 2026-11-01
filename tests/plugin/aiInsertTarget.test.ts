@@ -9,6 +9,7 @@ import type { EditTarget } from '@labnoteo/core';
 import { Notice, __setGetLanguage } from '../stubs/obsidian';
 import {
   draftMethodCommand,
+  extractSamplesCommand,
   replyLanguageInstruction,
   summarizeExperimentCommand,
   summarizeResultsCommand,
@@ -419,5 +420,15 @@ describe('reply language', () => {
     expect(systems[0].content).not.toContain('Keep sample IDs');
     expect(systems[0].content).toContain('Keep units, numbers and quoted text');
     expect(systems[1].content).toContain('Keep sample IDs');
+  });
+
+  // #530: '영하 20도 냉동고 2칸' was registered as '-20°C freezer shelf 2'.
+  it('asks the sample extraction to keep what the note wrote, untranslated', async () => {
+    replyAfterSwitch('[]');
+    await extractSamplesCommand(plugin);
+    const [messages] = chat.mock.calls[0] as [{ role: string; content: string }[]];
+    expect(messages[0].content).toContain(
+      'Copy "alias", "description" and "location" in the language and wording the text uses; never translate them.'
+    );
   });
 });

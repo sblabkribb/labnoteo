@@ -862,6 +862,7 @@ export async function extractSamplesCommand(plugin: LabnotePlugin): Promise<void
         `"type" must be one of: ${types.join(', ')}. ` +
         '"alias" is the short name or code the text gives the sample (e.g. "YE-22"). ' +
         '"location" is where the text says it is stored (e.g. "4°C fridge shelf 1"); keep it out of "description". ' +
+        'Copy "alias", "description" and "location" in the language and wording the text uses; never translate them. ' +
         '"id" must look like "<type>-<number>" (e.g. "DNA-3"); omit it when the text gives no such id — do not use model or catalog numbers as ids. No prose.',
     },
     { role: 'user', content: text.slice(0, 6000) },
