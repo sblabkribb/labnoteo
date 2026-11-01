@@ -43,6 +43,8 @@ describe('retired catalog items', () => {
     const ko = catalogDescriptionFor('WG010', earlier, 'ko');
     expect(ko).toBe(CATALOG_KO_RETIRED.WG010.description);
     expect(ko).toContain('WB001');
+    // #522: an old vault's catalog may not list WB001 yet.
+    expect(ko).toContain('`카탈로그 업데이트`');
   });
 
   it("keeps a lab's edited WG010 description as written", () => {
