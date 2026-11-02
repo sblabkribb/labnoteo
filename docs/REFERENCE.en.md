@@ -396,7 +396,8 @@ or IDs, export again to bring the CSV up to date.
 **Cell contents**
 
 - Rows are fitted to the header: extra cells are dropped, missing ones left empty. `<br>` in a cell
-  becomes a line break.
+  becomes a line break. When cells were dropped, the export notice names the CSV, the row and what
+  it lost, and says to write a `|` inside a code span as `\|` when that is what split the cell.
 - A cell holds what the reading view shows. Bold, italic, highlight (`==`) and code marks are
   dropped, and struck-through text is dropped with its marks (`~~0.10~~ 0.12` → `0.12`). Footnote
   numbers (`[^1]`) go, math loses its `$`, links become the text they show, `<sup>6</sup>` becomes
@@ -415,7 +416,8 @@ or IDs, export again to bring the CSV up to date.
   numbers of 16 digits or more (barcodes, LIMS IDs) into ones with zeros past the 15th digit,
   plate-well names and dilutions such as `2E4` and `1E-3` into numbers in E notation (`20000`,
   `0.001`), and drops the leading zero of `007`. A pair that cannot be a month and a day, such as
-  `12/48` or `7/40`, stays text. The file holds the text as typed; Excel is what changes it.
+  `12/48` or `7/40`, stays text. A decimal mantissa (`2.1E+08`) is a measurement whose value Excel
+  keeps, so it is not reported. The file holds the text as typed; Excel is what changes it.
   Open it with Data → From Text/CSV and set those columns to Text. When a table has such cells,
   the export notice names each CSV with the columns to set to Text, and up to three examples per
   kind of change ("+N more").
@@ -554,6 +556,10 @@ type.
   already has (case and spacing aside; the question spells it as that sample has it); for a Local
   sample whose alias only Global samples have, a notice says so.
   **Change type** names the samples of the new type that already have its alias.
+- Adding and editing both ask before a sample takes a storage slot another sample is in: a
+  location whose last part is a cell coordinate (`A1`, `B12`, `7`), since one slot holds one tube.
+  Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
+  `Rack A`) is not asked about, and a slot a discarded sample was in counts as free.
 - **Delete** is refused while note text uses the sample: the notice names each note by its full
   vault path (a Local sample is checked in its experiment and in the notes outside experiments
   above, a Global one in the whole vault). Remove the references first, or use **Mark as
@@ -1006,7 +1012,9 @@ current note.
   is no tool for changing an experiment's status, for example).
 - The end notice counts changes made, lookups, writes you denied, and failed calls, and says when
   nothing in the vault changed. Failed or denied calls are named with their target and reason, up
-  to three (`Failed: update_section (Method) — …`, then `+N more`).
+  to three (`Failed: update_section (Method) — …`, then `+N more`). A rule the plugin knows, such
+  as the alias and description rules or an unknown sample type, is worded in the language of the
+  interface; the explanation sent to the model stays English.
 - When at least one change was made, an empty final answer does not bring up the "The model gave no
   answer" notice.
 
@@ -1025,8 +1033,10 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   number, title, and the checked and total workflows of its README checklist. Hovering shows the
   folder, status, project, author and last updated date (and retry links and the `@issue` marker
   count, when there are any). A status that is not an allowed value (such as `Failed`) is grouped
-  under its value marked `(not an allowed status)`, whose tooltip lists the allowed ones. The
-  grouping you pick is kept for next time.
+  under its value marked `(not an allowed status)`, whose tooltip lists the allowed ones. An
+  experiment with no `status` line fails validation too, so the **(none)** group is marked
+  `(validation fails)` with a warning icon and a tooltip pointing at **Change experiment status**.
+  The grouping you pick is kept for next time.
 - The workflow view's **Experiments** section groups experiments by status, by project, by author
   (the README `author`, empty ones under **(no author)**), or by discussion. **By discussion** puts
   the ones flagged for discussion or with at least one `@issue` marker (counted in the notes
@@ -1212,6 +1222,9 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
   read back exactly from the old name (no `/`, `:` or similar dropped, not cut short), and the old
   title otherwise. Cancelling keeps the title. A copied experiment folder is tidied up separately
   (see [Making a copy](#making-a-copy)).
+- Renaming a folder onto a number another experiment already has (`001_GFP` → `002_GFP` while a
+  `002_…` folder exists) names that experiment and offers the next free number. Cancelling keeps
+  the name.
 - Running a workflow command from a note in an unnumbered folder says the folder is not an
   experiment folder.
 - Do not rename or move an experiment's `resources/labsamples/`: it is the Local sample registry, so
