@@ -705,6 +705,8 @@ const obsidianKo: Record<string, string> = {
     '별칭 규칙에 맞게 바꾼 이름(_ : ;는 -로, # *는 지움): {0}',
   '{0} is used in notes outside this experiment ({1}). Those notes will no longer find it after the move. Move anyway?':
     '{0}은(는) 이 실험 밖의 노트에서 쓰이고 있습니다({1}). 옮기면 그 노트에서는 이 시료를 찾지 못합니다. 그래도 옮길까요?',
+  '{0} is already stored at {1}.': '{0}이(가) 이미 {1}에 있습니다.',
+  '{0} samples are already stored at {1}: {2}.': '시료 {0}개가 이미 {1}에 있습니다: {2}.',
   'Move anyway': '그래도 옮기기',
   'Sample moved: {0}': '샘플을 이동했습니다: {0}',
   'An alias cannot contain ";" or ":", which separate the ID, alias and description in a note. Use "-" or "/" instead (e.g. 1-10).':

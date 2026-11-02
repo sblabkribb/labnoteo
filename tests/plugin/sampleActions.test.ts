@@ -98,6 +98,69 @@ describe('createSampleInteractive', () => {
     expect(plugin.refreshSampleViews).toHaveBeenCalledOnce();
   });
 
+  // #512: a slot holds one tube, and taking a taken one passed without a word.
+  describe('a storage slot another sample is in', () => {
+    beforeEach(async () => {
+      vi.mocked(confirmModal).mockReset();
+      await fs.write(
+        REGISTRY,
+        JSON.stringify({ 'RNA-9': { type: 'RNA', alias: 'kept', descriptions: [], sources: [], location: '-80 / P1 / A1' } })
+      );
+    });
+
+    it('asks before taking it, and registers nothing when declined', async () => {
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('R1', '', '-80 / p1 / a1');
+
+      expect(await add()).toBeUndefined();
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
+        'RNA-9 (Local RNA sample) is already stored at -80 / p1 / a1. Save RNA-'
+      );
+      expect(Object.keys(JSON.parse(await fs.read(REGISTRY)))).toEqual(['RNA-9']);
+    });
+
+    it('saves it once confirmed', async () => {
+      vi.mocked(confirmModal).mockResolvedValue(true);
+      answer('R1', '', '-80 / P1 / A1');
+
+      const created = await add();
+
+      expect(JSON.parse(await fs.read(REGISTRY))[created!.id]).toMatchObject({ location: '-80 / P1 / A1' });
+    });
+
+    it('says nothing about a free slot, a discarded sample, or a whole box', async () => {
+      await fs.write(
+        `${GLOBAL}/DNA.json`,
+        JSON.stringify({ 'DNA-3': { type: 'DNA', descriptions: [], sources: [], location: '-80 / P1 / B2', discarded: '2026-10-25' } })
+      );
+      answer('R1', '', '-80 / P1 / A2');
+      await add();
+      answer('R2', '', '-80 / P1 / B2');
+      await add();
+      answer('R3', '', '-80 / P1');
+      await add();
+
+      expect(confirmModal).not.toHaveBeenCalled();
+    });
+
+    // A freezer slot is a physical place, whatever registry the tube is in.
+    it('finds the sample holding the slot in the Global registry too', async () => {
+      await fs.write(
+        `${GLOBAL}/DNA.json`,
+        JSON.stringify({ 'DNA-3': { type: 'DNA', descriptions: [], sources: [], location: '-80 / P1 / C3' } })
+      );
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('R1', '', '-80 / P1 / C3');
+
+      expect(await add()).toBeUndefined();
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
+        'DNA-3 (Global DNA sample) is already stored at -80 / P1 / C3. Save RNA-'
+      );
+    });
+  });
+
   // #109: a Local sample named like a Global one looks the same in autocomplete.
   it('warns, without refusing, when a Global sample has the same alias', async () => {
     await fs.write(

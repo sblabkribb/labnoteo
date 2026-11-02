@@ -1016,6 +1016,82 @@ export async function loadSampleMarks(
 }
 
 /**
+ * A cell coordinate as a box or rack is labelled: `A1`, `B12`, `AH6`, or a
+ * plain number. The last segment of a location is checked against it.
+ */
+const SLOT_RE = /^(?:[A-Za-z]{1,2}\d{1,3}|\d{1,3})$/;
+
+/**
+ * Whether `location` names a single slot, which holds one tube and so can be
+ * taken (#512). A whole fridge or rack (`4도 냉장고`, `-80 / 랙 A`) holds many
+ * samples, and asking about those would be noise, so only the last segment
+ * counts: `-80 냉동고 / 박스 P1 / A1` is a slot, `박스 P1` is not.
+ */
+export function isStorageSlot(location: string): boolean {
+  const last = location.split('/').pop()?.trim() ?? '';
+  return SLOT_RE.test(last);
+}
+
+/** A sample's storage location, as {@link samplesAtLocation} compares them. */
+export interface SampleLocation {
+  location: string;
+  /** Set when the sample was marked discarded (#330): its slot is free again. */
+  discarded?: string;
+}
+
+/**
+ * The `type` samples of `folder` by ID with their locations. Unlike
+ * {@link loadSamplesByType} it never writes, so checking a slot on every save
+ * cannot rewrite the registries of the types it only reads (#512).
+ */
+export async function loadSampleLocations(
+  fs: LabnoteFs,
+  labsamplesFolder: string,
+  type: string
+): Promise<Record<string, SampleLocation>> {
+  assertSafeSampleType(type);
+  const filePath = path.join(labsamplesFolder, `${type}.json`);
+  if (!(await fs.exists(filePath))) return {};
+  try {
+    const data: unknown = JSON.parse(await fs.read(filePath));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+    const found: Record<string, SampleLocation> = {};
+    for (const [id, record] of Object.entries(data as Record<string, unknown>)) {
+      const r = record && typeof record === 'object' ? (record as { location?: unknown; discarded?: unknown }) : {};
+      if (typeof r.location !== 'string' || !r.location.trim()) continue;
+      found[id] = {
+        location: r.location,
+        ...(typeof r.discarded === 'string' && r.discarded ? { discarded: r.discarded } : {}),
+      };
+    }
+    return found;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The IDs in `entries` stored at `location` (spacing tidied, case ignored),
+ * discarded samples left out: their slot is free (#512).
+ */
+export function samplesAtLocation(entries: Record<string, SampleLocation>, location: string): string[] {
+  const wanted = normalizeLocation(location);
+  if (!wanted) return [];
+  return Object.keys(entries).filter(
+    id => !entries[id].discarded && normalizeLocation(entries[id].location) === wanted
+  );
+}
+
+const normalizeLocation = (location: string): string =>
+  location
+    .split('/')
+    .map(part => part.trim())
+    .join('/')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+
+/**
  * Whether `name` is a `{type}_*.json` catalog of `type`.
  *
  * `knownTypes` is what keeps a catalog of one type from swallowing another

@@ -45,6 +45,9 @@ import {
   listExperimentSampleFolders,
   extractSampleInfoFromText,
   samplesWithAliasIn,
+  isStorageSlot,
+  loadSampleLocations,
+  samplesAtLocation,
   findSampleUsageSpots,
   type SampleUsageSpot,
   type AliasRewriteEdit,
@@ -623,6 +626,16 @@ export async function createSampleInteractive(
   if (locationRaw === undefined) return undefined;
   const description = clean(descRaw);
   const location = clean(locationRaw);
+  if (
+    !(await confirmLocationClash(app, plugin, {
+      folder: existing?.folder ?? folder,
+      id,
+      location,
+      before: existing?.record.location,
+    }))
+  ) {
+    return undefined;
+  }
 
   if (existing) {
     // A blank field keeps the stored value, as in the note sync (#73); clearing
@@ -741,6 +754,46 @@ async function confirmAliasClash(
           labels.join(', ')
         );
   return confirmModal(app, `${taken} ${plugin.t('Save {0} anyway?', id)}`, plugin.t('Save anyway'));
+}
+
+/**
+ * Ask before a sample takes a storage slot another sample is in (#512). A slot
+ * holds one tube whatever the sample's type is, so every type of this folder
+ * and of Global is read. True when the location may be saved: also when it is
+ * empty, names something wider than a slot, or did not change.
+ */
+async function confirmLocationClash(
+  app: App,
+  plugin: LabnotePlugin,
+  opts: { folder: string; id: string; location: string | null; before?: string | null }
+): Promise<boolean> {
+  const { folder, id, location } = opts;
+  if (!location || !isStorageSlot(location)) return true;
+  if (location.trim().toLowerCase() === (opts.before ?? '').trim().toLowerCase()) return true;
+  const globalFolder = plugin.settings.globalSampleFolder;
+  // A freezer slot is a physical place: a Local sample and a Global one cannot
+  // both be in it, so both registries are read.
+  const scopes: Array<{ folder: string; global: boolean }> = [
+    { folder, global: isSameSampleFolder(folder, globalFolder) },
+    ...(globalFolder && !isSameSampleFolder(folder, globalFolder) ? [{ folder: globalFolder, global: true }] : []),
+  ];
+  const taken: string[] = [];
+  for (const scope of scopes) {
+    for (const type of getSampleDisplayMeta(plugin.settings.customSampleTypes).types) {
+      const entries = await loadSampleLocations(plugin.fs, scope.folder, type);
+      for (const other of samplesAtLocation(entries, location)) {
+        if (other === id && scope.folder === folder) continue;
+        const where = scope.global ? plugin.t('Global {0} sample', type) : plugin.t('Local {0} sample', type);
+        taken.push(`${other} (${where})`);
+      }
+    }
+  }
+  if (taken.length === 0) return true;
+  const held =
+    taken.length === 1
+      ? plugin.t('{0} is already stored at {1}.', taken[0], location)
+      : plugin.t('{0} samples are already stored at {1}: {2}.', String(taken.length), location, taken.join(', '));
+  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', id)}`, plugin.t('Save anyway'));
 }
 
 /** A sample sharing an alias, as an alias question names it: its ID, marked when discarded (#419). */
@@ -886,6 +939,7 @@ export async function editSampleInteractive(
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
   const location = clean(locationRaw);
+  if (!(await confirmLocationClash(app, plugin, { folder, id, location, before: record.location }))) return false;
   // An emptied field is easy to submit by accident and nothing brings it back (#471).
   const oldDescription = record.descriptions?.[0]?.trim();
   const clearing = [
