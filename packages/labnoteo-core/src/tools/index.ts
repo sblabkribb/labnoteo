@@ -110,8 +110,22 @@ export interface ToolResult {
   ok: boolean;
   data?: unknown;
   error?: string;
+  /**
+   * Names the rule a refusal broke, with the values its wording needs (#529).
+   * `error` stays English, for the model; a host words the code in the
+   * language the person watching reads.
+   */
+  code?: string;
+  params?: string[];
   /** Non-fatal notes for the caller, e.g. arguments the tool ignored. */
   warnings?: string[];
+}
+
+/** A refused call: the English sentence for the model, and the code a host translates (#529). */
+export interface ToolError {
+  error: string;
+  code?: string;
+  params?: string[];
 }
 
 export interface JsonSchema {
@@ -148,7 +162,7 @@ export interface ToolDef {
 }
 
 /** {@link ToolDef.describe} result. */
-export type ToolPreview = { error: string } | SectionEditPreview | SampleCreatePreview | WorkflowCreatePreview;
+export type ToolPreview = ToolError | SectionEditPreview | SampleCreatePreview | WorkflowCreatePreview;
 
 /** `update_section` preview: the section that will be replaced or cleared. */
 export interface SectionEditPreview {
@@ -306,7 +320,7 @@ interface ResolvedSectionTarget {
 async function resolveSectionTarget(
   ctx: ToolContext,
   args: Record<string, unknown>
-): Promise<ResolvedSectionTarget | { error: string }> {
+): Promise<ResolvedSectionTarget | ToolError> {
   const documentPath = safePath(ctx, args, 'documentPath');
   const heading = str(args, 'heading');
   const rawContent = typeof args.content === 'string' ? args.content : undefined;
@@ -339,7 +353,7 @@ async function resolveSectionTarget(
   }
   const md = await ctx.fs.read(documentPath);
   const all = findSectionMatches(md, heading);
-  if (all.length === 0) return { error: sectionNotFound(md, heading) };
+  if (all.length === 0) return { error: sectionNotFound(md, heading), code: 'section_not_found', params: [heading] };
 
   const candidates = parentHeading
     ? all.filter(m => matchesParentHeading(m.parentHeading, parentHeading))
@@ -469,7 +483,7 @@ interface ResolvedSampleCreate {
 async function resolveSampleCreate(
   ctx: ToolContext,
   args: Record<string, unknown>
-): Promise<ResolvedSampleCreate | { error: string }> {
+): Promise<ResolvedSampleCreate | ToolError> {
   const rawType = str(args, 'type');
   const documentPath = safePath(ctx, args, 'documentPath');
   if (!documentPath) {
@@ -485,29 +499,41 @@ async function resolveSampleCreate(
   if (!type) {
     return {
       error: `Unknown sample type "${rawType}". Known types: ${knownTypes.join(', ')}. A new type must first be added to the sample types in the Labnote settings.`,
+      code: 'sample_type_unknown',
+      params: [rawType, knownTypes.join(', ')],
     };
   }
   const rawId = str(args, 'id');
   const id = rawId === undefined ? undefined : normalizeSampleId(type, rawId);
   if (rawId !== undefined && !id) {
-    return { error: `Invalid id "${rawId}": expected ${type}-<number>. Omit id to generate one.` };
+    return {
+      error: `Invalid id "${rawId}": expected ${type}-<number>. Omit id to generate one.`,
+      code: 'sample_id_invalid',
+      params: [rawId, type],
+    };
   }
   const alias = str(args, 'alias');
   const aliasProblem = alias === undefined ? undefined : sampleAliasProblem(alias);
   if (aliasProblem === 'separator') {
     return {
       error: `Invalid alias "${alias}": ";" and ":" separate the id, alias and description in a note. Replace them (e.g. with "-" or "/") and retry.`,
+      code: 'sample_alias_separator',
+      params: [alias!],
     };
   }
   if (aliasProblem === 'markdown') {
     return {
       error: `Invalid alias "${alias}": #, [[, ]], ](, *, _ and \` are read by Markdown as a tag, link, emphasis or code. Replace them (e.g. with "-" or "/") and retry.`,
+      code: 'sample_alias_markdown',
+      params: [alias!],
     };
   }
   const description = str(args, 'description');
   if (description !== undefined && hasSampleDescriptionSeparator(description)) {
     return {
       error: `Invalid description "${description}": ";" ends the description in a note. Replace it (e.g. with ",") and retry.`,
+      code: 'sample_desc_separator',
+      params: [description],
     };
   }
   // The samples folder is derived from the note's directory and created on
@@ -559,7 +585,7 @@ interface ResolvedWorkflowCreate {
 async function resolveWorkflowCreate(
   ctx: ToolContext,
   args: Record<string, unknown>
-): Promise<ResolvedWorkflowCreate | { error: string }> {
+): Promise<ResolvedWorkflowCreate | ToolError> {
   const documentPath = safePath(ctx, args, 'documentPath');
   const workflowId = str(args, 'workflowId');
   if (!documentPath) {
@@ -571,17 +597,29 @@ async function resolveWorkflowCreate(
   const rawAlias = typeof args.alias === 'string' ? args.alias.trim() : '';
   if (/[\r\n]/.test(rawAlias)) return { error: 'alias must be a single line' };
   const aliasProblem = workflowAliasProblem(rawAlias);
-  if (aliasProblem === 'hash') return { error: 'alias must not contain "#": links to its heading would break' };
+  if (aliasProblem === 'hash') {
+    return {
+      error: 'alias must not contain "#": links to its heading would break',
+      code: 'workflow_alias_hash',
+    };
+  }
   if (aliasProblem === 'markdown') {
     return {
       error:
         'alias must not contain "*", or "_" next to anything but ASCII letters and digits: the reading view shows part of it in italics. Use a space instead',
+      code: 'workflow_alias_markdown',
     };
   }
   // As in the app, an alias of only symbols, which leaves no file name part, is dropped.
   const alias = rawAlias && sanitizeWorkflowName(rawAlias) ? rawAlias : undefined;
   const labnoteDir = getExperimentDir(documentPath);
-  if (!labnoteDir) return { error: 'documentPath is not inside a labnote/### experiment folder' };
+  if (!labnoteDir) {
+    return {
+      error: 'documentPath is not inside a labnote/### experiment folder',
+      code: 'not_experiment_folder',
+      params: [documentPath],
+    };
+  }
   // An experiment is its README; without one the write would create a stray
   // folder that no experiment view or automation sees.
   const readmePath = posix.join(labnoteDir, README_NAME);
@@ -866,7 +904,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async handler(ctx, args) {
         const resolved = await resolveSampleCreate(ctx, args);
-        if ('error' in resolved) return { ok: false, error: resolved.error };
+        if ('error' in resolved) return { ok: false, ...resolved };
         const { documentPath, type, alias, description, location, folder, scope } = resolved;
         const id = resolved.id ?? generateSampleId(type);
         const twins = await aliasTwins(ctx, resolved, id);
@@ -902,7 +940,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async describe(ctx, args) {
         const resolved = await resolveSampleCreate(ctx, args);
-        if ('error' in resolved) return { error: resolved.error };
+        if ('error' in resolved) return resolved;
         const { type, id, alias, location, folder, scope } = resolved;
         const existing = id !== undefined && (await loadSamplesByType(ctx.fs, folder, type))[id] !== undefined;
         const twins = await aliasTwins(ctx, resolved, id);
@@ -982,7 +1020,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async handler(ctx, args) {
         const resolved = await resolveSectionTarget(ctx, args);
-        if ('error' in resolved) return { ok: false, error: resolved.error };
+        if ('error' in resolved) return { ok: false, ...resolved };
         const { documentPath, heading, content, md, target, index, total } = resolved;
 
         const { ok, md: next, removed } = replaceSectionBodyAt(md, target.line, content);
@@ -1004,7 +1042,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async describe(ctx, args) {
         const resolved = await resolveSectionTarget(ctx, args);
-        if ('error' in resolved) return { error: resolved.error };
+        if ('error' in resolved) return resolved;
         const body = sectionBodyAt(resolved.md, resolved.target.line);
         const diff = diffBodyLines(body?.text ?? '', resolved.content);
         const removed = previewLines(diff.removed);
@@ -1049,7 +1087,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async handler(ctx, args) {
         const resolved = await resolveWorkflowCreate(ctx, args);
-        if ('error' in resolved) return { ok: false, error: resolved.error };
+        if ('error' in resolved) return { ok: false, ...resolved };
         const { labnoteDir, readmePath, info, alias, fileName, sameAliasAs } = resolved;
         const withWarnings = (result: ToolResult): ToolResult =>
           sameAliasAs
@@ -1093,7 +1131,7 @@ export function createLabnoteTools(): ToolDef[] {
       },
       async describe(ctx, args) {
         const resolved = await resolveWorkflowCreate(ctx, args);
-        if ('error' in resolved) return { error: resolved.error };
+        if ('error' in resolved) return resolved;
         return {
           kind: 'workflowCreate',
           workflowId: resolved.info.id,

@@ -112,6 +112,10 @@ export interface ExperimentTreeLabels {
   invalidStatus?: string;
   /** Tooltip of that group; `{0}` is the allowed list. */
   invalidStatusTooltip?: string;
+  /** Suffix of the group whose experiments have no status at all (#538). */
+  missingStatus?: string;
+  /** Tooltip of that group, naming the command that sets a status. */
+  missingStatusTooltip?: string;
   status?: string;
   workflows?: string;
   lastUpdated?: string;
@@ -299,19 +303,30 @@ export function buildExperimentTree(
   const statusGroups: TreeNode[] = order.map(status => {
     const members = sortByFolder(groups.get(status)!);
     const invalid = status !== '' && !known.includes(status);
+    // No status at all fails validation too, which a plain "(none)" hid (#538).
+    const missing = status === '';
     return {
       id: `experimentStatus:${status}`,
       label: invalid
         ? `${status} [${members.length}] ${labels.invalidStatus ?? '(not an allowed status)'}`
-        : `${status || noStatus} [${members.length}]`,
+        : missing
+          ? `${noStatus} [${members.length}] ${labels.missingStatus ?? '(validation fails)'}`
+          : `${status} [${members.length}]`,
       kind: 'experimentStatus' as const,
-      icon: invalid ? 'warning' : 'folder',
+      icon: invalid || missing ? 'warning' : 'folder',
       ...(invalid
         ? {
             tooltip: (labels.invalidStatusTooltip ?? 'Allowed statuses: {0}').replace(
               '{0}',
               EXPERIMENT_STATUSES.join(', ')
             ),
+          }
+        : {}),
+      ...(missing
+        ? {
+            tooltip:
+              labels.missingStatusTooltip ??
+              'An experiment without a status fails validation. Set one with "Change experiment status".',
           }
         : {}),
       payload: { status: status || undefined },

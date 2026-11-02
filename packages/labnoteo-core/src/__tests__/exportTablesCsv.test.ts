@@ -184,6 +184,26 @@ describe('extractMarkdownTables', () => {
     ]);
   });
 
+  // #510: dropping them without a word read as lost data.
+  it('reports the dropped cells with the row they came from', () => {
+    const md = '| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 | 5 | 6 |\n';
+    const table = extractMarkdownTables(md)[0];
+    expect(table.dropped).toEqual([{ row: 2, cells: ['5', '6'] }]);
+    expect(table.codePipe).toBeUndefined();
+  });
+
+  it('marks a row whose cell was split by a | inside a code span', () => {
+    const md = '| 단계 | 조건 |\n|---|---|\n| 전기천공 | `150 V | 2 A` |\n| 회수 | `\\|` |\n';
+    const table = extractMarkdownTables(md)[0];
+    expect(table.dropped).toEqual([{ row: 1, cells: ['2 A`'] }]);
+    expect(table.codePipe).toBe(true);
+  });
+
+  it('says nothing about a table whose rows fit', () => {
+    const table = extractMarkdownTables('| a | b |\n|---|---|\n| 1 | 2 |\n')[0];
+    expect(table.dropped).toBeUndefined();
+  });
+
   it('turns <br> variants into a newline inside the cell', () => {
     const md = '| a |\n|---|\n| x<br>y<br/>z<BR />w |\n';
     const rows = extractMarkdownTables(md)[0].rows;
@@ -382,15 +402,24 @@ describe('extractMarkdownTables', () => {
     const rows = [
       ['시료', '판-웰', '희석'],
       ['A', '2E4', '1E-3'],
-      ['B', '3e10', '1.2E3'],
-      ['C', 'E4', '2E'],
+      ['B', '3e10', '2E'],
+      ['C', 'E4', '1'],
     ];
     expect(excelRiskCells(rows)).toEqual([
       { text: '2E4', kind: 'eNotation', columns: [1] },
       { text: '1E-3', kind: 'eNotation', columns: [2] },
       { text: '3e10', kind: 'eNotation', columns: [1] },
-      { text: '1.2E3', kind: 'eNotation', columns: [2] },
     ]);
+  });
+
+  // #535: `2.1E+08` is a measurement, and Excel keeps its value.
+  it('leaves a measurement written with a decimal mantissa alone', () => {
+    const rows = [
+      ['시료', '복제수', '농도'],
+      ['A', '2.1E+08', '1.2E-05'],
+      ['B', '3.4e6', '2E4'],
+    ];
+    expect(excelRiskCells(rows)).toEqual([{ text: '2E4', kind: 'eNotation', columns: [2] }]);
   });
 
   // #375: each column a value is in, so the notice can name them.

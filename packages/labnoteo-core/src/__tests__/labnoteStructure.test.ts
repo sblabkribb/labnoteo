@@ -19,6 +19,7 @@ import {
   diagnoseExperimentPath,
   experimentFolderName,
   experimentFolderRetitled,
+  experimentNumberClashes,
   experimentRetitleOffer,
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
@@ -45,6 +46,18 @@ describe('experimentTitleFromFolderName', () => {
     const title = 'pH 7/8: 비교';
     expect(experimentTitleFromFolderName(experimentFolderName('001', title))).not.toBe(title);
     expect(experimentTitleFromFolderName(experimentFolderName('001', '효모 2차'))).toBe('효모 2차');
+  });
+});
+
+// #493: renaming 001_A to 002_A passed without a word when 002_B was there.
+describe('experimentNumberClashes', () => {
+  it('finds every folder that shares its number with another', () => {
+    expect(experimentNumberClashes(['002_B', '001_A', '002_A', '003_C'])).toEqual(['002_A', '002_B']);
+  });
+
+  it('leaves out what has no number, and a vault where every number is its own', () => {
+    expect(experimentNumberClashes(['001_A', '002_B', 'drafts', 'README.md'])).toEqual([]);
+    expect(experimentNumberClashes(['drafts', '보관'])).toEqual([]);
   });
 });
 

@@ -87,6 +87,15 @@ const obsidianKo: Record<string, string> = {
   'The AI used no tools; nothing in the vault changed.': 'AI가 도구를 쓰지 않았습니다. 보관함은 바뀌지 않았습니다.',
   'Failed: {0}.': '실패: {0}.',
   '+{0} more': '외 {0}건',
+  '"{0}" is not one of the sample types ({1}). Add it in the Labnote settings first.':
+    '"{0}"은(는) 시료 타입이 아닙니다({1}). Labnote 설정에서 먼저 추가하세요.',
+  '"{0}" is not a {1} ID: it must read {1}-<number>.': '"{0}"은(는) {1} ID가 아닙니다. {1}-숫자 꼴이어야 합니다.',
+  'A workflow alias cannot contain "#": links to its heading would break.':
+    '워크플로 별칭에는 "#"을 쓸 수 없습니다. 제목으로 가는 링크가 깨집니다.',
+  'A workflow alias cannot contain "*" or "_": the reading view shows part of it in italics.':
+    '워크플로 별칭에는 "*"나 "_"를 쓸 수 없습니다. 읽기 화면에서 일부가 기울임으로 보입니다.',
+  '"{0}" is not in an experiment folder (labnote/###_Name).': '"{0}"은(는) 실험 폴더(labnote/###_이름) 안에 없습니다.',
+  'The note has no "{0}" section.': '노트에 "{0}" 절이 없습니다.',
   'AI tool calls: {0}.': 'AI 도구 호출: {0}.',
   '{0} change(s) made': '변경 {0}건',
   '{0} lookup(s)': '조회 {0}건',
@@ -149,6 +158,9 @@ const obsidianKo: Record<string, string> = {
   '(not an allowed status)': '(허용되지 않는 상태)',
   'Validation fails on this status. Allowed statuses: {0}':
     '이 상태는 검증에서 실패합니다. 허용되는 상태: {0}',
+  '(validation fails)': '(검증 실패)',
+  'An experiment without a status fails validation. Set one with "{0}".':
+    'status 줄이 없는 실험은 검증에서 실패합니다. "{0}"(으)로 상태를 넣으세요.',
   'Status': '상태',
   'Workflows done': '완료한 워크플로',
   'Last updated': '마지막 수정',
@@ -308,6 +320,8 @@ const obsidianKo: Record<string, string> = {
   '"{0}" has {1} in its name, which no link can reach: its README checklist entry will not open.':
     '"{0}"의 이름에 링크로 닿을 수 없는 문자 {1}이(가) 있어 README 체크리스트 항목이 열리지 않습니다.',
   'Rename it to "{0}"?': '"{0}"(으)로 이름을 바꿀까요?',
+  '"{0}" now has the same number as "{1}". The experiment list sorts them together, and a number in a report no longer says which experiment it means.':
+    '"{0}"이(가) "{1}"과(와) 같은 번호가 되었습니다. 실험 목록에서 두 실험이 나란히 묶이고, 보고서에 적은 번호가 어느 실험인지 가리키지 못합니다.',
   '"{0}" no longer has resources/labsamples: its Local samples will show as unregistered, and new ones go to a new, empty registry.':
     '"{0}"에 resources/labsamples 폴더가 없어졌습니다. 이 실험의 Local 시료가 모두 등록되지 않은 것으로 보이고, 새 시료는 비어 있는 새 대장에 저장됩니다.',
   '{0} was renamed to {1}: its {2} {3} sample(s) will show as unregistered, and the next {3} sample added starts a new, empty {0}.':
@@ -447,6 +461,11 @@ const obsidianKo: Record<string, string> = {
   '{0} lose their leading zeros': '{0}은(는) 앞자리 0이 사라짐',
   '{0} become numbers in E notation (2E4 → 20000)': '{0}은(는) 지수 표기 숫자로 바뀜(2E4 → 20000)',
   '{0}, column(s) {1}: {2}': '{0}의 {1} 열: {2}',
+  'These rows have more cells than the header row, and the extra ones are left out of the CSV as the note shows them: {0}. Add the missing header columns if those cells belong in the table.':
+    '머리글 행보다 칸이 많은 행이 있어, 넘치는 칸은 노트에 보이는 대로 CSV에서 빠졌습니다: {0}. 그 칸이 표에 들어갈 값이라면 머리글에 열을 더하세요.',
+  'A "|" inside a code span splits the cell too: write it as "\\|".':
+    '인라인 코드 안의 "|"도 칸을 가릅니다. "\\|"로 적으세요.',
+  'row {0}: {1}': '{0}번째 행: {1}',
   'column {0}': '{0}번째',
   '(+{0} more CSV file(s))': '(CSV {0}개 더)',
   'In: {0}.': '해당 노트: {0}.',
@@ -695,6 +714,8 @@ const obsidianKo: Record<string, string> = {
     '별칭 규칙에 맞게 바꾼 이름(_ : ;는 -로, # *는 지움): {0}',
   '{0} is used in notes outside this experiment ({1}). Those notes will no longer find it after the move. Move anyway?':
     '{0}은(는) 이 실험 밖의 노트에서 쓰이고 있습니다({1}). 옮기면 그 노트에서는 이 시료를 찾지 못합니다. 그래도 옮길까요?',
+  '{0} is already stored at {1}.': '{0}이(가) 이미 {1}에 있습니다.',
+  '{0} samples are already stored at {1}: {2}.': '시료 {0}개가 이미 {1}에 있습니다: {2}.',
   'Move anyway': '그래도 옮기기',
   'Sample moved: {0}': '샘플을 이동했습니다: {0}',
   'An alias cannot contain ";" or ":", which separate the ID, alias and description in a note. Use "-" or "/" instead (e.g. 1-10).':

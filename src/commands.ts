@@ -176,7 +176,7 @@ async function resolveLabnoteDir(app: App, host: LabnoteHost): Promise<string | 
  * unnumbered folder: an experiment moved into a grouping folder is no longer
  * recognised, but its number must not be handed out again (#166).
  */
-async function experimentFolderNames(host: LabnoteHost): Promise<string[]> {
+export async function experimentFolderNames(host: LabnoteHost): Promise<string[]> {
   const names = await host.fs.list('labnote');
   const nested: string[] = [];
   for (const name of names) {

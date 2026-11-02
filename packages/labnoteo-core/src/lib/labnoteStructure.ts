@@ -339,6 +339,16 @@ export function experimentFolderRetitled(oldName: string, newName: string): bool
   return Boolean(number) && number === newNumber && oldRest !== newRest;
 }
 
+/** The experiment folder names among `names` that share their number with another, sorted (#493). */
+export function experimentNumberClashes(names: readonly string[]): string[] {
+  const byNumber = new Map<string, string[]>();
+  for (const name of names) {
+    const number = /^(\d{3})_/.exec(name)?.[1];
+    if (number) byNumber.set(number, [...(byNumber.get(number) ?? []), name]);
+  }
+  return [...byNumber.values()].filter(group => group.length > 1).flat().sort();
+}
+
 /**
  * The title to offer for a renamed experiment folder whose README still holds
  * `readmeTitle`, or undefined when nothing should be asked (#467).

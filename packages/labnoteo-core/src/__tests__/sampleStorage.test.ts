@@ -45,6 +45,9 @@ import {
   loadSampleIds,
   loadSampleAliases,
   loadSampleMarks,
+  isStorageSlot,
+  loadSampleLocations,
+  samplesAtLocation,
   type SampleDatabase,
   type SampleRecord,
 } from '../lib/sampleStorage';
@@ -117,6 +120,62 @@ describe('loadSampleAliases (#239)', () => {
         ['dna-2', { alias: '' }],
       ])
     );
+  });
+});
+
+// #512: a sample could be stored in a slot another sample was already in.
+describe('isStorageSlot', () => {
+  it('counts a location whose last part is a cell coordinate', () => {
+    expect(isStorageSlot('A1')).toBe(true);
+    expect(isStorageSlot('-80 냉동고 / 박스 P1 / A1')).toBe(true);
+    expect(isStorageSlot('Freezer-2 / Box-3 / B12')).toBe(true);
+    expect(isStorageSlot('랙 A / 7')).toBe(true);
+  });
+
+  it('leaves a whole fridge, rack or box out, where many samples belong', () => {
+    expect(isStorageSlot('4도 냉장고')).toBe(false);
+    expect(isStorageSlot('4도 냉장고 2칸 / 랙 A')).toBe(false);
+    expect(isStorageSlot('-80 냉동고 / 박스 P1')).toBe(false);
+    expect(isStorageSlot('')).toBe(false);
+    expect(isStorageSlot('A1-2')).toBe(false);
+  });
+});
+
+describe('loadSampleLocations and samplesAtLocation (#512)', () => {
+  const FOLDER = 'labnote/001_Test/resources/labsamples';
+  const raw = JSON.stringify({
+    'DNA-1': { location: '-80 냉동고 / 박스 P1 / A1' },
+    'DNA-2': { location: ' -80 냉동고 /박스 P1/ a1 ' },
+    'DNA-3': { location: '-80 냉동고 / 박스 P1 / A1', discarded: '2026-10-25' },
+    'DNA-4': { location: '-80 냉동고 / 박스 P1 / A2' },
+    'DNA-5': { alias: 'no location' },
+  });
+
+  it('reads the locations without ever rewriting the registry', async () => {
+    const fs = new MemFileSystem({ [`${FOLDER}/DNA.json`]: raw });
+    const write = vi.spyOn(fs, 'write');
+
+    const entries = await loadSampleLocations(fs, FOLDER, 'DNA');
+
+    expect(Object.keys(entries)).toEqual(['DNA-1', 'DNA-2', 'DNA-3', 'DNA-4']);
+    expect(entries['DNA-3'].discarded).toBe('2026-10-25');
+    expect(write).not.toHaveBeenCalled();
+    expect(await fs.read(`${FOLDER}/DNA.json`)).toBe(raw);
+  });
+
+  it('finds the samples in a slot, spacing and case aside, and leaves discarded ones out', async () => {
+    const entries = await loadSampleLocations(new MemFileSystem({ [`${FOLDER}/DNA.json`]: raw }), FOLDER, 'DNA');
+
+    expect(samplesAtLocation(entries, '-80 냉동고 / 박스 P1 / A1')).toEqual(['DNA-1', 'DNA-2']);
+    expect(samplesAtLocation(entries, '-80 냉동고/박스 P1/a1')).toEqual(['DNA-1', 'DNA-2']);
+    expect(samplesAtLocation(entries, '-80 냉동고 / 박스 P1 / A3')).toEqual([]);
+    expect(samplesAtLocation(entries, '')).toEqual([]);
+  });
+
+  it('gives nothing for a registry that is missing or cannot be read', async () => {
+    const fs = new MemFileSystem({ [`${FOLDER}/RNA.json`]: '[]' });
+    expect(await loadSampleLocations(fs, FOLDER, 'DNA')).toEqual({});
+    expect(await loadSampleLocations(fs, FOLDER, 'RNA')).toEqual({});
   });
 });
 
