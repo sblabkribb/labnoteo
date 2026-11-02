@@ -145,9 +145,47 @@ const NAMED_FAILURES = 3;
 const FAILURE_REASON_MAX = 80;
 
 /**
+ * A refusal the plugin knows a rule for, worded in the language of the
+ * interface (#529). The English sentence the tool returned is for the model;
+ * the researcher reading the notice gets this. Each `t` call is written out so
+ * the i18n coverage test sees the key. Undefined for a code without a wording,
+ * and for the argument-shape errors only the model reads.
+ */
+function failureReasonText(plugin: LabnotePlugin, code: string, params: readonly string[]): string | undefined {
+  const [a = '', b = ''] = params;
+  switch (code) {
+    case 'sample_alias_separator':
+      return plugin.t(
+        'An alias cannot contain ";" or ":", which separate the ID, alias and description in a note. Use "-" or "/" instead (e.g. 1-10).'
+      );
+    case 'sample_alias_markdown':
+      return plugin.t(
+        'An alias cannot contain #, [[, ]], ](, *, _ or `, which Markdown reads as a tag, link, emphasis or code. Use "-" or "/" instead.'
+      );
+    case 'sample_desc_separator':
+      return plugin.t('A description cannot contain ";", which ends the description in a note. Use "," instead.');
+    case 'sample_type_unknown':
+      return plugin.t('"{0}" is not one of the sample types ({1}). Add it in the Labnote settings first.', a, b);
+    case 'sample_id_invalid':
+      return plugin.t('"{0}" is not a {1} ID: it must read {1}-<number>.', a, b);
+    case 'workflow_alias_hash':
+      return plugin.t('A workflow alias cannot contain "#": links to its heading would break.');
+    case 'workflow_alias_markdown':
+      return plugin.t('A workflow alias cannot contain "*" or "_": the reading view shows part of it in italics.');
+    case 'not_experiment_folder':
+      return plugin.t('"{0}" is not in an experiment folder (labnote/###_Name).', a.split('/').pop() ?? a);
+    case 'section_not_found':
+      return plugin.t('The note has no "{0}" section.', a);
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Why tool calls failed or were rejected (#281), as `tool (target) — reason`
  * for the first few, the target being the alias, ID, heading or note the call
- * named. All of them go to the console.
+ * named. A reason the plugin knows is worded in the user's language before it
+ * is cut to length (#529). All of them go to the console, in English.
  */
 function failureReasons(plugin: LabnotePlugin, executed: AgentRun['executed']): string {
   const failed = executed.filter(e => e.outcome === 'failed' || e.outcome === 'rejected');
@@ -157,7 +195,8 @@ function failureReasons(plugin: LabnotePlugin, executed: AgentRun['executed']): 
     const args = e.call.arguments as Record<string, unknown>;
     const pick = [args.alias, args.id, args.heading, args.documentPath].find(v => typeof v === 'string' && v.trim());
     const target = typeof pick === 'string' ? pick.split('/').pop() : undefined;
-    const reason = (e.error ?? '').replace(/\s+/g, ' ').trim();
+    const known = e.code ? failureReasonText(plugin, e.code, e.params ?? []) : undefined;
+    const reason = (known ?? e.error ?? '').replace(/\s+/g, ' ').trim();
     const short = reason.length > FAILURE_REASON_MAX ? `${reason.slice(0, FAILURE_REASON_MAX - 1)}…` : reason;
     return `${e.call.name}${target ? ` (${target})` : ''}${short ? ` — ${short}` : ''}`;
   });

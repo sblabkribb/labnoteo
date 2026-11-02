@@ -9,6 +9,7 @@ import { Notice } from '../stubs/obsidian';
 import { askAgentCommand } from '../../src/llm/commands';
 import { runAgent } from '../../src/llm/agent';
 import { aiAnswerModal, type AiAnswerOpts } from '../../src/modals';
+import { createObsidianTranslator } from '../../src/i18n';
 import type LabnotePlugin from '../../src/main';
 
 vi.mock('../../src/llm/provider', () => ({
@@ -176,6 +177,51 @@ describe('askAgentCommand (#77)', () => {
     expect(notice).toContain(`create_sample (IPTG) — ${'x'.repeat(79)}…; `);
     expect(notice).toContain('update_section (Method) — No "Method" section; +1 more.');
     expect(notice).toContain('Nothing in the vault changed.');
+  });
+
+  // #529: a rule the plugin knows was read out in English, and cut mid-sentence.
+  it('words a named refusal in the language of the interface, then cuts it to length', async () => {
+    plugin.t = createObsidianTranslator('ko') as LabnotePlugin['t'];
+    vi.mocked(runAgent).mockResolvedValue({
+      content: '끝',
+      executed: [
+        {
+          call: { id: 'a', name: 'create_sample', arguments: { alias: 'pET;28a' } },
+          outcome: 'rejected',
+          mutates: true,
+          error: 'Invalid alias "pET;28a": ";" and ":" separate the id, alias and description in a note. Replace them (e.g. with "-" or "/") and retry.',
+          code: 'sample_alias_separator',
+          params: ['pET;28a'],
+        },
+        {
+          call: { id: 'b', name: 'create_sample', arguments: { type: 'XNA' } },
+          outcome: 'failed',
+          mutates: true,
+          error: 'Unknown sample type "XNA". Known types: DNA, RNA.',
+          code: 'sample_type_unknown',
+          params: ['XNA', 'DNA, RNA'],
+        },
+        {
+          call: { id: 'c', name: 'create_sample', arguments: {} },
+          outcome: 'failed',
+          mutates: true,
+          error: 'type and documentPath are required',
+        },
+      ],
+      stoppedAtLimit: false,
+    });
+
+    await askAgentCommand(plugin);
+
+    const notice = Notice.shown.find(n => n.startsWith('AI 도구 호출'))!;
+    // The Korean reading is 72 characters, so it arrives whole where the
+    // English sentence was cut at 80.
+    expect(notice).toContain(
+      'create_sample (pET;28a) — 별칭에는 ";"나 ":"를 쓸 수 없습니다. 노트에서 ID·별칭·설명을 가르는 글자입니다. 대신 "-"나 "/"를 쓰세요(예: 1-10).'
+    );
+    expect(notice).toContain('create_sample — "XNA"은(는) 시료 타입이 아닙니다(DNA, RNA). Labnote 설정에서 먼저 추가하세요.');
+    // No rule of ours: the model's own mistake stays as the tool put it.
+    expect(notice).toContain('create_sample — type and documentPath are required.');
   });
 
   // #286: after a change the end notice is the answer, without "try again".

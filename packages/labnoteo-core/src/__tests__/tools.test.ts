@@ -433,12 +433,22 @@ describe('create_sample / get_sample / list_samples', () => {
       expect(await fs.read(NOTE_PATH)).toContain('#### Results\n\nnew\n\n---\n\n### [UHW020 B]');
     });
 
-    it('returns the error the call would fail with', async () => {
+    it('returns the error the call would fail with, named so a host can word it (#529)', async () => {
       const describe = tool('create_sample').describe!;
       expect(await describe(ctx, { type: 'DNA', id: 'ND-11', documentPath: NOTE_PATH })).toEqual({
         error: 'Invalid id "ND-11": expected DNA-<number>. Omit id to generate one.',
+        code: 'sample_id_invalid',
+        params: ['ND-11', 'DNA'],
+      });
+      expect(await describe(ctx, { type: 'DNA', alias: 'a;b', documentPath: NOTE_PATH })).toMatchObject({
+        code: 'sample_alias_separator',
+        params: ['a;b'],
       });
       expect(await describe(ctx, { type: 'DNA', documentPath: `${NOTE_DIR}/missing.md` })).toHaveProperty('error');
+      // Only the model reads an argument-shape error, so it carries no code.
+      expect(await describe(ctx, { documentPath: NOTE_PATH })).toEqual({
+        error: 'type and documentPath are required',
+      });
     });
   });
 });
@@ -758,6 +768,8 @@ describe('update_section', () => {
       const describe = tool('update_section').describe!;
       expect(await describe(ctx, { documentPath: NOTE_PATH, heading: 'Missing', content: 'x' })).toEqual({
         error: 'Section not found: Missing. Headings in this note: ## [WD010 Design] | #### Results | #### Notes',
+        code: 'section_not_found',
+        params: ['Missing'],
       });
       expect(await describe(ctx, { documentPath: NOTE_PATH, heading: 'Results', content: '' })).toHaveProperty(
         'error'

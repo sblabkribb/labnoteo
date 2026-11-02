@@ -58,9 +58,17 @@ export interface AgentRun {
   /**
    * Every tool call, in order; `mutates` tells writes from reads. A call of a
    * tool that does not exist counts as a failed read. `error` is why a call
-   * was rejected or failed (#281).
+   * was rejected or failed (#281), in English for the model; `code` and
+   * `params` let the notice word that reason in the user's language (#529).
    */
-  executed: Array<{ call: ToolCall; outcome: ToolOutcome; mutates: boolean; error?: string }>;
+  executed: Array<{
+    call: ToolCall;
+    outcome: ToolOutcome;
+    mutates: boolean;
+    error?: string;
+    code?: string;
+    params?: string[];
+  }>;
   /** True when the cap stopped the loop before the model finished. */
   stoppedAtLimit: boolean;
 }
@@ -143,7 +151,7 @@ export async function runAgent(
         const preview = tool.describe ? await tool.describe(deps.ctx, call.arguments) : undefined;
         if (preview && 'error' in preview) {
           history.push(resultMessage(call, { error: preview.error }));
-          executed.push({ call, outcome: 'rejected', mutates: true, error: preview.error });
+          executed.push({ call, outcome: 'rejected', mutates: true, ...preview });
           continue;
         }
         if (!(await deps.confirm(call, tool, preview))) {
@@ -168,7 +176,7 @@ export async function runAgent(
       executed.push(
         res.ok
           ? { call, outcome: 'done', mutates: !!tool.mutates }
-          : { call, outcome: 'failed', mutates: !!tool.mutates, error: res.error }
+          : { call, outcome: 'failed', mutates: !!tool.mutates, error: res.error, code: res.code, params: res.params }
       );
     }
   }

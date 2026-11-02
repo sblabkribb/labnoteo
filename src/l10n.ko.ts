@@ -87,6 +87,15 @@ const obsidianKo: Record<string, string> = {
   'The AI used no tools; nothing in the vault changed.': 'AI가 도구를 쓰지 않았습니다. 보관함은 바뀌지 않았습니다.',
   'Failed: {0}.': '실패: {0}.',
   '+{0} more': '외 {0}건',
+  '"{0}" is not one of the sample types ({1}). Add it in the Labnote settings first.':
+    '"{0}"은(는) 시료 타입이 아닙니다({1}). Labnote 설정에서 먼저 추가하세요.',
+  '"{0}" is not a {1} ID: it must read {1}-<number>.': '"{0}"은(는) {1} ID가 아닙니다. {1}-숫자 꼴이어야 합니다.',
+  'A workflow alias cannot contain "#": links to its heading would break.':
+    '워크플로 별칭에는 "#"을 쓸 수 없습니다. 제목으로 가는 링크가 깨집니다.',
+  'A workflow alias cannot contain "*" or "_": the reading view shows part of it in italics.':
+    '워크플로 별칭에는 "*"나 "_"를 쓸 수 없습니다. 읽기 화면에서 일부가 기울임으로 보입니다.',
+  '"{0}" is not in an experiment folder (labnote/###_Name).': '"{0}"은(는) 실험 폴더(labnote/###_이름) 안에 없습니다.',
+  'The note has no "{0}" section.': '노트에 "{0}" 절이 없습니다.',
   'AI tool calls: {0}.': 'AI 도구 호출: {0}.',
   '{0} change(s) made': '변경 {0}건',
   '{0} lookup(s)': '조회 {0}건',
@@ -455,7 +464,7 @@ const obsidianKo: Record<string, string> = {
   'These rows have more cells than the header row, and the extra ones are left out of the CSV as the note shows them: {0}. Add the missing header columns if those cells belong in the table.':
     '머리글 행보다 칸이 많은 행이 있어, 넘치는 칸은 노트에 보이는 대로 CSV에서 빠졌습니다: {0}. 그 칸이 표에 들어갈 값이라면 머리글에 열을 더하세요.',
   'A "|" inside a code span splits the cell too: write it as "\\|".':
-    '인라인 코드(`) 안의 "|"도 칸을 가릅니다. "\\|"로 적으세요.',
+    '인라인 코드 안의 "|"도 칸을 가릅니다. "\\|"로 적으세요.',
   'row {0}: {1}': '{0}번째 행: {1}',
   'column {0}': '{0}번째',
   '(+{0} more CSV file(s))': '(CSV {0}개 더)',
