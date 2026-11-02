@@ -203,10 +203,10 @@ describe('createUnitOpReorderFilter', () => {
   describe('change kind', () => {
     const NOTE = "---\nstatus: active\nlast_updated_date: '2026-10-01'\n---\n# Body\n";
 
-    function kindOf(spec: TransactionSpec) {
+    function kindOf(spec: TransactionSpec, doc = NOTE) {
       let kind: unknown;
       EditorState.create({
-        doc: NOTE,
+        doc,
         extensions: [
           createUnitOpReorderFilter({
             isEnabled: () => true,
@@ -291,7 +291,8 @@ describe('createUnitOpReorderFilter', () => {
       expect(kindOf(spec)).toEqual({ userEdit: false, dateEdited: false });
     });
 
-    // #466: deleting the line was taken for a date set by hand.
+    // #466: deleting the line, or emptying its value, was taken for a date set
+    // by hand, and the note then went a day without one.
     it('tells a deleted last_updated_date line from a changed value', () => {
       const from = NOTE.indexOf('last_updated_date');
       const to = NOTE.indexOf('\n', from) + 1;
@@ -300,12 +301,26 @@ describe('createUnitOpReorderFilter', () => {
         dateEdited: false,
         dateRemoved: true,
       });
-      // An emptied value keeps the key, which the stamp fills again.
+    });
+
+    it('tells an emptied last_updated_date value from one set by hand', () => {
       const at = NOTE.indexOf("'2026-10-01'");
-      expect(kindOf({ changes: { from: at, to: at + 12 }, userEvent: 'delete.backward' })).toEqual({
-        userEdit: true,
-        dateEdited: true,
-      });
+      const cleared = { userEdit: true, dateEdited: false, dateCleared: true };
+      // The whole value gone, and the quotes left behind, both read as empty.
+      expect(kindOf({ changes: { from: at, to: at + 12 }, userEvent: 'delete.backward' })).toEqual(cleared);
+      expect(kindOf({ changes: { from: at + 1, to: at + 11 }, userEvent: 'delete.backward' })).toEqual(cleared);
+      // Typing the line back one character at a time: the colon opens an empty
+      // value, the space after it belongs to the key, and the first digit of
+      // the date makes it one set by hand.
+      const HEAD = '---\nstatus: active\n';
+      const typed = (sofar: string, insert: string) =>
+        kindOf(
+          { changes: { from: HEAD.length + sofar.length, insert }, userEvent: 'input.type' },
+          `${HEAD}${sofar}\n---\n# Body\n`
+        );
+      expect(typed('last_updated_date', ':')).toEqual(cleared);
+      expect(typed('last_updated_date:', ' ')).toEqual({ userEdit: true, dateEdited: false });
+      expect(typed('last_updated_date: ', '2')).toEqual({ userEdit: true, dateEdited: true });
     });
 
     it('does not count an edit that breaks the front matter as a date edit', () => {

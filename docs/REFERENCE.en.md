@@ -64,9 +64,11 @@ With **Auto-update last updated date** on, editing a lab note (ticking a checkbo
 included) sets its `last_updated_date` to today (Asia/Seoul) once a day. Editing a workflow note, or creating
 one, updates the experiment README's date too. Changes pulled with git and the plugin's own
 automatic tidy-ups do not count. A note whose date you edited by hand keeps it that day (on a day
-you edited the README's date by hand, editing a workflow note does not overwrite it). Deleting the
-`last_updated_date` line from the front matter stops the automatic date, since the line is never
-added back, and a notice says so once; put the line back to have it recorded again.
+you edited the README's date by hand, neither editing a workflow note nor creating one overwrites
+it). Deleting the `last_updated_date` line from the front matter stops the automatic date, since
+the line is never added back, and a notice says so once; put the line back to have it recorded
+again. It may go back empty (`last_updated_date:`), and today's date fills it on the next edit —
+the same as when you clear a date you had set by hand.
 
 ## Experiments
 
@@ -99,6 +101,7 @@ Update the active experiment's `status` frontmatter via a picker.
 
 - Each status is listed with what it means, and its search also matches words for it (in the
   Korean UI, Korean ones). The stored value is the English term either way.
+- The picker opens on the status the experiment has now, so Enter (like Esc) leaves it as it is.
 - The status goes into the experiment's **README** whichever note of the experiment you run it in,
   so run from a workflow note, Ctrl+Z does not reach it. The notice then says the README was changed
   rather than this note and how to undo (run the command again and pick the old value); it also
@@ -368,8 +371,9 @@ version.
 - When a plugin update changes the bundled catalogs, you are told once on startup. In a team, one
   person runs it and commits.
 - Deleting a catalog file (`workflows_en.json` and the like) warns that the next workflow picker or
-  workflow view redraw makes it again from the built-in catalog, without the lab's edits; when that
-  happens you are told again. Replace it with the file from the trash or Git if the lab had edited it.
+  workflow view opened, or this command, makes it again from the built-in catalog, without the lab's
+  edits; when that happens you are told again, the whole folder deleted included. Replace it with the
+  file from the trash or Git if the lab had edited it.
 
 This command is about the workflow catalogs. The sample "product catalogs" of
 [partbank](#partbank) are a different thing.
@@ -397,6 +401,8 @@ or IDs, export again to bring the CSV up to date.
   dropped, and struck-through text is dropped with its marks (`~~0.10~~ 0.12` → `0.12`). Footnote
   numbers (`[^1]`) go, math loses its `$`, links become the text they show, `<sup>6</sup>` becomes
   `^6` (`<sub>` just loses its tags), and HTML entities are decoded (`&lt;0.1` → `<0.1`, `&nbsp;` a space).
+  A mark escaped with `\` goes out as the mark alone (`\*` → `*`, `\#B3` → `#B3`, `` \` `` → `` ` ``),
+  while symbols inside a word (`2*3`, `sample_id_1`) and the text inside code or math are left as typed.
 - A cell starting with `=` or `@`, or with a `+`/`-` that is not part of a number, gets a leading
   tab so Excel shows it as typed instead of evaluating it. Numbers like `-80` are left alone. In a
   column where such a cell appears, like `+/-`, a lone `+` or `-` gets the tab too. Read with pandas
@@ -822,7 +828,10 @@ hint lines such as `(samples from the previous step)` are left out even when you
 A fenced code block prints line by line as written, under the step above it without a step number
 of its own, and a ticked Method step (`- [x]`) prints with a ✓ in its box. Inline formatting prints
 as the reading view shows it: struck-through text struck (not dropped), highlights underlined,
-footnote references and `<sup>` raised, `<sub>` lowered, and math without its `$`. The
+footnote references and `<sup>` raised, `<sub>` lowered. A footnote definition (`[^1]: …`) prints
+where it was written, with its label raised, and math (`$…$`, `$$…$$`) prints as the symbols paper
+shows rather than as TeX (`$3\,\mathrm{mL}$` as 3 mL, `$\Delta G$` as ΔG, `$\frac{a}{b}$` as a/b,
+`$10^{-3}$` with a raised −3); a formula holding anything else prints as written, in italics. The
 dialog opens with focus on **Print**, so Enter prints; tabbing to a toggle shows a focus ring. When
 printing from Obsidian does not work, it opens in the browser. See the
 [printout scan guide](./SCAN.md#2-기록지-출력) (Korean).
@@ -1109,10 +1118,12 @@ its view is left as it is.
   back. Once the format is back (by accepting either offer or fixing it by hand), the checklist
   follows the file again.
 - Changing only the catalog ID in a workflow file name, so that it no longer matches the note's
-  `## [ID name]`, warns and offers the old name back.
+  `## [ID name]`, warns and offers the old name back. Keep the name instead, and later renames
+  follow it with the **alias** alone: the ID and catalog name stay the note's own, in its title and
+  heading as well as in the checklist label (`Sync workflow checklist with folder` does the same).
 - A name with `#`, `^`, `|`, `[` or `]` cannot be reached by any link, so its checklist entry does
   not open. You are warned and offered the name without them, or the old name back when there is
-  none; `Sync workflow checklist with folder` reports such notes too.
+  none or its name is taken; `Sync workflow checklist with folder` reports such notes too.
 - Renaming or moving an experiment's `README.labnote.md` warns and offers the old name back.
 - `Sync workflow checklist with folder` finds note titles, headings and labels that no longer match
   their file names and fixes them after asking.

@@ -44,6 +44,7 @@ import {
   createWorkflowFileName,
   isCopiedWorkflowFileName,
   isValidWorkflowPath,
+  linkableNameFix,
   parseWorkflowFileName,
   parseWorkflowHeading,
   planWorkflowChecklistSync,
@@ -54,7 +55,6 @@ import {
   outputSampleIds,
   rewriteWorkflowTitle,
   suggestCopiedWorkflowFileName,
-  suggestLinkableFileName,
   unlinkableNameChars,
   workflowIdMismatch,
   type WorkflowHeading,
@@ -113,6 +113,8 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentFolderRetitled,
+  experimentRetitleOffer,
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
@@ -168,11 +170,11 @@ import {
   exportTablesToCsv,
 } from './exportCsv';
 import { openUserGuide } from './userGuide';
-import { CATALOG_DIR, catalogUpdateNotice, updateCatalogsCommand } from './catalogUpdate';
+import { CATALOG_DIR, catalogUpdateNotice, rememberDeletedCatalogs, updateCatalogsCommand } from './catalogUpdate';
 import { LabnoteSettingTab } from './settingsTab';
 import { automationNameKind, SETUP_DOC_PATH } from './scaffold/assets';
 import { refreshAutomationFiles } from './scaffold/scaffold';
-import { readInstallRecord } from './scaffold/installRecord';
+import { isAutomationInstalled } from './scaffold/installRecord';
 import {
   draftMethodCommand,
   summarizeResultsCommand,
@@ -1172,15 +1174,17 @@ export default class LabnotePlugin extends Plugin {
    */
   private async offerExperimentRetitle(folder: TFolder, oldName: string): Promise<void> {
     const renamedPath = folder.path;
-    const [, number, oldRest] = /^(\d{3})_(.+)$/.exec(oldName) ?? [];
-    const [, newNumber, newRest] = /^(\d{3})_(.+)$/.exec(folder.name) ?? [];
-    if (!number || number !== newNumber || oldRest === newRest) return;
-    const readme = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
-    if (!(readme instanceof TFile)) return;
-    const { title } = await this.readCopiedReadme(readme);
-    if (!title?.trim() || experimentFolderName(number, title) !== oldName) return;
+    if (!experimentFolderRetitled(oldName, folder.name)) return;
+    // Waited out before the README is looked for: Obsidian sends the folder
+    // event while its children still carry their old paths, so a lookup now
+    // finds nothing (#467). It also holds off Obsidian's own rename prompt.
     if (!(await this.waitForNoModal()) || this.unloaded || folder.path !== renamedPath) return;
-    const fromName = experimentTitleFromFolderName(folder.name);
+    const readme = await this.waitForFile(posix.join(renamedPath, 'README.labnote.md'));
+    if (!readme || this.unloaded || folder.path !== renamedPath) return;
+    const { title } = await this.readCopiedReadme(readme);
+    const suggestion = experimentRetitleOffer(oldName, folder.name, title);
+    // A suggestion means the README has a title; `title` is said in the prompt.
+    if (!suggestion || !title) return;
     const newTitle = (
       await this.host.prompt({
         title: this.t('Update the experiment title'),
@@ -1190,7 +1194,7 @@ export default class LabnotePlugin extends Plugin {
           folder.name,
           title
         ),
-        value: experimentTitleFromFolderName(oldName) === title && fromName ? fromName : title,
+        value: suggestion,
         validate: v => (v.trim() ? null : this.t('Title is required.')),
       })
     )?.trim();
@@ -1260,7 +1264,9 @@ export default class LabnotePlugin extends Plugin {
    */
   private async offerAutomationNameBack(file: TFile | TFolder, oldPath: string): Promise<void> {
     const movedPath = file.path;
-    if ((await readInstallRecord(this.host)).pluginVersion === '') return;
+    // Only where the automation that looks for these names is installed: a
+    // vault that only ever opened the user guide has nothing to warn about (#452).
+    if (!(await isAutomationInstalled(this.host))) return;
     const warning =
       automationNameKind(oldPath) === 'section'
         ? this.t(
@@ -1344,7 +1350,7 @@ export default class LabnotePlugin extends Plugin {
 
   /**
    * A workflow catalog file was deleted (#477): the next workflow picker or
-   * workflow view redraw makes it again from the built-in catalog, without the
+   * workflow view opened makes it again from the built-in catalog, without the
    * lab's edits. A deleted folder may report each file, only itself, or both,
    * so the names are gathered and said once.
    */
@@ -1359,6 +1365,10 @@ export default class LabnotePlugin extends Plugin {
     const gone = catalogsIn(file);
     if (gone.length === 0) return;
     for (const name of gone) this.deletedCatalogs.add(name);
+    // Noted right away, not with the notice below: a whole folder may be made
+    // again before this timer runs, and only the deletion tells that apart
+    // from a vault being seeded for the first time (#477).
+    rememberDeletedCatalogs(gone);
     window.clearTimeout(this.deletedCatalogsTimer);
     this.deletedCatalogsTimer = window.setTimeout(() => {
       const deleted = [...this.deletedCatalogs].filter(
@@ -1369,7 +1379,7 @@ export default class LabnotePlugin extends Plugin {
       this.host.notify(
         'warn',
         this.t(
-          '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view redraws. If the lab had edited it, replace it with the file from the trash or Git.',
+          '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view opens. If the lab had edited it, replace it with the file from the trash or Git.',
           deleted.map(name => posix.join(CATALOG_DIR, name)).join(', ')
         )
       );
@@ -1499,9 +1509,6 @@ export default class LabnotePlugin extends Plugin {
    */
   private async offerLinkableNameFix(file: TFile, dir: string, from: string, to: string): Promise<void> {
     const path = file.path;
-    const suggestion = suggestLinkableFileName(to);
-    const back = unlinkableNameChars(from).length === 0 ? from : undefined;
-    const name = suggestion ?? back;
     const warning = this.t(
       '"{0}" has {1} in its name, which no link can reach: its README checklist entry will not open.',
       to,
@@ -1509,22 +1516,25 @@ export default class LabnotePlugin extends Plugin {
     );
     const settled = await this.waitForNoModal();
     if (this.unloaded || file.path !== path) return;
-    const target = name ? posix.join(dir, name) : undefined;
-    if (!settled || !name || !target || this.app.vault.getAbstractFileByPath(target)) {
+    const taken = (name: string): boolean => Boolean(this.app.vault.getAbstractFileByPath(posix.join(dir, name)));
+    const fix = linkableNameFix(from, to, taken);
+    if (!settled || !fix) {
       this.host.notify('warn', warning);
       await this.retitleAfterRename(file, dir, from, to);
       return;
     }
     const ok = await this.host.confirm(
-      `${warning} ${name === suggestion ? this.t('Rename it to "{0}"?', name) : this.t('Rename it back to "{0}"?', name)}`,
-      { confirmLabel: this.t(name === suggestion ? 'Fix name' : 'Rename back') }
+      `${warning} ${
+        fix.kind === 'fix' ? this.t('Rename it to "{0}"?', fix.name) : this.t('Rename it back to "{0}"?', fix.name)
+      }`,
+      { confirmLabel: this.t(fix.kind === 'fix' ? 'Fix name' : 'Rename back') }
     );
     if (file.path !== path) return;
-    if (!ok || this.app.vault.getAbstractFileByPath(target)) {
+    if (!ok || taken(fix.name)) {
       await this.retitleAfterRename(file, dir, from, to);
       return;
     }
-    await this.app.fileManager.renameFile(file, target);
+    await this.app.fileManager.renameFile(file, posix.join(dir, fix.name));
   }
 
   /** A workflow note was renamed by hand: its table CSVs follow it (#60). */
@@ -1599,13 +1609,18 @@ export default class LabnotePlugin extends Plugin {
    * prompt, so changing the note's title line first could corrupt a link to it
    * in the note (see #41). Skipped when the note moved again meanwhile or the
    * prompt never closed; "Sync workflow checklist with folder" fixes it then.
+   * A file whose ID the note never took on is retitled under the note's ID, so
+   * only the alias follows (#268).
    */
   private async retitleAfterRename(file: TFile, dir: string, from: string, to: string): Promise<void> {
     const path = file.path;
     const settled = await this.waitForNoModal();
     if (this.unloaded || !settled || file.path !== path) return;
     const mismatch = workflowIdMismatch(to, await this.app.vault.read(file));
-    if (mismatch) {
+    // Only when this rename is the one changing the ID. An ID the file already
+    // carried, with the offer to put it back declined, is settled: the alias
+    // follows this rename under the note's own ID instead (#268).
+    if (mismatch && parseWorkflowFileName(from)?.id !== mismatch.fileId) {
       await this.offerWorkflowIdFix(file, from, mismatch.fileId, mismatch.noteId);
       return;
     }
@@ -2467,6 +2482,24 @@ export default class LabnotePlugin extends Plugin {
   }
 
   /**
+   * The file at `path` once the vault has it, or null after 2s. A folder
+   * rename reaches its children one by one afterwards, so a child looked up
+   * the moment the folder event arrives is still under its old path (#467).
+   */
+  private waitForFile(path: string): Promise<TFile | null> {
+    const deadline = Date.now() + 2_000;
+    return new Promise(resolve => {
+      const check = (): void => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) resolve(file);
+        else if (this.unloaded || Date.now() >= deadline) resolve(null);
+        else window.setTimeout(check, 100);
+      };
+      check();
+    });
+  }
+
+  /**
    * Keep a workflow note's `## Related Unit Operations` TOC ordered to match the
    * document order of its `### [..]` headings (added, removed or renamed unit
    * ops). Fires on editor edits, debounced per note. Block moves are tidied
@@ -2513,9 +2546,13 @@ export default class LabnotePlugin extends Plugin {
     );
   }
 
-  /** Set `last_updated_date` to today (#42); identity when the setting is off. */
-  readonly stampLastUpdated = (content: string): string =>
-    this.settings.autoUpdateLastUpdated
+  /**
+   * Set `last_updated_date` to today (#42); identity when the setting is off.
+   * With `path`, the note whose content this is: a date its reader set by hand
+   * today stands, as it does when the note is stamped for its own edits (#363).
+   */
+  readonly stampLastUpdated = (content: string, path?: string): string =>
+    this.settings.autoUpdateLastUpdated && !(path !== undefined && this.lastUpdatedTracker.keepsHandSet(path))
       ? touchLastUpdatedDate(content, getSeoulDateString())
       : content;
 

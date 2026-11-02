@@ -105,6 +105,26 @@ describe('registerWorkflowInReadme', () => {
     expect(processed).toEqual([]);
   });
 
+  // #363: creating a workflow wrote today's date over a README date the
+  // researcher had just set by hand.
+  it('names the README it stamps, so a date set by hand there can stand', async () => {
+    const stamped: Array<string | undefined> = [];
+    const fs = new MemFileSystem({ [README]: README_TEXT });
+    const { app, processed } = makeApp(true);
+    const keepingHandSet = (content: string, path?: string): string =>
+      path === README ? content : stampToday(content);
+
+    await registerWorkflowInReadme(app, hostFor(fs), README, ENTRY, (content, path) => {
+      stamped.push(path);
+      return keepingHandSet(content, path);
+    });
+
+    // Once to see whether anything changes, once on the note being written.
+    expect(stamped).toEqual([README, README]);
+    expect(processed[0]).toContain("last_updated_date: '2026-01-01'");
+    expect(processed[0]).toContain('002_WD010_Design.labnote.md');
+  });
+
   // #88: the caller warns that the workflow is in no checklist.
   it('does nothing and says so when the experiment has no README', async () => {
     const fs = new MemFileSystem();

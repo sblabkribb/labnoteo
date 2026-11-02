@@ -5,7 +5,7 @@ import type { LabnoteHost } from '../../packages/labnoteo-core/src';
 import { focusOnNoteHeader, insertDateCommand } from '../../src/commands';
 
 /** A plain-text editor recording how it was edited. */
-function fakeEditor(text: string, cursor: number, cell?: { cm: unknown }) {
+function fakeEditor(text: string, cursor: number, cell?: Record<string, unknown>) {
   let doc = text;
   const calls: string[] = [];
   const offsetToPos = (offset: number): EditorPosition => {
@@ -83,6 +83,24 @@ describe('insertDateCommand', () => {
       EditorView.findFromDOM = original;
       if (!hadElement) delete g.HTMLElement;
     }
+  });
+
+  // #303: from Obsidian 1.14 the view's editor stays on the note while a cell
+  // is focused, so the date went into the note at the cell's offsets and the
+  // row was rewritten over the values beside it.
+  it('writes into the cell editor the focused cell has of its own', () => {
+    const note = '| Date | Note |\n| --- | --- |\n|  | a |\n';
+    const cell = fakeEditor('', 0);
+    const e = fakeEditor(note, note.indexOf('|  |') + 2, {
+      editorComponent: { tableCell: { editor: cell.editor } },
+    });
+
+    expect(insertDateCommand(e.editor, host, '2026-10-24')).toBe(true);
+
+    expect(cell.text()).toBe('2026-10-24');
+    expect(cell.calls).toEqual(['replaceSelection']);
+    expect(e.text()).toBe(note);
+    expect(e.calls).toEqual([]);
   });
 
   // #444

@@ -24,6 +24,6 @@ export const EXPERIMENT_STATUSES = [
 export type ExperimentStatus = (typeof EXPERIMENT_STATUSES)[number];
 
 /** Whether `x` is one of the allowed {@link EXPERIMENT_STATUSES}. */
-export function isValidStatus(x: string): boolean {
+export function isValidStatus(x: string): x is ExperimentStatus {
   return (EXPERIMENT_STATUSES as readonly string[]).includes(x);
 }

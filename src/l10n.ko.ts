@@ -36,8 +36,8 @@ const obsidianKo: Record<string, string> = {
   'The catalogs are up to date.': '카탈로그가 이미 최신입니다.',
   '{0} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.':
     '{0}이(가) 없어서 내장 카탈로그로 다시 만들었습니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git에서 복원한 파일로 바꾸세요.',
-  '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view redraws. If the lab had edited it, replace it with the file from the trash or Git.':
-    '{0}이(가) 삭제되었습니다. 다음에 워크플로를 고르거나 워크플로 뷰가 새로 그려질 때 내장 카탈로그로 다시 만들어집니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git의 파일로 바꾸세요.',
+  '{0} was deleted. It is made again from the built-in catalog the next time a workflow is picked or the workflow view opens. If the lab had edited it, replace it with the file from the trash or Git.':
+    '{0}이(가) 삭제되었습니다. 다음에 워크플로를 고르거나 워크플로 뷰를 열 때 내장 카탈로그로 다시 만들어집니다. 연구실이 고친 카탈로그였다면 휴지통이나 Git의 파일로 바꾸세요.',
   'The catalogs are up to date. {0} field(s) edited in this vault were kept.':
     '카탈로그가 이미 최신입니다. 이 보관함에서 고친 값 {0}개는 그대로 두었습니다.',
   'Updated the catalogs: {0} added, {1} changed. Commit the changed files in {2}.':
@@ -260,8 +260,8 @@ const obsidianKo: Record<string, string> = {
   '{0} → {1} (name format fixed)': '{0} → {1} (이름 형식 고침)',
   'Workflow notes share a number: {0}. Run "{1}" to give each its own.':
     '번호가 겹치는 워크플로 노트가 있습니다: {0}. "{1}"을(를) 실행하면 노트마다 번호가 따로 붙습니다.',
-  'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).':
-    '{0}은(는) 건너뜁니다: 이름에 ###_ 번호도 워크플로 ID도 없고, 노트 제목과 README 체크리스트 줄에서도 ID를 찾지 못했습니다. 이름이 ###_ID_로 시작하게 바꾸세요(예: 001_WB030_이름.labnote.md).',
+  'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and its title, its heading and its README checklist entry do not name the ID either. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).':
+    '{0}은(는) 건너뜁니다: 이름에 ###_ 번호도 워크플로 ID도 없고, 노트 제목·제목줄·README 체크리스트 줄에서도 ID를 찾지 못했습니다. 이름이 ###_ID_로 시작하게 바꾸세요(예: 001_WB030_이름.labnote.md).',
   'The README checklist lists {0}, but the name has neither the ###_ number nor the workflow ID, so the workflow view and workflow commands do not count it. Run "{1}" to name it.':
     'README 체크리스트에 {0}이(가) 올라 있지만, 이름에 ###_ 번호도 워크플로 ID도 없어 워크플로 뷰와 워크플로 명령이 워크플로로 세지 않습니다. "{1}"을(를) 실행하면 이름을 고칩니다.',
   'Renumber {0} workflow file(s) in {1}?': '{1}의 워크플로 파일 {0}개의 번호를 다시 매길까요?',

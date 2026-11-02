@@ -3,7 +3,7 @@
  * change only after confirmation, a broken file is never written, and the
  * notice shows once per bundled catalog change.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   ADDED_BUNDLED_IDS,
   CATALOG_FILE_SPECS,
@@ -17,6 +17,8 @@ import {
   bundledCatalogHash,
   catalogUpdateNotice,
   ensureVaultCatalogs,
+  forgetDeletedCatalogs,
+  rememberDeletedCatalogs,
   updateCatalogsCommand,
 } from '../../src/catalogUpdate';
 import obsidianKo from '../../src/l10n.ko';
@@ -67,6 +69,8 @@ const listIds = (text: string, key: string): string[] =>
   (JSON.parse(text)[key] as BundledCatalogItem[]).map(item => item.id);
 
 afterEach(() => __setGetLanguage(undefined));
+// The deletions of a session are module state; no test inherits another's.
+beforeEach(() => forgetDeletedCatalogs());
 
 describe('updateCatalogsCommand', () => {
   it('lists the changes, then writes them once confirmed', async () => {
@@ -199,6 +203,36 @@ describe('ensureVaultCatalogs (#477)', () => {
     const { host, asHost } = makeHost(oldVault());
     expect(await ensureVaultCatalogs(asHost)).toEqual([]);
     expect(host.notify).not.toHaveBeenCalled();
+  });
+
+  // #477: the whole folder deleted left nothing to compare against, so making
+  // all three again read as a vault being seeded for the first time.
+  it('warns for a catalog this session saw deleted, even with all of them gone', async () => {
+    rememberDeletedCatalogs([HW.file]);
+    const { host, asHost } = makeHost({});
+
+    expect(await ensureVaultCatalogs(asHost)).toHaveLength(3);
+
+    expect(host.notify).toHaveBeenCalledTimes(1);
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining(`${HW.file} was missing`));
+  });
+
+  it('warns once: a catalog made again is gone from the built-in copy, not the lab\'s', async () => {
+    rememberDeletedCatalogs([HW.file]);
+    await ensureVaultCatalogs(makeHost({}).asHost);
+    const { host, asHost } = makeHost({});
+    expect(await ensureVaultCatalogs(asHost)).toHaveLength(3);
+    expect(host.notify).not.toHaveBeenCalled();
+  });
+
+  it('lets "Update catalogs" say so rather than that they are up to date', async () => {
+    rememberDeletedCatalogs([WORKFLOWS.file, HW.file, SW.file]);
+    const { host, asHost } = makeHost({});
+
+    expect(await updateCatalogsCommand(asHost)).toBe(false);
+
+    expect(host.notify).toHaveBeenCalledTimes(1);
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('was missing'));
   });
 });
 

@@ -119,7 +119,7 @@ export function createObsidianHost(
   return {
     fs,
 
-    pick<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string }) {
+    pick<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string; selected?: T }) {
       return pickModal(app, items, opts);
     },
 

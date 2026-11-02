@@ -436,6 +436,19 @@ describe('extractMarkdownTables', () => {
     expect(extractMarkdownTables(md)[0].rows[1]).toEqual(['2*3', 'sample_id_1', '*x*', '~~x~~ **y** \\#', '냉장고 #R2 [A] C:\\data']);
   });
 
+  // #331: an escaped backtick opened a code span, so the text up to the next
+  // backtick came out with its marks left in and the backslashes still there.
+  it('reads an escaped backtick as the backtick it is, not as a code span', () => {
+    const cell = (text: string) => extractMarkdownTables(`| a |\n|---|\n| ${text} |\n`)[0].rows[1][0];
+    expect(cell('로트 \\`L-07\\` 확인')).toBe('로트 `L-07` 확인');
+    expect(cell('\\`\\`')).toBe('``');
+    expect(cell('\\`**x**\\`')).toBe('`x`');
+    // A real code span still opens, and keeps what is inside it as written.
+    expect(cell('`a\\`')).toBe('a\\');
+    expect(cell('\\\\`code`')).toBe('\\code');
+    expect(cell('`` ` ``')).toBe('`');
+  });
+
   it('checks for a formula after stripping the marks', () => {
     const md = '| 점수 |\n|---|\n| **+/-** |\n| ~~0~~ - |\n';
     const rows = extractMarkdownTables(md)[0].rows;

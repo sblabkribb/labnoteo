@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { tableBlockEnd } from '../../src/tableCellTarget';
+import type { Editor } from 'obsidian';
+import { activeTableCellEditor, tableBlockEnd } from '../../src/tableCellTarget';
+
+// #303
+describe('activeTableCellEditor', () => {
+  const asEditor = (editor: unknown) => editor as Editor;
+
+  it('finds the editor the focused table cell has of its own', () => {
+    const cell = asEditor({ getValue: () => 'in the cell' });
+    expect(activeTableCellEditor(asEditor({ editorComponent: { tableCell: { editor: cell } } }))).toBe(cell);
+  });
+
+  it('is null with no cell focused, and for an editor built differently', () => {
+    expect(activeTableCellEditor(asEditor({ editorComponent: { tableCell: null } }))).toBeNull();
+    expect(activeTableCellEditor(asEditor({ editorComponent: {} }))).toBeNull();
+    expect(activeTableCellEditor(asEditor({}))).toBeNull();
+  });
+});
 
 // #196
 describe('tableBlockEnd', () => {

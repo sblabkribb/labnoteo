@@ -133,23 +133,55 @@ async function notesUsing(host: LabnoteHost, ids: ReadonlySet<string>): Promise<
 }
 
 /**
- * Make the catalog files the vault is missing from the bundled ones, warning
- * when only some were missing (#477): the others were there, so a deleted one
- * was made again and edits the lab had made to it are gone. The first seeding
- * of all of them stays silent. Resolves the paths made.
+ * The catalog files this session saw deleted, by file name. They are made
+ * again only later — when a workflow picker or the workflow view opens, or on
+ * "Update catalogs" — and by then nothing in the folder says they were ever
+ * there, so this is what tells a remake from a first seeding (#477). Session
+ * only: the two reported cases both happen without a restart in between.
  */
-export async function ensureVaultCatalogs(host: LabnoteHost): Promise<string[]> {
+const deletedCatalogs = new Set<string>();
+
+/** Note catalog file names the vault just lost; see {@link deletedCatalogs}. */
+export function rememberDeletedCatalogs(names: readonly string[]): void {
+  for (const name of names) deletedCatalogs.add(name);
+}
+
+/** Forget every deletion {@link rememberDeletedCatalogs} noted. */
+export function forgetDeletedCatalogs(): void {
+  deletedCatalogs.clear();
+}
+
+/**
+ * Make the catalog files the vault is missing from the bundled ones, warning
+ * for each one that was there before (#477): either the others are still there
+ * or this session saw it deleted, so edits the lab had made to it are gone.
+ * The first seeding of a vault stays silent. Resolves the paths made and the
+ * names of those made again.
+ */
+async function createMissingCatalogs(host: LabnoteHost): Promise<{ created: string[]; remade: string[] }> {
   const created = await ensureWorkflowResources(host.fs, '.');
-  if (created.length > 0 && created.length < CATALOG_FILE_SPECS.length) {
+  const names = created.map(p => posix.basename(p));
+  // Some still in place: whatever was made is a replacement. All of them gone:
+  // only the ones this session watched go.
+  const remade =
+    created.length < CATALOG_FILE_SPECS.length ? names : names.filter(name => deletedCatalogs.has(name));
+  // Noted once: a later remake of the same file is a fresh loss of the built-in copy.
+  for (const name of names) deletedCatalogs.delete(name);
+  if (remade.length > 0) {
     host.notify(
       'warn',
       host.t(
         '{0} was missing, so it was made again from the built-in catalog. If the lab had edited it, replace it with the file from the trash or Git.',
-        created.map(p => posix.basename(p)).join(', ')
+        remade.join(', ')
       )
     );
   }
-  return created;
+  return { created, remade };
+}
+
+/** {@link createMissingCatalogs}, for callers that only need the paths made. */
+export async function ensureVaultCatalogs(host: LabnoteHost): Promise<string[]> {
+  return (await createMissingCatalogs(host)).created;
 }
 
 /**
@@ -157,8 +189,7 @@ export async function ensureVaultCatalogs(host: LabnoteHost): Promise<string[]> 
  * Resolves true when a catalog file was written.
  */
 export async function updateCatalogsCommand(host: LabnoteHost): Promise<boolean> {
-  const created = await ensureVaultCatalogs(host);
-  const remade = created.length > 0 && created.length < CATALOG_FILE_SPECS.length;
+  const { remade } = await createMissingCatalogs(host);
   const { files, broken } = await planVaultCatalogUpdate(host);
   for (const path of broken) {
     host.notify(
@@ -170,7 +201,7 @@ export async function updateCatalogsCommand(host: LabnoteHost): Promise<boolean>
   const pending = files.filter(f => !isCatalogPlanEmpty(f.plan));
   const { added, changed, kept } = counts(files);
   if (pending.length === 0) {
-    if (broken.length === 0 && !remade) {
+    if (broken.length === 0 && remade.length === 0) {
       host.notify(
         'info',
         kept > 0

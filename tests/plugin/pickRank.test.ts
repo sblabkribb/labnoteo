@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { PickItem } from '@labnoteo/core';
-import { rankPickItems } from '../../src/modals';
+import { rankPickItems, withSelectedFirst } from '../../src/modals';
 
 const op = (id: string, name: string, ko: string, detail: string): PickItem<string> => ({
   label: `${id}: ${name}`,
@@ -78,5 +78,26 @@ describe('rankPickItems', () => {
       op('UHW500', 'Sealing', '실링', '측정 전에 밀봉합니다.'),
     ];
     expect(rankPickItems(items, '활성 측정').map(i => i.value)).toEqual(['UHW100', 'UHW380']);
+  });
+});
+
+// #537: the picker always opened on its first row, so Enter set the status to
+// planned instead of leaving it as it was.
+describe('withSelectedFirst', () => {
+  const first = (query: string, selected?: string) => withSelectedFirst([...ITEMS], query, selected).map(i => i.value);
+
+  it('puts the current value at the top of the unsearched list', () => {
+    expect(first('', 'UHW180')).toEqual(['UHW180', 'UHW060', 'UHW130', 'UHW190']);
+  });
+
+  it('leaves the order alone with nothing selected, or when it is first already', () => {
+    expect(first('')).toEqual(['UHW060', 'UHW130', 'UHW180', 'UHW190']);
+    expect(first('', 'UHW060')).toEqual(['UHW060', 'UHW130', 'UHW180', 'UHW190']);
+    expect(first('', 'UHW999')).toEqual(['UHW060', 'UHW130', 'UHW180', 'UHW190']);
+  });
+
+  it('leaves a searched list to its ranking', () => {
+    const ranked = withSelectedFirst(rankPickItems(ITEMS, '배양'), '배양', 'UHW060');
+    expect(ranked.map(i => i.value)).toEqual(['UHW180', 'UHW190', 'UHW060', 'UHW130']);
   });
 });

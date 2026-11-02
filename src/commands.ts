@@ -127,7 +127,7 @@ import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
 // Re-exported so command registration in main.ts imports every command from one
 // place; the implementation lives under src/scaffold with its asset registry.
 export { setupResearchAutomationCommand } from './scaffold/scaffold';
-import { tableCellHostView } from './tableCellTarget';
+import { activeTableCellEditor, tableCellHostView } from './tableCellTarget';
 import { experimentMarkerSpots, formatMarkerSpots, markerExperimentDir } from './issueMarkerIndex';
 import { isVaultGitRepository } from './scaffold/scaffold';
 import { removeSourcesForDocument } from '@labnoteo/core/lib/sampleStorage';
@@ -675,7 +675,12 @@ export async function changeExperimentStatusCommand(
       keywords: meanings[status].keywords.split(/\s+/).filter(Boolean),
       value: status,
     })),
-    { title: `${host.t('Change experiment status')}: ${folderName}`, placeholder }
+    {
+      title: `${host.t('Change experiment status')}: ${folderName}`,
+      placeholder,
+      // On the status it has now, so Enter leaves it as it is (#537).
+      ...(current && isValidStatus(current) && { selected: current }),
+    }
   );
   if (!chosen || chosen === current) return;
 
@@ -844,12 +849,15 @@ export function insertDateCommand(
   text: string,
   types: readonly string[] = []
 ): boolean {
-  // A table cell has an editor of its own holding just that cell (#303): the
-  // front matter and Meta checks below would read the cell as the note.
-  if (tableCellHostView(editor)) {
-    const from = editor.getCursor('from');
-    const lineBefore = editor.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
-    editor.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
+  // A table cell has an editor of its own holding just that cell (#303): write
+  // through that one, since `editor` is the note and its offsets would land
+  // somewhere else in the table. The front matter and Meta checks below would
+  // read the cell as the note, so they are skipped either way.
+  const cell = activeTableCellEditor(editor) ?? (tableCellHostView(editor) ? editor : null);
+  if (cell) {
+    const from = cell.getCursor('from');
+    const lineBefore = cell.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
+    cell.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
     return true;
   }
   const plan = planDateInsertion(
@@ -1153,7 +1161,7 @@ async function createWorkflowFromChoice(
   host: LabnoteHost,
   labnoteDir: string,
   chosen: WorkflowItem,
-  stamp: (content: string) => string
+  stamp: (content: string, path?: string) => string
 ): Promise<void> {
   const created = await createWorkflowFile(app, host, labnoteDir, chosen, stamp);
   if (!created) return;
@@ -1203,7 +1211,7 @@ async function createWorkflowFile(
   host: LabnoteHost,
   labnoteDir: string,
   chosen: WorkflowItem,
-  stamp: (content: string) => string
+  stamp: (content: string, path?: string) => string
 ): Promise<CreatedWorkflow | undefined> {
   // Listed before the prompt, which warns about an alias already in use (#297).
   const existingFiles = await host.fs.list(labnoteDir);
@@ -1266,21 +1274,24 @@ export type WorkflowRegistration = 'registered' | 'noSection' | 'noReadme';
  * workflow is a change to the experiment. Applied through the vault to the
  * README as it is at write time, so an open README editor neither overwrites it
  * nor loses its own unsaved text. Writes nothing without a README or without
- * the section to list it in (#298), and says which.
+ * the section to list it in (#298), and says which. A date the reader set by
+ * hand in the README today is left as it is, as `stamp` decides (#363).
  */
 export async function registerWorkflowInReadme(
   app: App,
   host: LabnoteHost,
   readmePath: string,
   entry: { title: string; fileName: string },
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<WorkflowRegistration> {
   if (!(await host.fs.exists(readmePath))) return 'noReadme';
   if (!hasWorkflowChecklistSection(await host.fs.read(readmePath))) return 'noSection';
   await processNoteThroughVault(app, host, readmePath, readme => {
     if (!hasWorkflowChecklistSection(readme)) return readme;
+    // Named, so a README date its reader set by hand today stands (#363).
     return stamp(
-      insertWorkflowChecklistEntries(readme, [{ done: false, title: entry.title, fileName: entry.fileName }])
+      insertWorkflowChecklistEntries(readme, [{ done: false, title: entry.title, fileName: entry.fileName }]),
+      readmePath
     );
   });
   return 'registered';
@@ -1330,7 +1341,7 @@ export async function createWorkflowForItem(
   app: App,
   host: LabnoteHost,
   chosen: WorkflowItem,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
@@ -1341,7 +1352,7 @@ export async function createWorkflowForItem(
 export async function createWorkflowCommand(
   app: App,
   host: LabnoteHost,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
@@ -1361,7 +1372,7 @@ export async function insertWorkflowLinkCommand(
   app: App,
   host: LabnoteHost,
   editor: Editor,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
@@ -1605,7 +1616,7 @@ export async function renumberWorkflowsCommand(
     ids.skipped.length === 0
       ? ''
       : host.t(
-          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
+          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and its title, its heading and its README checklist entry do not name the ID either. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
           ids.skipped.join(', ')
         );
   // Files the checklist does not list are renumbered too, so register them in

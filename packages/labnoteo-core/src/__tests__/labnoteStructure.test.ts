@@ -18,6 +18,8 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentFolderRetitled,
+  experimentRetitleOffer,
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
@@ -43,6 +45,33 @@ describe('experimentTitleFromFolderName', () => {
     const title = 'pH 7/8: 비교';
     expect(experimentTitleFromFolderName(experimentFolderName('001', title))).not.toBe(title);
     expect(experimentTitleFromFolderName(experimentFolderName('001', '효모 2차'))).toBe('효모 2차');
+  });
+});
+
+// #467: the question never came up, because the README was looked for under
+// the folder's new path before Obsidian had moved its children there.
+describe('experimentRetitleOffer', () => {
+  it('asks only when the folder was renamed in place', () => {
+    expect(experimentFolderRetitled('001_GFP_assay', '001_RFP_assay')).toBe(true);
+    expect(experimentFolderRetitled('001_GFP_assay', '002_GFP_assay')).toBe(false);
+    expect(experimentFolderRetitled('001_GFP_assay', '001_GFP_assay')).toBe(false);
+    expect(experimentFolderRetitled('GFP_assay', '001_GFP_assay')).toBe(false);
+  });
+
+  it('offers the new folder name as the title when the old one read back exactly', () => {
+    expect(experimentRetitleOffer('001_GFP_assay', '001_RFP_assay', 'GFP assay')).toBe('RFP assay');
+  });
+
+  it('offers the title as it is when the folder name dropped something from it', () => {
+    const title = 'pH 7/8: 비교';
+    const folder = experimentFolderName('001', title);
+    expect(experimentRetitleOffer(folder, '001_pH_비교', title)).toBe(title);
+  });
+
+  it('asks nothing when the title is not what the old folder name was made from', () => {
+    expect(experimentRetitleOffer('001_GFP_assay', '001_RFP_assay', '내가 쓴 제목')).toBeUndefined();
+    expect(experimentRetitleOffer('001_GFP_assay', '001_RFP_assay', '  ')).toBeUndefined();
+    expect(experimentRetitleOffer('001_GFP_assay', '001_RFP_assay', undefined)).toBeUndefined();
   });
 });
 

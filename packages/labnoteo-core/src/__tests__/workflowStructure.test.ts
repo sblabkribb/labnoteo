@@ -20,6 +20,7 @@ import {
   collapseWorkflowRenames,
   suggestWorkflowFileName,
   suggestLinkableFileName,
+  linkableNameFix,
   rebuildExperimentReadme,
   unlinkableNameChars,
   classifyWorkflowRename,
@@ -1115,6 +1116,24 @@ describe('planWorkflowRetitle (#71)', () => {
     expect(out?.content).toContain('\n## [WB120 Biology-mediated DNA Transfers] 열충격2\n');
   });
 
+  // #268: the file keeps the ID it was given, so only the alias follows; the
+  // title and heading used to be left behind instead.
+  it('follows an alias change while the file keeps an ID the note never took on', () => {
+    const out = planWorkflowRetitle(
+      ORIGINAL,
+      '001_WB130_Biology-mediated_DNA_Transfers_전기천공.labnote.md',
+      '001_WB130_Biology-mediated_DNA_Transfers_열충격.labnote.md'
+    );
+    expect(out?.to).toBe('WB120 Biology-mediated DNA Transfers 전기천공');
+    expect(out?.content).toBe(note('WB120 Biology-mediated DNA Transfers 전기천공', '전기천공'));
+  });
+
+  // "Sync workflow checklist with folder" on such a note, which has no old name.
+  it('follows the file name under the note ID without an old name', () => {
+    const out = planWorkflowRetitle(ORIGINAL, '001_WB130_Biology-mediated_DNA_Transfers_전기천공.labnote.md');
+    expect(out?.to).toBe('WB120 Biology-mediated DNA Transfers 전기천공');
+  });
+
   it('still keeps a hand-edited title when the old name had another ID', () => {
     expect(
       planWorkflowRetitle(
@@ -1419,6 +1438,32 @@ describe('unlinkableNameChars / suggestLinkableFileName (#326)', () => {
   it('flags such workflow files in the checklist sync plan', () => {
     const plan = planWorkflowChecklistSync(readmeWith([]), ['001_WD010_A.labnote.md', '002_WB030_A#1.labnote.md']);
     expect(plan.unlinkable).toEqual(['002_WB030_A#1.labnote.md']);
+  });
+
+  // #326: with the suggested name taken, nothing was offered at all, not even
+  // the old name the note was reachable under a moment before.
+  describe('linkableNameFix', () => {
+    const OLD = '002_WB030_A.labnote.md';
+    const BROKEN = '002_WB030_A#1.labnote.md';
+    const FIXED = '002_WB030_A1.labnote.md';
+    const free = () => false;
+
+    it('offers the name without the characters when it is free', () => {
+      expect(linkableNameFix(OLD, BROKEN, free)).toEqual({ name: FIXED, kind: 'fix' });
+    });
+
+    it('offers the old name back when the suggested one is taken', () => {
+      expect(linkableNameFix(OLD, BROKEN, name => name === FIXED)).toEqual({ name: OLD, kind: 'back' });
+    });
+
+    it('offers the old name back when nothing is left after the characters go', () => {
+      expect(linkableNameFix(OLD, '002_#.labnote.md', free)).toEqual({ name: OLD, kind: 'back' });
+    });
+
+    it('offers nothing when both are taken, or the old name was unreachable too', () => {
+      expect(linkableNameFix(OLD, BROKEN, () => true)).toBeUndefined();
+      expect(linkableNameFix('002_WB030_A#0.labnote.md', BROKEN, name => name === FIXED)).toBeUndefined();
+    });
   });
 });
 
@@ -1998,6 +2043,20 @@ describe('unnamedWorkflowIds and planWorkflowRenumber with ID hints', () => {
     ]);
     // A name made only of symbols has nothing to name the file with.
     expect(skipped).toEqual(['🧫.labnote.md']);
+  });
+
+  // #456: only a `# ` line was read, so a note with the `## [ID name]` heading
+  // every workflow note is written with was skipped.
+  it('reads the ID from the workflow heading, title first and label last', () => {
+    const heading = '## [WT001 General Test] 2차\n';
+    const read = (content: string) => unnamedWorkflowIds(['memo.labnote.md'], readme, new Map([['memo.labnote.md', content]]));
+    expect([...read(heading).hints]).toEqual([['memo.labnote.md', 'WT001']]);
+    expect([...read(`---\ntitle: 내 제목\n---\n${heading}`).hints]).toEqual([['memo.labnote.md', 'WT001']]);
+    // The heading without an alias reads the same, and a title with an ID wins.
+    expect([...read('## [WT001 General Test]\n').hints]).toEqual([['memo.labnote.md', 'WT001']]);
+    expect([...read(`---\ntitle: WL090 Retrain\n---\n${heading}`).hints]).toEqual([['memo.labnote.md', 'WL090']]);
+    // Nothing names an ID: the file is skipped, as it was before.
+    expect(read('본문뿐\n').skipped).toEqual(['memo.labnote.md']);
   });
 
   it('names a hinted file with its ID and sanitized name', () => {

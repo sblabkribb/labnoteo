@@ -1,10 +1,10 @@
 /**
- * Live Preview edits a table cell in its own nested CodeMirror editor, and
- * while a cell is focused `MarkdownView.editor` is that cell editor: its text
- * is the cell alone and its cursor an offset inside the cell. Commands that
- * insert at the cursor then write into the cell, where Obsidian escapes every
- * newline and `|` as `<br>` and `\|` (#196). These helpers send such edits to
- * the note itself instead, just below the table.
+ * Live Preview edits a table cell in its own nested CodeMirror editor, whose
+ * text is the cell alone and whose cursor is an offset inside the cell.
+ * Commands that insert at the cursor there write into the cell, where Obsidian
+ * escapes every newline and `|` as `<br>` and `\|` (#196). These helpers find
+ * that cell editor, and send edits that do not belong in a cell to the note
+ * itself instead, just below the table.
  */
 import { EditorView } from '@codemirror/view';
 import type { Editor } from 'obsidian';
@@ -28,6 +28,20 @@ export function tableBlockEnd(text: string, offset: number): number {
     end = nextEnd === -1 ? text.length : nextEnd;
   }
   return end;
+}
+
+/**
+ * The editor of the table cell being edited, or null when none is (#303).
+ *
+ * `MarkdownView.editor` stays on the note even while a cell is focused: only
+ * the cell component holds an editor over the cell text. Obsidian reaches it
+ * the same way for its own table commands, but neither the component nor its
+ * `tableCell` is in the public API, so both are read defensively.
+ */
+export function activeTableCellEditor(editor: Editor): Editor | null {
+  const component = (editor as unknown as { editorComponent?: { tableCell?: { editor?: Editor } } })
+    .editorComponent;
+  return component?.tableCell?.editor ?? null;
 }
 
 /** The note's own editor when `editor` is a table cell editor nested inside it. */

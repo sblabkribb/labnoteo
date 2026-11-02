@@ -43,6 +43,12 @@ export class LastUpdatedTracker {
       this.removed.delete(path);
     }
     if (change.dateRemoved && !this.removed.has(path)) this.removed.set(path, false);
+    // An emptied value asks for the date back, so neither a hand-set date nor a
+    // deleted line is held against this note any more (#466).
+    if (change.dateCleared) {
+      this.manual.delete(path);
+      this.removed.delete(path);
+    }
     const prev = this.pending.get(path);
     this.pending.set(path, {
       userEdit: (prev?.userEdit ?? false) || change.userEdit,

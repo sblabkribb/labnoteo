@@ -54,7 +54,13 @@ export function splitTableCells(line: string): string[] {
 
 /** A character that is part of a word for `_` emphasis, which may not open or close inside one. */
 const WORD = '[\\p{L}\\p{N}_]';
-export const CODE_SPAN_RE = /(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g;
+/**
+ * A code span; group 1 is its backticks and group 2 the text between them. The
+ * opening run may not be escaped (#331): `` \` `` is a literal backtick, so a
+ * span never starts there. An odd number of backslashes escapes it, an even
+ * number is escaped backslashes before a real opener.
+ */
+export const CODE_SPAN_RE = /(?<=(?:^|[^\\])(?:\\\\)*)(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g;
 /** A code span's text: one space each side is dropped when both are there and it is not all spaces. */
 export const codeSpanText = (body: string): string => (/^ [\s\S]*[^ ][\s\S]* $/.test(body) ? body.slice(1, -1) : body);
 /** `$$…$$` math; group 1 is the formula. */
