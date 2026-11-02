@@ -382,15 +382,24 @@ describe('extractMarkdownTables', () => {
     const rows = [
       ['시료', '판-웰', '희석'],
       ['A', '2E4', '1E-3'],
-      ['B', '3e10', '1.2E3'],
-      ['C', 'E4', '2E'],
+      ['B', '3e10', '2E'],
+      ['C', 'E4', '1'],
     ];
     expect(excelRiskCells(rows)).toEqual([
       { text: '2E4', kind: 'eNotation', columns: [1] },
       { text: '1E-3', kind: 'eNotation', columns: [2] },
       { text: '3e10', kind: 'eNotation', columns: [1] },
-      { text: '1.2E3', kind: 'eNotation', columns: [2] },
     ]);
+  });
+
+  // #535: `2.1E+08` is a measurement, and Excel keeps its value.
+  it('leaves a measurement written with a decimal mantissa alone', () => {
+    const rows = [
+      ['시료', '복제수', '농도'],
+      ['A', '2.1E+08', '1.2E-05'],
+      ['B', '3.4e6', '2E4'],
+    ];
+    expect(excelRiskCells(rows)).toEqual([{ text: '2E4', kind: 'eNotation', columns: [2] }]);
   });
 
   // #375: each column a value is in, so the notice can name them.

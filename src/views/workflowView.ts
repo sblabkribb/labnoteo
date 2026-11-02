@@ -386,6 +386,11 @@ export class WorkflowTreeView extends ItemView {
         retryLineage: this.plugin.t('Retry line'),
         invalidStatus: this.plugin.t('(not an allowed status)'),
         invalidStatusTooltip: this.plugin.t('Validation fails on this status. Allowed statuses: {0}'),
+        missingStatus: this.plugin.t('(validation fails)'),
+        missingStatusTooltip: this.plugin.t(
+          'An experiment without a status fails validation. Set one with "{0}".',
+          this.plugin.t('Change experiment status')
+        ),
         status: this.plugin.t('Status'),
         workflows: this.plugin.t('Workflows done'),
         lastUpdated: this.plugin.t('Last updated'),

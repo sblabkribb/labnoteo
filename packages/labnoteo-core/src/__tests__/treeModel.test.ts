@@ -277,7 +277,7 @@ describe('buildExperimentTree', () => {
       'in-progress [1]',
       'completed [1]',
       'waiting [1] (not an allowed status)',
-      '(none) [1]',
+      '(none) [1] (validation fails)',
     ]);
   });
 
@@ -290,7 +290,10 @@ describe('buildExperimentTree', () => {
       ],
       { noStatus: '(none)', unreadable: '(unreadable)', frontMatterError: 'Unreadable' }
     );
-    expect(broken.children!.map(g => g.label)).toEqual(['(none) [1]', '(unreadable) [1]']);
+    expect(broken.children!.map(g => g.label)).toEqual([
+      '(none) [1] (validation fails)',
+      '(unreadable) [1]',
+    ]);
     const node = broken.children![1].children![0];
     expect(node.icon).toBe('warning');
     expect(node.tooltip).toBe('labnote/001_Broken\nUnreadable: duplicated mapping key (7:1)');
@@ -303,6 +306,22 @@ describe('buildExperimentTree', () => {
     expect(odd.tooltip).toContain('planned, in-progress');
     expect(tree.children![0].icon).toBe('folder');
     expect(tree.children![0].tooltip).toBeUndefined();
+  });
+
+  // #538: validation fails on a missing status too, which "(none)" alone hid.
+  it('marks the group of the experiments with no status', () => {
+    const none = tree.children!.at(-1)!;
+    expect(none.icon).toBe('warning');
+    expect(none.tooltip).toBe(
+      'An experiment without a status fails validation. Set one with "Change experiment status".'
+    );
+    const named = buildExperimentTree([{ folder: 'labnote/001_A' }], {
+      noStatus: '(없음)',
+      missingStatus: '(검증 실패)',
+      missingStatusTooltip: '상태를 넣으세요.',
+    });
+    expect(named.children![0].label).toBe('(없음) [1] (검증 실패)');
+    expect(named.children![0].tooltip).toBe('상태를 넣으세요.');
   });
 
   it('sorts experiments by folder number and labels them with number and title', () => {

@@ -149,6 +149,9 @@ const obsidianKo: Record<string, string> = {
   '(not an allowed status)': '(허용되지 않는 상태)',
   'Validation fails on this status. Allowed statuses: {0}':
     '이 상태는 검증에서 실패합니다. 허용되는 상태: {0}',
+  '(validation fails)': '(검증 실패)',
+  'An experiment without a status fails validation. Set one with "{0}".':
+    'status 줄이 없는 실험은 검증에서 실패합니다. "{0}"(으)로 상태를 넣으세요.',
   'Status': '상태',
   'Workflows done': '완료한 워크플로',
   'Last updated': '마지막 수정',

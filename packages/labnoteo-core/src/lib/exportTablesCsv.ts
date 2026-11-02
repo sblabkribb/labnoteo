@@ -451,8 +451,12 @@ function isDatePair(text: string): boolean {
   const monthDay = (month: number, day: number) => month >= 1 && month <= 12 && day >= 1 && day <= 31;
   return monthDay(a, b) || monthDay(b, a);
 }
-/** `2E4`, `1E-3`, `1.2E3`: plate-well names and dilutions become numbers in E notation (#376). */
-const E_NOTATION_RE = /^\d+(?:\.\d+)?[eE][+-]?\d+$/;
+/**
+ * `2E4`, `1E-3`: plate-well names and dilutions become numbers in E notation
+ * (#376). A decimal mantissa (`2.1E+08`) is how a measurement is written, and
+ * Excel keeps its value, so it is left alone (#535).
+ */
+const E_NOTATION_RE = /^\d+[eE][+-]?\d+$/;
 /** `SEPT9`, `MARCH1`, `DEC-1`: a month name next to a number is a date to Excel. */
 const MONTH_NAME_RE = new RegExp(`^(?:${MONTHS})[-/ ]?\\d{1,2}$`, 'i');
 /** `007`, `0031`: Excel reads them as numbers and the zeros are gone. */
