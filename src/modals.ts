@@ -76,6 +76,18 @@ export function rankPickItems<T>(items: readonly PickItem<T>[], query: string): 
 }
 
 /**
+ * `items` with the one holding `selected` first, so a picker that always opens
+ * on its first row opens on the current value (#537). Only for the unsearched
+ * list: once something is typed, the best match belongs at the top.
+ */
+export function withSelectedFirst<T>(items: PickItem<T>[], query: string, selected: T | undefined): PickItem<T>[] {
+  if (query.trim() || selected === undefined) return items;
+  const index = items.findIndex(item => item.value === selected);
+  if (index > 0) items.unshift(...items.splice(index, 1));
+  return items;
+}
+
+/**
  * The chooser a `SuggestModal` keeps its rendered list in. Not in the public
  * API, so it is read defensively and the picker works without it (#537).
  */
@@ -129,12 +141,8 @@ class PickModal<T> extends SuggestModal<PickItem<T>> {
 
   getSuggestions(query: string): PickItem<T>[] {
     const ranked = rankPickItems(this.items, query);
-    // Without the API that moves the highlight, the current value goes first
-    // instead; only in the unsearched list, where the given order is kept.
-    if (this.canSelect || query.trim() || this.opts?.selected === undefined) return ranked;
-    const index = ranked.findIndex(item => item.value === this.opts?.selected);
-    if (index > 0) ranked.unshift(...ranked.splice(index, 1));
-    return ranked;
+    // Without the API that moves the highlight, the current value goes first.
+    return this.canSelect ? ranked : withSelectedFirst(ranked, query, this.opts?.selected);
   }
 
   renderSuggestion(item: PickItem<T>, el: HTMLElement): void {

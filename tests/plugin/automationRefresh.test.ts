@@ -23,7 +23,7 @@ import {
   SCAFFOLD_ASSETS,
   type ScaffoldAsset,
 } from '../../src/scaffold/assets';
-import { compareVersions, contentHash, type InstallRecord } from '../../src/scaffold/installRecord';
+import { compareVersions, contentHash, isAutomationInstalled, type InstallRecord } from '../../src/scaffold/installRecord';
 import { LEGACY_HASH_SELF_CHECK, LEGACY_TEMPLATE_HASHES } from '../../src/scaffold/legacyTemplateHashes';
 import obsidianKo from '../../src/l10n.ko';
 
@@ -540,6 +540,35 @@ describe('QUICKSTART managed block', () => {
     await refreshAutomationFiles(asHost, '1.1.0', ASSETS);
 
     expect(await fs.read('AGENTS.md')).toBe('our rules\n');
+  });
+});
+
+// #452: "Open user guide" writes a record of its own, so a plugin version in
+// it no longer means the automation is installed.
+describe('isAutomationInstalled', () => {
+  it('is false for a vault that only ever opened the user guide', async () => {
+    const { asHost } = makeHost({
+      [QUICKSTART_DOC_PATH]: 'guide\n',
+      [INSTALL_RECORD_PATH]: record({ [QUICKSTART_DOC_PATH]: 'h' }),
+    });
+    expect(await isAutomationInstalled(asHost)).toBe(false);
+  });
+
+  it('is false for a vault with nothing installed at all', async () => {
+    expect(await isAutomationInstalled(makeHost().asHost)).toBe(false);
+  });
+
+  it('is true once the record names a file the setup command writes', async () => {
+    const { asHost } = makeHost({
+      [INSTALL_RECORD_PATH]: record({ [QUICKSTART_DOC_PATH]: 'h', 'AGENTS.md': 'h' }),
+    });
+    expect(await isAutomationInstalled(asHost)).toBe(true);
+  });
+
+  // A vault set up before 0.95.0 has no record of its files.
+  it('is true for a vault that has the issue-sync workflow', async () => {
+    const { asHost } = makeHost({ [ISSUE_SYNC_WORKFLOW_PATH]: 'wf\n' });
+    expect(await isAutomationInstalled(asHost)).toBe(true);
   });
 });
 

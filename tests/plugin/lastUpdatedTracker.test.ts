@@ -86,4 +86,18 @@ describe('LastUpdatedTracker', () => {
     t.record(P, { ...typed, dateRemoved: true });
     expect(t.consume(P)).toBe('removed');
   });
+
+  // #466: an emptied value read as a hand-set date, so it stayed empty all day.
+  it('stamps an emptied date again, whatever was held against the note', () => {
+    const cleared: DocChange = { ...typed, dateCleared: true };
+    const t = new LastUpdatedTracker(() => '2026-10-27');
+    t.record(P, dateTyped);
+    t.record(P, cleared);
+    expect(t.keepsHandSet(P)).toBe(false);
+    expect(t.consume(P)).toBe('stamp');
+    // Emptying the value is also how a deleted line is asked back (#466).
+    t.record(P, { ...typed, dateRemoved: true });
+    t.record(P, cleared);
+    expect(t.consume(P)).toBe('stamp');
+  });
 });

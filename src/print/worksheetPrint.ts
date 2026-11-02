@@ -28,6 +28,7 @@ import {
 } from '@labnoteo/core/lib/exportTablesCsv';
 import type { WorksheetPaperSize } from '../settings';
 import { buildPrintHtml, escapeHtml, openHtmlInBrowser, printHtml, type PrintPage } from './printPages';
+import { texToHtml } from './texHtml';
 
 /** Markdown inline syntax reduced to its text: links, emphasis, code ticks. */
 export function plainInline(text: string): string {
@@ -41,19 +42,36 @@ export function plainInline(text: string): string {
 }
 
 /**
+ * A formula as printable text, or italic TeX when it uses more than
+ * {@link texToHtml} reads: printing it as written beats printing it wrong.
+ */
+const mathHtml = (tex: string): string => {
+  const read = texToHtml(tex);
+  return read === undefined ? `<i>${escapeHtml(tex)}</i>` : read;
+};
+
+/**
+ * A footnote definition as the raised number its references print as (#434):
+ * `[^1]: thawed on ice` becomes `¹ thawed on ice`. Run before `inline()`,
+ * which keeps `<sup>` but escapes everything around it.
+ */
+export const footnoteDefinitionMarked = (text: string): string =>
+  text.replace(/^\[\^([^\]\s]+)\]:[ \t]*/, '<sup>$1</sup> ');
+
+/**
  * Inline Markdown as the reading view shows it, escaped for HTML (#434): code
- * and math as written, `<sub>`/`<sup>` and HTML entities kept, struck-through
- * text struck rather than dropped (a crossed-out value must not read as a
- * live one), a highlight underlined for black-and-white printing and a
- * footnote reference as its raised number.
+ * as written and math as printable text, `<sub>`/`<sup>` and HTML entities
+ * kept, struck-through text struck rather than dropped (a crossed-out value
+ * must not read as a live one), a highlight underlined for black-and-white
+ * printing and a footnote reference as its raised number.
  */
 const inline = (text: string): string => {
   const held: string[] = [];
   const hold = (html: string): string => `\u0000${held.push(html) - 1}\u0000`;
   let s = text
     .replace(CODE_SPAN_RE, (_m, _ticks: string, body: string) => hold(escapeHtml(codeSpanText(body))))
-    .replace(MATH_BLOCK_RE, (_m, tex: string) => hold(`<i>${escapeHtml(tex)}</i>`))
-    .replace(MATH_INLINE_RE, (_m, before: string, tex: string) => before + hold(`<i>${escapeHtml(tex)}</i>`))
+    .replace(MATH_BLOCK_RE, (_m, tex: string) => hold(mathHtml(tex)))
+    .replace(MATH_INLINE_RE, (_m, before: string, tex: string) => before + hold(mathHtml(tex)))
     .replace(ESCAPED_MARK_RE, (_m, mark: string) => hold(escapeHtml(mark)))
     .replace(/<(sub|sup)>([\s\S]*?)<\/\1>/gi, (_m, tag: string, body: string) => {
       const name = tag.toLowerCase();
@@ -103,7 +121,7 @@ function blocksHtml(blocks: readonly WorksheetBlock[]): string {
         ? tableHtml(block.rows)
         : block.kind === 'code'
           ? codeHtml(block.lines)
-          : `<p>${inline(block.text) || '&nbsp;'}</p>`;
+          : `<p>${inline(block.footnote ? footnoteDefinitionMarked(block.text) : block.text) || '&nbsp;'}</p>`;
   }
   flush();
   return html;
@@ -141,7 +159,12 @@ function sectionHtml(section: WorksheetSection): string {
       let n = 0;
       const items = section.steps
         .map(s => {
-          const sub = s.sub.length > 0 ? `<ul class="sub">${s.sub.map(l => `<li>${inline(l)}</li>`).join('')}</ul>` : '';
+          // A footnote the parser kept with its step prints under it (#418), as
+          // the raised number a reference in that step shows (#434).
+          const sub =
+            s.sub.length > 0
+              ? `<ul class="sub">${s.sub.map(l => `<li>${inline(footnoteDefinitionMarked(l))}</li>`).join('')}</ul>`
+              : '';
           const mark = s.preface ? '' : `<span class="box${s.done ? ' done' : ''}"></span><span class="n">${++n}.</span>`;
           return (
             `<li>${mark}<div class="s">${inline(s.text)}${sub}${s.table ? tableHtml(s.table) : ''}` +

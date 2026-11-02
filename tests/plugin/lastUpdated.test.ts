@@ -172,6 +172,29 @@ describe('the status-change notice', () => {
     expect(await shownFrom(WORKFLOW, DIR)).toContain('To undo, run "Change experiment status" again');
   });
 
+  // #537: the picker opened on planned, so Enter set the status to planned.
+  it('opens the picker on the status the experiment has now', async () => {
+    const run = async (status: string) => {
+      const fs = new MemFileSystem({ [README]: note().replace('status: planned', status) });
+      let opts: { selected?: string } = {};
+      const host = {
+        fs,
+        t: (s: string) => s,
+        notify: () => {},
+        pick: async (_items: unknown, o: typeof opts) => {
+          opts = o;
+          return undefined;
+        },
+      } as unknown as LabnoteHost;
+      await changeExperimentStatusCommand(makeApp(), host, undefined, DIR);
+      return opts.selected;
+    };
+    expect(await run('status: in-progress')).toBe('in-progress');
+    // Nothing to open on when the README has no status, or one off the list.
+    expect(await run('status: Failed')).toBeUndefined();
+    expect(await run('created_by: x')).toBeUndefined();
+  });
+
   // #141, #143
   it('names the experiment in the picker and flags a status outside the list', async () => {
     const fs = new MemFileSystem({ [README]: note().replace('status: planned', 'status: Failed') });

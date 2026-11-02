@@ -209,8 +209,36 @@ describe('worksheetPrintPages', () => {
       )
     );
     expect(body).toContain(
-      '<p>OD<sub>600</sub> <s>0.10</s> 0.12 <mark>확인</mark> 455.1<sup>1</sup> <i>3\\,mL</i> &lt;0.1 &lt;sup&gt;x&lt;/sup&gt; *a* <i>재측정</i> sample_id_1</p>'
+      '<p>OD<sub>600</sub> <s>0.10</s> 0.12 <mark>확인</mark> 455.1<sup>1</sup> 3 mL &lt;0.1 &lt;sup&gt;x&lt;/sup&gt; *a* <i>재측정</i> sample_id_1</p>'
     );
+  });
+
+  // #434: a footnote definition printed its `[^1]:` as written.
+  it('prints a footnote definition as the raised number its reference shows', () => {
+    const body = worksheetBody(md =>
+      md.replace(
+        '#### Results & Discussions\n- (Any results and discussions. Link file path if needed)',
+        '#### Results & Discussions\n본문[^1]\n\n[^1]: 얼음에서 녹임'
+      )
+    );
+    expect(body).toContain('<p>본문<sup>1</sup></p><p><sup>1</sup> 얼음에서 녹임</p>');
+  });
+
+  it('prints a footnote kept with a method step under that step', () => {
+    const body = worksheetBody(md =>
+      md.replace('#### Method\n- (method used in this step)', ['#### Method', '1. 시작[^a]', '[^a]: 37 °C'].join('\n'))
+    );
+    expect(body).toContain('<ul class="sub"><li><sup>a</sup> 37 °C</li></ul>');
+  });
+
+  it('prints math it cannot read as written, in italics', () => {
+    const body = worksheetBody(md =>
+      md.replace(
+        '#### Results & Discussions\n- (Any results and discussions. Link file path if needed)',
+        '#### Results & Discussions\n$\\sqrt{2}$ 와 $\\frac{1}{2}$'
+      )
+    );
+    expect(body).toContain('<p><i>\\sqrt{2}</i> 와 1/2</p>');
   });
 
   it('prints a table cell\'s formatting like the text around it', () => {

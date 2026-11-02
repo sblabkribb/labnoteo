@@ -143,6 +143,22 @@
   font-weight: inherit;
 }
 
+/* In Live Preview an inline code span or a tag wraps the marker's piece in a
+   span of its own, whose background and side padding then show through as
+   gaps in the marker (#292). The tint goes on that outer span instead, and
+   the piece inside turns transparent so the two do not stack. Reading view
+   builds no such wrapper, so it is left alone. */
+.markdown-source-view .cm-inline-code:has(.labnote-issue-marker),
+.markdown-source-view .cm-hashtag:has(.labnote-issue-marker) {
+  background-color: rgba(var(--color-red-rgb), 0.15);
+  background-color: color-mix(in oklch, var(--color-red) 15%, transparent);
+}
+
+.markdown-source-view .cm-inline-code > .labnote-issue-marker,
+.markdown-source-view .cm-hashtag > .labnote-issue-marker {
+  background-color: transparent;
+}
+
 /* A marker whose ID another marker of the experiment also uses: both would
    land in one issue. Editor only; the title says where the other one is. */
 .labnote-issue-marker-duplicate {

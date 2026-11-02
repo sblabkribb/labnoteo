@@ -1016,11 +1016,11 @@ describe('insertExperimentSamplesTable with a table already there', () => {
   } as unknown as App;
 
   function setUp(text: string, cursor = text.length) {
-    const state = { text, revealed: -1 };
+    const state = { text, revealed: -1, cursor };
     const target: EditTarget = {
       path: NOTE,
       getText: async () => state.text,
-      getCursorOffset: async () => cursor,
+      getCursorOffset: async () => state.cursor,
       insertAtCursor: async () => undefined,
       replaceRange: async (start: number, end: number, t: string) => {
         state.text = state.text.slice(0, start) + t + state.text.slice(end);
@@ -1096,6 +1096,22 @@ describe('insertExperimentSamplesTable with a table already there', () => {
       expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(false);
       expect(state.text).toBe(doc);
     }
+  });
+
+  // #450: the picker takes the focus, and a Source mode editor then reports the
+  // cursor at the start of the note, so the table went above the title.
+  it('inserts where the cursor was before the picker opened, not where it is after', async () => {
+    const doc = `# A\n${OLD_KO}\n\nafter\n`;
+    const end = `# A\n${OLD_KO}`.length;
+    const { state, tablePlugin } = setUp(doc, doc.indexOf('old'));
+    vi.mocked(pickModal).mockImplementationOnce(async () => {
+      state.cursor = 0;
+      return 'add';
+    });
+
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+
+    expect(state.text).toBe(`${doc.slice(0, end)}\n\n${FRESH}\n${doc.slice(end)}`);
   });
 });
 
