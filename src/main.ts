@@ -95,6 +95,7 @@ import {
   offerTableCsvCleanupOnDelete,
   setupResearchAutomationCommand,
   catalogDescription,
+  experimentFolderNames,
   experimentReadmes,
   experimentTitleHint,
   workflowAliasHint,
@@ -114,6 +115,7 @@ import {
   diagnoseExperimentPath,
   experimentFolderName,
   experimentFolderRetitled,
+  experimentNumberClashes,
   experimentRetitleOffer,
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
@@ -1145,7 +1147,10 @@ export default class LabnotePlugin extends Plugin {
     }
     if (before.kind !== 'ok' || before.folder !== oldPath) return;
     if (after.kind === 'ok' && after.folder === newPath && !copyOrigin && !this.copiedExperiments.has(oldPath)) {
+      // Either the number stayed and the title changed (#467), or the number
+      // changed and may now be another experiment's (#493): never both.
       this.run(() => this.offerExperimentRetitle(folder, posix.basename(oldPath)));
+      this.run(() => this.offerExperimentNumberFix(folder, posix.basename(oldPath)));
     }
     if (after.kind === 'nested' && after.folder === newPath) {
       this.run(() => this.offerExperimentFolderMoveBack(folder, posix.dirname(oldPath)));
@@ -1203,6 +1208,47 @@ export default class LabnotePlugin extends Plugin {
     if (!(file instanceof TFile)) return;
     await processNoteThroughVault(this.app, this.host, file.path, content => setFrontMatterKeys(content, { title: newTitle }));
     this.host.notify('info', this.t('The README title of {0} is now "{1}".', folder.name, newTitle));
+  }
+
+  /**
+   * An experiment folder renumbered onto a number a sibling already has
+   * (#493): both are experiments, so nothing refuses the name, but the number
+   * no longer tells them apart. Offer the next free one.
+   */
+  private async offerExperimentNumberFix(folder: TFolder, oldName: string): Promise<void> {
+    const renamedPath = folder.path;
+    const number = /^(\d{3})_/.exec(folder.name)?.[1];
+    // A number that did not change cannot have made the clash: a vault that
+    // already had two of a number is left alone.
+    if (!number || number === /^(\d{3})_/.exec(oldName)?.[1]) return;
+    const dir = posix.dirname(renamedPath);
+    const siblings = (await this.fs.list(dir)).filter(
+      n => this.app.vault.getAbstractFileByPath(posix.join(dir, n)) instanceof TFolder
+    );
+    const taken = experimentNumberClashes(siblings).filter(n => n !== folder.name && n.startsWith(`${number}_`));
+    if (taken.length === 0 || this.unloaded || folder.path !== renamedPath) return;
+    const warning = this.t(
+      '"{0}" now has the same number as "{1}". The experiment list sorts them together, and a number in a report no longer says which experiment it means.',
+      folder.name,
+      taken.length > 1 ? this.t('{0} (+{1} more)', taken[0], String(taken.length - 1)) : taken[0]
+    );
+    // Counts the experiments moved into grouping folders too, so a number
+    // handed out here is free everywhere (#166).
+    const suggestion = folder.name.replace(/^\d{3}_/, `${getNextLabnoteNumber(await experimentFolderNames(this.host))}_`);
+    const target = posix.join(dir, suggestion);
+    const free = (): boolean => folder.path === renamedPath && !this.app.vault.getAbstractFileByPath(target);
+    // Obsidian may be asking whether to update links for this rename.
+    const settled = await this.waitForNoModal();
+    if (this.unloaded || folder.path !== renamedPath) return;
+    if (!settled || !free()) {
+      this.host.notify('warn', warning);
+      return;
+    }
+    const ok = await this.host.confirm(`${warning} ${this.t('Rename it to "{0}"?', suggestion)}`, {
+      confirmLabel: this.t('Fix name'),
+    });
+    if (!ok || !free()) return;
+    await this.app.fileManager.renameFile(folder, target);
   }
 
   /**

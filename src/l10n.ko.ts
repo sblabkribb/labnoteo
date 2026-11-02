@@ -311,6 +311,8 @@ const obsidianKo: Record<string, string> = {
   '"{0}" has {1} in its name, which no link can reach: its README checklist entry will not open.':
     '"{0}"의 이름에 링크로 닿을 수 없는 문자 {1}이(가) 있어 README 체크리스트 항목이 열리지 않습니다.',
   'Rename it to "{0}"?': '"{0}"(으)로 이름을 바꿀까요?',
+  '"{0}" now has the same number as "{1}". The experiment list sorts them together, and a number in a report no longer says which experiment it means.':
+    '"{0}"이(가) "{1}"과(와) 같은 번호가 되었습니다. 실험 목록에서 두 실험이 나란히 묶이고, 보고서에 적은 번호가 어느 실험인지 가리키지 못합니다.',
   '"{0}" no longer has resources/labsamples: its Local samples will show as unregistered, and new ones go to a new, empty registry.':
     '"{0}"에 resources/labsamples 폴더가 없어졌습니다. 이 실험의 Local 시료가 모두 등록되지 않은 것으로 보이고, 새 시료는 비어 있는 새 대장에 저장됩니다.',
   '{0} was renamed to {1}: its {2} {3} sample(s) will show as unregistered, and the next {3} sample added starts a new, empty {0}.':
