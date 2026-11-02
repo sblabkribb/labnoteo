@@ -38,6 +38,10 @@ interface CsvOutput {
   /** The table's header row, and the cells Excel would change (#375). */
   header: string[];
   risky: ExcelRiskCell[];
+  /** Cells past the header width, left out of the CSV as the note shows them (#510). */
+  dropped?: { row: number; cells: string[] }[];
+  /** Whether a dropped cell came from a `|` inside a code span. */
+  codePipe?: boolean;
   /** Another program (Excel) holds the CSV, or it is read-only: it is left as it is (#476). */
   locked?: boolean;
 }
@@ -109,6 +113,8 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
         fresh: normalizeCsv(csv),
         header: table.rows[0] ?? [],
         risky: excelRiskCells(table.rows),
+        ...(table.dropped ? { dropped: table.dropped } : {}),
+        ...(table.codePipe ? { codePipe: true } : {}),
       };
       if (typeof read === 'object') output.locked = true;
       else output.old = read;
@@ -417,6 +423,7 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
       renameText(plugin, result),
       savedIn(plugin, plan.dir, plan.outputs, result),
       skipped,
+      droppedText(plugin, plan.outputs),
       excelHint(plugin, plan.outputs),
       excelPathHint(plugin, paths),
       cleanup,
@@ -484,6 +491,7 @@ export async function exportExperimentTablesToCsv(plugin: LabnotePlugin, dir: st
       renameText(plugin, result),
       savedIn(plugin, dir, outputs, result),
       skipped,
+      droppedText(plugin, outputs),
       excelHint(plugin, outputs),
       excelPathHint(plugin, paths),
       cleanup,
@@ -540,6 +548,36 @@ function excelHint(plugin: LabnotePlugin, outputs: readonly CsvOutput[]): string
     'Excel would change cells when it opens the CSV: {0}. Open the CSV with Data → From Text/CSV and set those columns to Text.',
     more > 0 ? `${listed} ${plugin.t('(+{0} more CSV file(s))', String(more))}` : listed
   );
+}
+
+/** CSVs and rows the dropped-cell warning names before counting the rest. */
+const DROPPED_HINT_FILES = 5;
+const DROPPED_HINT_ROWS = 3;
+
+/**
+ * Cells past the header width, which the CSV leaves out the way the note
+ * renders the table (#76). Dropping them silently read as lost data (#510), so
+ * the notice names the rows and what they lost. A `|` inside a code span is
+ * the usual cause: it splits the cell unless it is written `\|`.
+ */
+function droppedText(plugin: LabnotePlugin, outputs: readonly CsvOutput[]): string {
+  const over = outputs.filter(o => o.dropped && o.dropped.length > 0);
+  if (over.length === 0) return '';
+  const parts = over.map(o => {
+    const rows = o.dropped!.map(d => plugin.t('row {0}: {1}', String(d.row), listInline(plugin, d.cells, 3)));
+    return `${posix.basename(o.path)} (${listInline(plugin, rows, DROPPED_HINT_ROWS)})`;
+  });
+  const more = parts.length - DROPPED_HINT_FILES;
+  const listed = parts.slice(0, DROPPED_HINT_FILES).join(' / ');
+  return [
+    plugin.t(
+      'These rows have more cells than the header row, and the extra ones are left out of the CSV as the note shows them: {0}. Add the missing header columns if those cells belong in the table.',
+      more > 0 ? `${listed} ${plugin.t('(+{0} more CSV file(s))', String(more))}` : listed
+    ),
+    over.some(o => o.codePipe) ? plugin.t('A "|" inside a code span splits the cell too: write it as "\\|".') : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /**

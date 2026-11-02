@@ -450,6 +450,11 @@ const obsidianKo: Record<string, string> = {
   '{0} lose their leading zeros': '{0}은(는) 앞자리 0이 사라짐',
   '{0} become numbers in E notation (2E4 → 20000)': '{0}은(는) 지수 표기 숫자로 바뀜(2E4 → 20000)',
   '{0}, column(s) {1}: {2}': '{0}의 {1} 열: {2}',
+  'These rows have more cells than the header row, and the extra ones are left out of the CSV as the note shows them: {0}. Add the missing header columns if those cells belong in the table.':
+    '머리글 행보다 칸이 많은 행이 있어, 넘치는 칸은 노트에 보이는 대로 CSV에서 빠졌습니다: {0}. 그 칸이 표에 들어갈 값이라면 머리글에 열을 더하세요.',
+  'A "|" inside a code span splits the cell too: write it as "\\|".':
+    '인라인 코드(`) 안의 "|"도 칸을 가릅니다. "\\|"로 적으세요.',
+  'row {0}: {1}': '{0}번째 행: {1}',
   'column {0}': '{0}번째',
   '(+{0} more CSV file(s))': '(CSV {0}개 더)',
   'In: {0}.': '해당 노트: {0}.',

@@ -184,6 +184,26 @@ describe('extractMarkdownTables', () => {
     ]);
   });
 
+  // #510: dropping them without a word read as lost data.
+  it('reports the dropped cells with the row they came from', () => {
+    const md = '| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 | 5 | 6 |\n';
+    const table = extractMarkdownTables(md)[0];
+    expect(table.dropped).toEqual([{ row: 2, cells: ['5', '6'] }]);
+    expect(table.codePipe).toBeUndefined();
+  });
+
+  it('marks a row whose cell was split by a | inside a code span', () => {
+    const md = '| 단계 | 조건 |\n|---|---|\n| 전기천공 | `150 V | 2 A` |\n| 회수 | `\\|` |\n';
+    const table = extractMarkdownTables(md)[0];
+    expect(table.dropped).toEqual([{ row: 1, cells: ['2 A`'] }]);
+    expect(table.codePipe).toBe(true);
+  });
+
+  it('says nothing about a table whose rows fit', () => {
+    const table = extractMarkdownTables('| a | b |\n|---|---|\n| 1 | 2 |\n')[0];
+    expect(table.dropped).toBeUndefined();
+  });
+
   it('turns <br> variants into a newline inside the cell', () => {
     const md = '| a |\n|---|\n| x<br>y<br/>z<BR />w |\n';
     const rows = extractMarkdownTables(md)[0].rows;

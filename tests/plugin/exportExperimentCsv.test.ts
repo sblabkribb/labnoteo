@@ -169,6 +169,31 @@ describe('the Excel warning (#343 #345 #346 #375 #376)', () => {
     );
   });
 
+  // #510: cells past the header width were dropped without a word.
+  it('names the rows whose extra cells were left out, and how to keep a | in code', async () => {
+    await fs.write(
+      WF1,
+      '| 단계 | 조건 |\n|---|---|\n| 전기천공 | `150 V | 2 A` |\n| 회수 | 1 | 2 | 3 |\n'
+    );
+
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+
+    expect(Notice.shown.at(-1)).toContain(
+      'These rows have more cells than the header row, and the extra ones are left out of the CSV ' +
+        'as the note shows them: 001_WT020_A.labnote_table1.csv (row 1: 2 A`, row 2: 2, 3). ' +
+        'Add the missing header columns if those cells belong in the table. ' +
+        'A "|" inside a code span splits the cell too: write it as "\\|".'
+    );
+  });
+
+  it('says nothing about dropped cells when every row fits', async () => {
+    await fs.write(WF1, table('a', '1'));
+
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+
+    expect(Notice.shown.at(-1)).not.toContain('more cells than the header row');
+  });
+
   it('warns for every note of an experiment, each CSV on its own', async () => {
     await fs.write(WF1, table('희석', '1/2', '1/4'));
     await fs.write(WF2, table('비율', '12/48', '1/8'));

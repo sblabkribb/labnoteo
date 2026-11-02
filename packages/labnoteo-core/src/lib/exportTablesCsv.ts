@@ -9,6 +9,10 @@ export interface CsvTable {
   index: number;
   /** Rows including the header row (the `---` separator row is dropped). */
   rows: string[][];
+  /** Cells past the header width, which GFM and the CSV drop (#510); `row` is 1-based among the data rows. */
+  dropped?: { row: number; cells: string[] }[];
+  /** Whether a dropped cell came from a `|` inside a code span, which `\|` would have kept. */
+  codePipe?: boolean;
 }
 
 export const SEPARATOR_ROW_RE = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
@@ -156,6 +160,11 @@ function stripInlineFormatting(cell: string): string {
 export function fitRow(cells: string[], width: number): string[] {
   if (cells.length >= width) return cells.slice(0, width);
   return [...cells, ...Array<string>(width - cells.length).fill('')];
+}
+
+/** Whether a row has a `|` inside a code span, which splits the cell unless it is written `\|` (#510). */
+function hasCodeSpanPipe(line: string): boolean {
+  return [...line.matchAll(CODE_SPAN_RE)].some(m => m[2].includes('|'));
 }
 
 /** A line with its blockquote / callout markers (`> `) taken off, and how many there were. */
@@ -367,13 +376,26 @@ export function scanMarkdownTables(markdown: string): MarkdownTableScan {
       const rendered = startsBlock(prev, line, prevCode);
       const header = splitTableRow(line.text);
       const rows: string[][] = [header];
+      const dropped: { row: number; cells: string[] }[] = [];
+      let codePipe = false;
       const depth = line.depth;
       i += 2;
       while (i < lines.length && isTableRow(lines[i], depth)) {
-        rows.push(fitRow(splitTableRow(lines[i].text), header.length));
+        const cells = splitTableRow(lines[i].text);
+        if (cells.length > header.length) {
+          dropped.push({ row: rows.length, cells: cells.slice(header.length) });
+          if (hasCodeSpanPipe(lines[i].text)) codePipe = true;
+        }
+        rows.push(fitRow(cells, header.length));
         i++;
       }
-      if (rendered) tables.push({ index: tables.length, rows });
+      if (rendered)
+        tables.push({
+          index: tables.length,
+          rows,
+          ...(dropped.length > 0 ? { dropped } : {}),
+          ...(codePipe ? { codePipe: true } : {}),
+        });
       else notRendered++;
       prevCode = false;
       continue;
