@@ -1613,7 +1613,7 @@ export async function renumberWorkflowsCommand(
     ids.skipped.length === 0
       ? ''
       : host.t(
-          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and neither its title nor its README checklist entry names the ID. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
+          'Skipped {0}: the name has neither the ###_ number nor the workflow ID, and its title, its heading and its README checklist entry do not name the ID either. Rename it to start with ###_ID_ (e.g. 001_WB030_Name.labnote.md).',
           ids.skipped.join(', ')
         );
   // Files the checklist does not list are renumbered too, so register them in

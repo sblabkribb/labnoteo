@@ -156,6 +156,32 @@ export function suggestLinkableFileName(fileName: string): string | undefined {
   return /^\d{3}_.+\.labnote\.md$/i.test(fixed) ? fixed : undefined;
 }
 
+/** A name to offer for a note renamed past every link; see {@link linkableNameFix}. */
+export interface LinkableNameFix {
+  /** The file name to offer. */
+  name: string;
+  /** Whether that name drops the characters, or is the old name back. */
+  kind: 'fix' | 'back';
+}
+
+/**
+ * The name to offer for a workflow note renamed to one no link can reach
+ * (#326): the new name without those characters, else the old name back. Only
+ * a name `taken` says is free, so a suggestion some other note already goes by
+ * falls through to the old name instead of leaving nothing to offer. Undefined
+ * when neither is available, and the rename then only gets a warning.
+ */
+export function linkableNameFix(
+  from: string,
+  to: string,
+  taken: (name: string) => boolean
+): LinkableNameFix | undefined {
+  const suggestion = suggestLinkableFileName(to);
+  if (suggestion && !taken(suggestion)) return { name: suggestion, kind: 'fix' };
+  if (unlinkableNameChars(from).length === 0 && !taken(from)) return { name: from, kind: 'back' };
+  return undefined;
+}
+
 /** What a vault rename means for the README checklist; see {@link classifyWorkflowRename}. */
 export type WorkflowRenameEffect =
   /** Workflow note renamed to another valid name: relink `from` → `to`. */
@@ -771,11 +797,17 @@ function unnamedWorkflowSafeName(fileName: string): string {
   return sanitizeWorkflowName(fileName.slice(0, -'.labnote.md'.length));
 }
 
+/** The catalog ID `text` starts with, if any. */
+function idInText(text: string | undefined): string | undefined {
+  return text ? WORKFLOW_ID_RE.exec(text)?.[1] : undefined;
+}
+
 /**
  * The catalog IDs for the checklist-listed files that lost theirs from the
- * name (#456): from the note's front-matter `title` or first `# ` heading, else
- * from its README checklist label. `skipped` are those with none to be found,
- * or whose name sanitizes to nothing, which "Renumber workflows" cannot name.
+ * name (#456): from the note's front-matter `title` or its workflow heading,
+ * else from its README checklist label. `skipped` are those with none to be
+ * found, or whose name sanitizes to nothing, which "Renumber workflows"
+ * cannot name.
  */
 export function unnamedWorkflowIds(
   checklistOrder: readonly string[],
@@ -793,10 +825,13 @@ export function unnamedWorkflowIds(
     const content = noteContents.get(name);
     const fmTitle = content === undefined ? undefined : parseFrontMatterYaml(content.replace(/\r\n/g, '\n')).frontMatter.title;
     const title = typeof fmTitle === 'string' ? fmTitle : undefined;
-    const heading = content === undefined ? undefined : /^# (.+)$/m.exec(content)?.[1];
-    const id = [title, heading, labels.get(name)]
-      .map(s => (s ? WORKFLOW_ID_RE.exec(s)?.[1] : undefined))
-      .find(Boolean);
+    // A workflow note carries its ID in the `## [ID name]` heading; the `# `
+    // line is the fallback for notes written before that was the format (#456).
+    const heading =
+      content === undefined
+        ? undefined
+        : (parseWorkflowHeading(content)?.id ?? idInText(/^# (.+)$/m.exec(content)?.[1]));
+    const id = [idInText(title), heading, idInText(labels.get(name))].find(Boolean);
     if (id && unnamedWorkflowSafeName(name)) hints.set(name, id);
     else skipped.push(name);
   }
@@ -1448,8 +1483,9 @@ export interface WorkflowRetitle {
  * With `fromName` (a rename), the note changes only when its title — its
  * heading when it has no title — matched the old name, and each part only if
  * it did: a title or heading edited by hand is kept. Undefined when nothing
- * changes, the note has no such heading, or the file's ID or catalog-name part
- * no longer matches the heading.
+ * changes, the note has no such heading, or the file's catalog-name part no
+ * longer matches the heading. A file ID the note never took on is read as the
+ * note's own, so only the alias follows the rename (#268).
  */
 export function planWorkflowRetitle(
   content: string,
@@ -1459,16 +1495,24 @@ export function planWorkflowRetitle(
   const text = content.replace(/\r\n/g, '\n');
   const heading = parseWorkflowHeading(text);
   if (!heading) return undefined;
-  const alias = workflowAliasFromFileName(toName, heading);
+  // A file whose catalog ID was changed by hand, with the offer to put it back
+  // declined, keeps the note's ID in its heading and title (#268). Read and
+  // rewrite that note under its own ID, so a later alias change still follows
+  // the file name. Not when this rename is the one changing the ID: that is
+  // #240, which `workflowIdMismatch` reports instead of renaming anything.
+  const fromParts = fromName === undefined ? null : parseWorkflowFileName(fromName);
+  const toParts = parseWorkflowFileName(toName);
+  const target =
+    toParts && toParts.id !== heading.id && (fromName === undefined || fromParts?.id === toParts.id)
+      ? `${toParts.sequence}_${heading.id}_${toParts.safeName}.labnote.md`
+      : toName;
+  const alias = workflowAliasFromFileName(target, heading);
   if (alias === undefined) return undefined;
 
   const title = frontMatterTitle(text);
   const headingText = workflowTitleText(heading.id, heading.name, heading.alias);
   const current = title ?? headingText;
-  // A file whose catalog ID was changed by hand, with the offer to put it back
-  // declined, keeps a title naming the heading's ID: compare under that ID too,
-  // or the next alias change leaves the title behind for good (#268).
-  const fromParts = fromName === undefined ? null : parseWorkflowFileName(fromName);
+  // The old name under the note's ID too, for the same reason as `target`.
   const fromUnderHeadingId =
     fromParts && fromParts.id !== heading.id
       ? `${fromParts.sequence}_${heading.id}_${fromParts.safeName}.labnote.md`
@@ -1479,8 +1523,8 @@ export function planWorkflowRetitle(
     (fromUnderHeadingId !== undefined && labelMatchesFileName(label, fromUnderHeadingId));
   if (!matchedOld(current)) return undefined;
 
-  const fixTitle = title !== undefined && !labelMatchesFileName(title, toName) && matchedOld(title);
-  const fixHeading = !labelMatchesFileName(headingText, toName) && matchedOld(headingText);
+  const fixTitle = title !== undefined && !labelMatchesFileName(title, target) && matchedOld(title);
+  const fixHeading = !labelMatchesFileName(headingText, target) && matchedOld(headingText);
   if (!fixTitle && !fixHeading) return undefined;
   const next = rewriteWorkflowTitle(content, heading.id, heading.name, alias, {
     title: fixTitle,

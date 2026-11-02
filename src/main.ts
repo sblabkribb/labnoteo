@@ -44,6 +44,7 @@ import {
   createWorkflowFileName,
   isCopiedWorkflowFileName,
   isValidWorkflowPath,
+  linkableNameFix,
   parseWorkflowFileName,
   parseWorkflowHeading,
   planWorkflowChecklistSync,
@@ -54,7 +55,6 @@ import {
   outputSampleIds,
   rewriteWorkflowTitle,
   suggestCopiedWorkflowFileName,
-  suggestLinkableFileName,
   unlinkableNameChars,
   workflowIdMismatch,
   type WorkflowHeading,
@@ -1503,9 +1503,6 @@ export default class LabnotePlugin extends Plugin {
    */
   private async offerLinkableNameFix(file: TFile, dir: string, from: string, to: string): Promise<void> {
     const path = file.path;
-    const suggestion = suggestLinkableFileName(to);
-    const back = unlinkableNameChars(from).length === 0 ? from : undefined;
-    const name = suggestion ?? back;
     const warning = this.t(
       '"{0}" has {1} in its name, which no link can reach: its README checklist entry will not open.',
       to,
@@ -1513,22 +1510,25 @@ export default class LabnotePlugin extends Plugin {
     );
     const settled = await this.waitForNoModal();
     if (this.unloaded || file.path !== path) return;
-    const target = name ? posix.join(dir, name) : undefined;
-    if (!settled || !name || !target || this.app.vault.getAbstractFileByPath(target)) {
+    const taken = (name: string): boolean => Boolean(this.app.vault.getAbstractFileByPath(posix.join(dir, name)));
+    const fix = linkableNameFix(from, to, taken);
+    if (!settled || !fix) {
       this.host.notify('warn', warning);
       await this.retitleAfterRename(file, dir, from, to);
       return;
     }
     const ok = await this.host.confirm(
-      `${warning} ${name === suggestion ? this.t('Rename it to "{0}"?', name) : this.t('Rename it back to "{0}"?', name)}`,
-      { confirmLabel: this.t(name === suggestion ? 'Fix name' : 'Rename back') }
+      `${warning} ${
+        fix.kind === 'fix' ? this.t('Rename it to "{0}"?', fix.name) : this.t('Rename it back to "{0}"?', fix.name)
+      }`,
+      { confirmLabel: this.t(fix.kind === 'fix' ? 'Fix name' : 'Rename back') }
     );
     if (file.path !== path) return;
-    if (!ok || this.app.vault.getAbstractFileByPath(target)) {
+    if (!ok || taken(fix.name)) {
       await this.retitleAfterRename(file, dir, from, to);
       return;
     }
-    await this.app.fileManager.renameFile(file, target);
+    await this.app.fileManager.renameFile(file, posix.join(dir, fix.name));
   }
 
   /** A workflow note was renamed by hand: its table CSVs follow it (#60). */
