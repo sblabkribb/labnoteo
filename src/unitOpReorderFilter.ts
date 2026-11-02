@@ -44,6 +44,11 @@ export interface DocChangeKind {
    * that still reads (#466); set only then.
    */
   dateRemoved?: boolean;
+  /**
+   * A user edit that left the `last_updated_date` key with an empty value
+   * (#466): an invitation to stamp it, not a date set by hand.
+   */
+  dateCleared?: boolean;
 }
 
 /** Front matter scan stops here; real notes close theirs long before. */
@@ -105,7 +110,10 @@ function classify(tr: Transaction): DocChangeKind {
   const before = lastUpdatedOf(tr.startState.doc);
   const after = lastUpdatedOf(tr.newDoc);
   if (before === after) return { userEdit, dateEdited: false };
-  return after === undefined ? { userEdit, dateEdited: false, dateRemoved: true } : { userEdit, dateEdited: true };
+  if (after === undefined) return { userEdit, dateEdited: false, dateRemoved: true };
+  // An emptied value is a date to be stamped again, not one set by hand (#466).
+  if (after === '') return { userEdit, dateEdited: false, dateCleared: true };
+  return { userEdit, dateEdited: true };
 }
 
 /**

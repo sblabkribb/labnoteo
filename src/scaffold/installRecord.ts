@@ -4,7 +4,7 @@
  * edited since, so a plugin update may replace it without asking.
  */
 import type { LabnoteHost } from '@labnoteo/core';
-import { INSTALL_RECORD_PATH } from './assets';
+import { INSTALL_RECORD_PATH, ISSUE_SYNC_WORKFLOW_PATH, QUICKSTART_DOC_PATH } from './assets';
 
 export interface InstallRecord {
   /** Plugin version that last wrote the record; older plugins leave files alone. */
@@ -70,6 +70,20 @@ export async function readInstallRecord(host: LabnoteHost): Promise<InstallRecor
 
 export async function writeInstallRecord(host: LabnoteHost, record: InstallRecord): Promise<void> {
   await host.fs.write(INSTALL_RECORD_PATH, `${JSON.stringify(record, null, 2)}\n`);
+}
+
+/**
+ * Whether this vault has the research automation, rather than only the user
+ * guide (#452). "Open user guide" writes a record of its own, with a plugin
+ * version and `QUICKSTART.md` as the one file, so the version no longer tells
+ * the two apart. A vault set up before 0.95.0 has no record of its files at
+ * all and is recognised by the issue-sync workflow, the same way
+ * `refreshAutomationFiles` recognises it.
+ */
+export async function isAutomationInstalled(host: LabnoteHost, record?: InstallRecord): Promise<boolean> {
+  const { files } = record ?? (await readInstallRecord(host));
+  if (Object.keys(files).some(path => path !== QUICKSTART_DOC_PATH)) return true;
+  return host.fs.exists(ISSUE_SYNC_WORKFLOW_PATH);
 }
 
 /** Whether two `files` (or `blocks`) maps hold the same entries. */

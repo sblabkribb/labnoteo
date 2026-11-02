@@ -1161,7 +1161,7 @@ async function createWorkflowFromChoice(
   host: LabnoteHost,
   labnoteDir: string,
   chosen: WorkflowItem,
-  stamp: (content: string) => string
+  stamp: (content: string, path?: string) => string
 ): Promise<void> {
   const created = await createWorkflowFile(app, host, labnoteDir, chosen, stamp);
   if (!created) return;
@@ -1211,7 +1211,7 @@ async function createWorkflowFile(
   host: LabnoteHost,
   labnoteDir: string,
   chosen: WorkflowItem,
-  stamp: (content: string) => string
+  stamp: (content: string, path?: string) => string
 ): Promise<CreatedWorkflow | undefined> {
   // Listed before the prompt, which warns about an alias already in use (#297).
   const existingFiles = await host.fs.list(labnoteDir);
@@ -1274,21 +1274,24 @@ export type WorkflowRegistration = 'registered' | 'noSection' | 'noReadme';
  * workflow is a change to the experiment. Applied through the vault to the
  * README as it is at write time, so an open README editor neither overwrites it
  * nor loses its own unsaved text. Writes nothing without a README or without
- * the section to list it in (#298), and says which.
+ * the section to list it in (#298), and says which. A date the reader set by
+ * hand in the README today is left as it is, as `stamp` decides (#363).
  */
 export async function registerWorkflowInReadme(
   app: App,
   host: LabnoteHost,
   readmePath: string,
   entry: { title: string; fileName: string },
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<WorkflowRegistration> {
   if (!(await host.fs.exists(readmePath))) return 'noReadme';
   if (!hasWorkflowChecklistSection(await host.fs.read(readmePath))) return 'noSection';
   await processNoteThroughVault(app, host, readmePath, readme => {
     if (!hasWorkflowChecklistSection(readme)) return readme;
+    // Named, so a README date its reader set by hand today stands (#363).
     return stamp(
-      insertWorkflowChecklistEntries(readme, [{ done: false, title: entry.title, fileName: entry.fileName }])
+      insertWorkflowChecklistEntries(readme, [{ done: false, title: entry.title, fileName: entry.fileName }]),
+      readmePath
     );
   });
   return 'registered';
@@ -1338,7 +1341,7 @@ export async function createWorkflowForItem(
   app: App,
   host: LabnoteHost,
   chosen: WorkflowItem,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
@@ -1349,7 +1352,7 @@ export async function createWorkflowForItem(
 export async function createWorkflowCommand(
   app: App,
   host: LabnoteHost,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
@@ -1369,7 +1372,7 @@ export async function insertWorkflowLinkCommand(
   app: App,
   host: LabnoteHost,
   editor: Editor,
-  stamp: (content: string) => string = c => c
+  stamp: (content: string, path?: string) => string = c => c
 ): Promise<void> {
   const labnoteDir = await resolveLabnoteDir(app, host);
   if (!labnoteDir) return;
