@@ -329,6 +329,40 @@ export function experimentTitleFromFolderName(name: string): string {
 }
 
 /**
+ * Whether an experiment folder was renamed in place, keeping its number and
+ * changing the rest (#467). A number that changed is a renumbering, and a rest
+ * that did not is a move or a case-only change nothing follows.
+ */
+export function experimentFolderRetitled(oldName: string, newName: string): boolean {
+  const [, number, oldRest] = /^(\d{3})_(.+)$/.exec(oldName) ?? [];
+  const [, newNumber, newRest] = /^(\d{3})_(.+)$/.exec(newName) ?? [];
+  return Boolean(number) && number === newNumber && oldRest !== newRest;
+}
+
+/**
+ * The title to offer for a renamed experiment folder whose README still holds
+ * `readmeTitle`, or undefined when nothing should be asked (#467).
+ *
+ * Asked only when the old folder name was made from that title: otherwise the
+ * title carries symbols or an end the folder name never had, so it is not the
+ * folder name that is out of date. The new folder name is offered only when
+ * the old title read back from the old name exactly; else those symbols or
+ * that cut-off end would be dropped, so the title stands as the starting point.
+ */
+export function experimentRetitleOffer(
+  oldName: string,
+  newName: string,
+  readmeTitle: string | undefined
+): string | undefined {
+  if (!experimentFolderRetitled(oldName, newName)) return undefined;
+  const title = readmeTitle?.trim();
+  const number = /^(\d{3})_/.exec(oldName)?.[1];
+  if (!title || !number || experimentFolderName(number, title) !== oldName) return undefined;
+  const fromNewName = experimentTitleFromFolderName(newName);
+  return experimentTitleFromFolderName(oldName) === title && fromNewName ? fromNewName : title;
+}
+
+/**
  * The experiment folder that folder `name` copies, as Obsidian's "Make a copy"
  * names one (`001_GFP 1` → `001_GFP`), else undefined (#223). Experiment
  * folder names have `_` for spaces, so a trailing ` N` marks a copy.

@@ -75,33 +75,66 @@ export function rankPickItems<T>(items: readonly PickItem<T>[], query: string): 
     .map(r => r.item);
 }
 
+/**
+ * The chooser a `SuggestModal` keeps its rendered list in. Not in the public
+ * API, so it is read defensively and the picker works without it (#537).
+ */
+interface SuggestChooser {
+  setSelectedItem?(index: number, event?: unknown): void;
+}
+
 /** Single-select fuzzy picker backed by Obsidian's `SuggestModal`. */
 class PickModal<T> extends SuggestModal<PickItem<T>> {
   private done = false;
+  /**
+   * Whether the open list can be moved onto `selected`. When it cannot, the
+   * item is put first instead, since the list always opens on its first row.
+   */
+  private readonly canSelect: boolean;
 
   constructor(
     app: App,
     private readonly items: PickItem<T>[],
     private readonly resolve: (value: T | undefined) => void,
-    private readonly opts?: { title?: string; placeholder?: string; initialQuery?: string }
+    private readonly opts?: { title?: string; placeholder?: string; initialQuery?: string; selected?: T }
   ) {
     super(app);
     if (opts?.placeholder) this.setPlaceholder(opts.placeholder);
     // A SuggestModal has no title bar; without this the picker never says
     // what is being chosen or for which note (#141).
     if (opts?.title) this.modalEl.prepend(createDiv({ cls: 'labnote-pick-title', text: opts.title }));
+    // Read here, not in onOpen(): getSuggestions() runs inside super.onOpen().
+    this.canSelect = typeof this.suggestChooser?.setSelectedItem === 'function';
+  }
+
+  /** Set up in the `SuggestModal` constructor, so it is there from ours on. */
+  private get suggestChooser(): SuggestChooser | undefined {
+    return (this as unknown as { chooser?: SuggestChooser }).chooser;
   }
 
   onOpen(): void {
     super.onOpen();
     // What was typed before the picker opened is searched at once (#388).
-    if (!this.opts?.initialQuery) return;
-    this.inputEl.value = this.opts.initialQuery;
-    this.inputEl.dispatchEvent(new Event('input'));
+    if (this.opts?.initialQuery) {
+      this.inputEl.value = this.opts.initialQuery;
+      this.inputEl.dispatchEvent(new Event('input'));
+      return;
+    }
+    // Open on the current value so Enter keeps it (#537). The list is already
+    // drawn: super.onOpen() renders it synchronously for an array of items.
+    if (!this.canSelect || this.opts?.selected === undefined) return;
+    const index = this.items.findIndex(item => item.value === this.opts?.selected);
+    if (index > 0) this.suggestChooser?.setSelectedItem?.(index);
   }
 
   getSuggestions(query: string): PickItem<T>[] {
-    return rankPickItems(this.items, query);
+    const ranked = rankPickItems(this.items, query);
+    // Without the API that moves the highlight, the current value goes first
+    // instead; only in the unsearched list, where the given order is kept.
+    if (this.canSelect || query.trim() || this.opts?.selected === undefined) return ranked;
+    const index = ranked.findIndex(item => item.value === this.opts?.selected);
+    if (index > 0) ranked.unshift(...ranked.splice(index, 1));
+    return ranked;
   }
 
   renderSuggestion(item: PickItem<T>, el: HTMLElement): void {
@@ -137,7 +170,7 @@ class PickModal<T> extends SuggestModal<PickItem<T>> {
 export function pickModal<T>(
   app: App,
   items: PickItem<T>[],
-  opts?: { title?: string; placeholder?: string; initialQuery?: string }
+  opts?: { title?: string; placeholder?: string; initialQuery?: string; selected?: T }
 ): Promise<T | undefined> {
   return new Promise(resolve => new PickModal(app, items, resolve, opts).open());
 }

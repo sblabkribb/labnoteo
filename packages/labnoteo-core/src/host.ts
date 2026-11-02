@@ -110,8 +110,15 @@ export interface LabnoteHost {
   /** File-system port (already platform-neutral). */
   readonly fs: LabnoteFs;
 
-  /** Single-select quick pick. Resolves undefined if dismissed. */
-  pick<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string }): Promise<T | undefined>;
+  /**
+   * Single-select quick pick. Resolves undefined if dismissed. `selected`
+   * opens the list on that value rather than on the first item, so Enter keeps
+   * what is already set instead of choosing the top one (#537).
+   */
+  pick<T>(
+    items: PickItem<T>[],
+    opts?: { title?: string; placeholder?: string; selected?: T }
+  ): Promise<T | undefined>;
 
   /** Multi-select quick pick. Resolves [] if dismissed. */
   pickMany<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string }): Promise<T[]>;

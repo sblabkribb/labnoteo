@@ -113,6 +113,8 @@ import {
   copiedExperimentOrigin,
   diagnoseExperimentPath,
   experimentFolderName,
+  experimentFolderRetitled,
+  experimentRetitleOffer,
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
@@ -1172,15 +1174,17 @@ export default class LabnotePlugin extends Plugin {
    */
   private async offerExperimentRetitle(folder: TFolder, oldName: string): Promise<void> {
     const renamedPath = folder.path;
-    const [, number, oldRest] = /^(\d{3})_(.+)$/.exec(oldName) ?? [];
-    const [, newNumber, newRest] = /^(\d{3})_(.+)$/.exec(folder.name) ?? [];
-    if (!number || number !== newNumber || oldRest === newRest) return;
-    const readme = this.app.vault.getAbstractFileByPath(posix.join(renamedPath, 'README.labnote.md'));
-    if (!(readme instanceof TFile)) return;
-    const { title } = await this.readCopiedReadme(readme);
-    if (!title?.trim() || experimentFolderName(number, title) !== oldName) return;
+    if (!experimentFolderRetitled(oldName, folder.name)) return;
+    // Waited out before the README is looked for: Obsidian sends the folder
+    // event while its children still carry their old paths, so a lookup now
+    // finds nothing (#467). It also holds off Obsidian's own rename prompt.
     if (!(await this.waitForNoModal()) || this.unloaded || folder.path !== renamedPath) return;
-    const fromName = experimentTitleFromFolderName(folder.name);
+    const readme = await this.waitForFile(posix.join(renamedPath, 'README.labnote.md'));
+    if (!readme || this.unloaded || folder.path !== renamedPath) return;
+    const { title } = await this.readCopiedReadme(readme);
+    const suggestion = experimentRetitleOffer(oldName, folder.name, title);
+    // A suggestion means the README has a title; `title` is said in the prompt.
+    if (!suggestion || !title) return;
     const newTitle = (
       await this.host.prompt({
         title: this.t('Update the experiment title'),
@@ -1190,7 +1194,7 @@ export default class LabnotePlugin extends Plugin {
           folder.name,
           title
         ),
-        value: experimentTitleFromFolderName(oldName) === title && fromName ? fromName : title,
+        value: suggestion,
         validate: v => (v.trim() ? null : this.t('Title is required.')),
       })
     )?.trim();
@@ -2463,6 +2467,24 @@ export default class LabnotePlugin extends Plugin {
       };
       // Obsidian opens its own rename prompt right after the event; let it appear.
       window.setTimeout(check, 250);
+    });
+  }
+
+  /**
+   * The file at `path` once the vault has it, or null after 2s. A folder
+   * rename reaches its children one by one afterwards, so a child looked up
+   * the moment the folder event arrives is still under its old path (#467).
+   */
+  private waitForFile(path: string): Promise<TFile | null> {
+    const deadline = Date.now() + 2_000;
+    return new Promise(resolve => {
+      const check = (): void => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) resolve(file);
+        else if (this.unloaded || Date.now() >= deadline) resolve(null);
+        else window.setTimeout(check, 100);
+      };
+      check();
     });
   }
 

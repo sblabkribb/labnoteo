@@ -127,7 +127,7 @@ import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
 // Re-exported so command registration in main.ts imports every command from one
 // place; the implementation lives under src/scaffold with its asset registry.
 export { setupResearchAutomationCommand } from './scaffold/scaffold';
-import { tableCellHostView } from './tableCellTarget';
+import { activeTableCellEditor, tableCellHostView } from './tableCellTarget';
 import { experimentMarkerSpots, formatMarkerSpots, markerExperimentDir } from './issueMarkerIndex';
 import { isVaultGitRepository } from './scaffold/scaffold';
 import { removeSourcesForDocument } from '@labnoteo/core/lib/sampleStorage';
@@ -675,7 +675,12 @@ export async function changeExperimentStatusCommand(
       keywords: meanings[status].keywords.split(/\s+/).filter(Boolean),
       value: status,
     })),
-    { title: `${host.t('Change experiment status')}: ${folderName}`, placeholder }
+    {
+      title: `${host.t('Change experiment status')}: ${folderName}`,
+      placeholder,
+      // On the status it has now, so Enter leaves it as it is (#537).
+      ...(current && isValidStatus(current) && { selected: current }),
+    }
   );
   if (!chosen || chosen === current) return;
 
@@ -844,12 +849,15 @@ export function insertDateCommand(
   text: string,
   types: readonly string[] = []
 ): boolean {
-  // A table cell has an editor of its own holding just that cell (#303): the
-  // front matter and Meta checks below would read the cell as the note.
-  if (tableCellHostView(editor)) {
-    const from = editor.getCursor('from');
-    const lineBefore = editor.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
-    editor.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
+  // A table cell has an editor of its own holding just that cell (#303): write
+  // through that one, since `editor` is the note and its offsets would land
+  // somewhere else in the table. The front matter and Meta checks below would
+  // read the cell as the note, so they are skipped either way.
+  const cell = activeTableCellEditor(editor) ?? (tableCellHostView(editor) ? editor : null);
+  if (cell) {
+    const from = cell.getCursor('from');
+    const lineBefore = cell.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
+    cell.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
     return true;
   }
   const plan = planDateInsertion(

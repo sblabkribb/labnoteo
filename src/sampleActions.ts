@@ -234,8 +234,11 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
 
   // In the UI language, as the scope cells are, whatever an older table used.
   const table = buildMarkdownTable(headers[0], rows, new Set([0]));
-  const text = await target.getText();
-  const tables = findSampleListTableRanges(text, headers);
+  let text = await target.getText();
+  // Read before the picker below opens: a picker takes the focus, and in Source
+  // mode the editor then reports the cursor at the start of the note (#450).
+  const caret = target.getCursorOffset ? await target.getCursorOffset() : undefined;
+  let tables = findSampleListTableRanges(text, headers);
   if (tables.length > 0) {
     // A second table sat silently under the first (#450).
     const choice = await pickModal<'replace' | 'add' | 'cancel'>(
@@ -268,8 +271,15 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
       );
       return true;
     }
+    // Written to from outside (a sync) while the picker was open: the table
+    // ranges are read again, but not the cursor, which is kept from before.
+    const now = await target.getText();
+    if (now !== text) {
+      text = now;
+      tables = findSampleListTableRanges(text, headers);
+    }
   }
-  const cursor = target.getCursorOffset ? await target.getCursorOffset() : text.length;
+  const cursor = caret === undefined ? text.length : Math.min(caret, text.length);
   // In the front matter or above the title the table would break the
   // properties, so it goes at the end like a sample reference does (#360).
   const atEnd = cursor !== text.length && isOffsetBeforeBody(text, cursor);
