@@ -37,6 +37,7 @@ import {
   touchLastUpdatedDate,
 } from '@labnoteo/core/lib/dateUtils';
 import { getSampleDisplayMeta, isCatalogSampleType } from '@labnoteo/core/lib/sampleUtils';
+import { caretBeforeModal } from '@labnoteo/core/lib/caret';
 import { isPathTooLongError, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
 import {
   classifyWorkflowMoveOut,
@@ -904,6 +905,10 @@ export default class LabnotePlugin extends Plugin {
       return;
     }
 
+    // Read before the type picker opens: it takes the focus, and the
+    // Source-mode editor then reports the cursor at the start of the note (#544).
+    const caret = await caretBeforeModal(target);
+
     const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
     const type = await pickModal(
       this.app,
@@ -936,7 +941,7 @@ export default class LabnotePlugin extends Plugin {
       referenceText = created?.referenceText;
     }
     if (!referenceText) return;
-    await insertSampleReference(this, target, referenceText);
+    await insertSampleReference(this, target, referenceText, caret);
   }
 
   /**

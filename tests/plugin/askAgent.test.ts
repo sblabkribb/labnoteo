@@ -93,6 +93,33 @@ describe('askAgentCommand (#77)', () => {
     expect(plugin.markUserEdit).toHaveBeenCalledWith(NOTE);
   });
 
+  // #544: the goal prompt, the approvals and the answer dialog each take the
+  // focus, and the Source-mode editor then reports the start of the note.
+  it('inserts at the cursor read before the dialogs, not the one reported after them', async () => {
+    const target = { ...makeTarget(), getCursorOffset: async () => cursor };
+    let cursor = BODY.indexOf('결과');
+    open = target;
+
+    const opts = await ask();
+    cursor = 0;
+
+    expect(await opts.onInsert()).toBe(true);
+    expect(vi.mocked(target.replaceRange).mock.calls[0][0]).toBe(BODY.length);
+  });
+
+  it('falls back to the end of the note when a tool the agent ran changed it', async () => {
+    const changed = `${BODY}\n\n## [UHW010 Spin]\n`;
+    let text = BODY;
+    const target = { ...makeTarget(), getText: async () => text, getCursorOffset: async () => 0 };
+    open = target;
+
+    const opts = await ask();
+    text = changed;
+
+    expect(await opts.onInsert()).toBe(true);
+    expect(vi.mocked(target.replaceRange).mock.calls[0][0]).toBe(changed.length);
+  });
+
   it('does not insert once another note is open', async () => {
     const opts = await ask();
     const other = makeTarget('labnote/001_Test/002_WB030_B.labnote.md');

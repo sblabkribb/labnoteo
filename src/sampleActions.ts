@@ -56,6 +56,7 @@ import {
 } from '@labnoteo/core/lib/sampleStorage';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { getSeoulDateString } from '@labnoteo/core/lib/dateUtils';
+import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
 import { invalidVaultFolderReason } from '@labnoteo/core/lib/regexUtils';
 import type LabnotePlugin from './main';
 import { invalidFolderText } from './settings';
@@ -145,7 +146,8 @@ function validateDescription(plugin: LabnotePlugin): (value: string) => string |
 export async function insertSampleReference(
   plugin: LabnotePlugin,
   target: EditTarget,
-  ref: string
+  ref: string,
+  caret?: number
 ): Promise<void> {
   const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
   // A reference holds no newline and no `|`, so a focused table cell takes it
@@ -164,8 +166,10 @@ export async function insertSampleReference(
     return;
   }
   const text = await target.getText();
-  const cursor = await target.getCursorOffset();
-  const selection = await target.getSelectionRange?.();
+  // `caret` is what a caller read before its own dialog opened, which the
+  // Source-mode editor no longer reports correctly (#544).
+  const cursor = caret === undefined ? await target.getCursorOffset() : caretIn(caret, text);
+  const selection = caret === undefined ? await target.getSelectionRange?.() : undefined;
   const plan = planReferenceInsert(text, cursor, ref, types, selection?.end);
   await target.replaceRange(plan.offset, plan.end ?? plan.offset, plan.text);
   await target.revealOffset?.(plan.offset + plan.text.length);
@@ -250,7 +254,7 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
   let text = await target.getText();
   // Read before the picker below opens: a picker takes the focus, and in Source
   // mode the editor then reports the cursor at the start of the note (#450).
-  const caret = target.getCursorOffset ? await target.getCursorOffset() : undefined;
+  const caret = await caretBeforeModal(target);
   let tables = findSampleListTableRanges(text, headers);
   if (tables.length > 0) {
     // A second table sat silently under the first (#450).
@@ -292,7 +296,7 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
       tables = findSampleListTableRanges(text, headers);
     }
   }
-  const cursor = caret === undefined ? text.length : Math.min(caret, text.length);
+  const cursor = caretIn(caret, text);
   // In the front matter or above the title the table would break the
   // properties, so it goes at the end like a sample reference does (#360).
   const atEnd = cursor !== text.length && isOffsetBeforeBody(text, cursor);

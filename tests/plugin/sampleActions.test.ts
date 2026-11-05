@@ -1066,6 +1066,18 @@ describe('insertSampleReference', () => {
     expect(state.revealed).toBe(start + 'Plasmid-1;pET-28a(+)'.length);
   });
 
+  // #544: the type picker and the partbank confirmation left the editor
+  // reporting the start of the note, which put the reference in the properties.
+  it('uses the cursor read before a dialog over the one the editor reports after it', async () => {
+    const doc = '---\nstatus: planned\n---\n\n## Samples\nbefore\n';
+    const { target, state } = makeTarget(doc, 0); // what the editor says once the dialog closed
+    const saved = doc.indexOf('before') + 'before'.length;
+
+    await insertSampleReference(refPlugin(), target, 'RNA-1;siKIF', saved);
+
+    expect(state.text).toBe('---\nstatus: planned\n---\n\n## Samples\nbefore RNA-1;siKIF\n');
+  });
+
   // #543: a reference fits in a table cell, so it goes in there like a date,
   // while the target itself writes below the table.
   it('writes into the focused table cell, with a space after an alias', async () => {

@@ -10,6 +10,7 @@ import type { EditTarget, LabnoteHost } from '../host';
 import { findUnitOpInsertPointAt, type UnitOpInsertPoint } from '../sections/workflowSectionParser';
 import { diagnoseWorkflowPath, parseExperimenterFromNote, parseExperimenterFromReadme } from '../lib/workflowStructure';
 import { getSeoulDateTimeString } from '../lib/dateUtils';
+import { caretBeforeModal, caretIn } from '../lib/caret';
 import { buildSwUnitOpMarkdown, buildHwUnitOpMarkdown } from '../lib/unitOpTemplate';
 import * as posix from '../util/posixPath';
 
@@ -154,9 +155,16 @@ export async function insertUnitOperation(
   return true;
 }
 
-/** {@link findUnitOpInsertPointAt} for the target's cursor; after the last block when it has none. */
-export async function unitOpInsertPointAtCursor(target: EditTarget): Promise<UnitOpInsertPoint> {
+/**
+ * {@link findUnitOpInsertPointAt} for the target's cursor; after the last block
+ * when it has none. `caret` is the cursor a caller read before opening a dialog
+ * of its own, which the editor no longer reports correctly (#544).
+ */
+export async function unitOpInsertPointAtCursor(
+  target: EditTarget,
+  caret?: number
+): Promise<UnitOpInsertPoint> {
   const text = await target.getText();
-  const cursor = target.getCursorOffset ? await target.getCursorOffset() : text.length;
-  return findUnitOpInsertPointAt(text, cursor);
+  const cursor = caret === undefined ? await caretBeforeModal(target) : caret;
+  return findUnitOpInsertPointAt(text, caretIn(cursor, text));
 }
