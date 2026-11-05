@@ -42,6 +42,7 @@ import { isPathTooLongError, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUt
 import {
   classifyWorkflowMoveOut,
   classifyWorkflowRename,
+  type WorkflowRename,
   createWorkflowFileName,
   isCopiedWorkflowFileName,
   isValidWorkflowPath,
@@ -230,7 +231,7 @@ export default class LabnotePlugin extends Plugin {
   // Pending README auto-sync events, coalesced per experiment folder.
   private readonly readmeSyncQueue = new Map<
     string,
-    { renames: { from: string; to: string }[]; deletes: string[] }
+    { renames: WorkflowRename[]; deletes: string[] }
   >();
   private readonly readmeSyncTimers = new Map<string, number>();
   // Folders whose README sync is paused (renumbering): events queue, no timer.
@@ -1015,8 +1016,18 @@ export default class LabnotePlugin extends Plugin {
         if (!effect) return;
         switch (effect.kind) {
           case 'renamed':
-          case 'restored':
-            this.queueReadmeSync(effect.dir).renames.push({ from: effect.from, to: effect.to });
+          case 'restored': {
+            const queued = this.queueReadmeSync(effect.dir);
+            queued.renames.push({ from: effect.from, to: effect.to });
+            // The first rename may have left the README linking to the broken
+            // name, when Obsidian offered to update links and the user took it
+            // (`…labnote.md.md`, #550). Which of the two the README holds is
+            // not knowable here, so both are offered; the label still comes
+            // from the original name either way.
+            const brokenName = posix.basename(oldPath);
+            if (effect.kind === 'restored' && brokenName !== effect.from) {
+              queued.renames.push({ from: brokenName, to: effect.to, labelFrom: effect.from });
+            }
             this.scheduleReadmeSync(effect.dir);
             // Renumbering holds the folder and moves the CSVs itself (#60);
             // it keeps the names after the number, so titles stay as they are.
@@ -1028,6 +1039,7 @@ export default class LabnotePlugin extends Plugin {
               this.run(() => this.noticeRenamedNumberClash(dir, to));
             }
             return;
+          }
           case 'strayMoved':
             this.strayWorkflows.set(newPath, effect.origin);
             return;
@@ -2769,7 +2781,7 @@ export default class LabnotePlugin extends Plugin {
   }
 
   /** Get (or create) the pending-event queue for an experiment folder. */
-  private queueReadmeSync(dir: string): { renames: { from: string; to: string }[]; deletes: string[] } {
+  private queueReadmeSync(dir: string): { renames: WorkflowRename[]; deletes: string[] } {
     let q = this.readmeSyncQueue.get(dir);
     if (!q) {
       q = { renames: [], deletes: [] };
@@ -2817,7 +2829,7 @@ export default class LabnotePlugin extends Plugin {
   /** Put taken events back in front of anything queued since, keeping hop order. */
   private requeueReadmeSync(
     dir: string,
-    q: { renames: { from: string; to: string }[]; deletes: string[] }
+    q: { renames: WorkflowRename[]; deletes: string[] }
   ): void {
     const later = this.readmeSyncQueue.get(dir);
     this.readmeSyncQueue.set(dir, {
@@ -2870,7 +2882,7 @@ export default class LabnotePlugin extends Plugin {
    */
   private async flushReadmeSync(
     dir: string,
-    q: { renames: { from: string; to: string }[]; deletes: string[] }
+    q: { renames: WorkflowRename[]; deletes: string[] }
   ): Promise<number> {
     const settled = await this.settleModals();
     if (this.unloaded) return 0;

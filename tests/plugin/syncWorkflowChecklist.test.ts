@@ -121,6 +121,22 @@ describe('syncWorkflowChecklistCommand', () => {
     expect(h.calls.at(-1)).toBe('notify Workflow checklist updated: 0 added, 1 removed.');
   });
 
+  // #550: Obsidian relinked the README to `…labnote.md.md` when a `#` broke
+  // the rename, and the entry then went unseen: neither dropped nor relisted.
+  it('offers to drop an entry Obsidian left on a doubled .md', async () => {
+    const broken = '001_WB030_조립_#3.labnote.md.md';
+    const fixed = '001_WB030_조립_3차.labnote.md';
+    const h = harness(
+      { [README]: readme([`- [ ] [WB030 조립 2차](./${broken})`]), [`${DIR}/${fixed}`]: '---\ntitle: WB030 조립 3차\n---\n' },
+      true
+    );
+
+    await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+
+    expect(h.prompts[0]).toContain(`- ${broken} (file not found)`);
+    expect(links(await h.fs.read(README))).toEqual([`WB030 조립 3차 -> ${fixed}`]);
+  });
+
   // #459: the question named only the entries to drop, yet unlisted files were added too.
   it('names the files it adds along with the entries it asks to drop', async () => {
     const md0 = readme(['- [ ] [WT080](./011_WT080_X.labnote.md)']);

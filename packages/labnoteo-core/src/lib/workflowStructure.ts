@@ -388,11 +388,13 @@ export function createWorkflowFileName(
  * The link part stays permissive (optional `./`, any characters up to the
  * first `.labnote.md)`) so manually created links with non-ASCII file names,
  * or a `(재)` the user put in a file name (#499), are recognised — the same
- * reasoning as {@link removeWorkflowFromReadme}. No `g` flag, so the object is
- * safe to share.
+ * reasoning as {@link removeWorkflowFromReadme}. A trailing `.md.md`, which
+ * Obsidian writes into the link when a `#` in the name breaks the rename
+ * (#550), is read too, so the entry can be relinked or reported as stale
+ * rather than going unseen. No `g` flag, so the object is safe to share.
  */
 const CHECKLIST_ENTRY_RE =
-  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?(.+?\.labnote\.md)\)(.*)(\r?)$/i;
+  /^(\s*(?:[-*+]\s+)?)\[([ x])\]\s*\[(.+?)\]\((?:\.\/)?(.+?\.labnote\.md(?:\.md)*)\)(.*)(\r?)$/i;
 
 /**
  * The same entry written as an Obsidian wikilink, `[[file.labnote|label]]`
@@ -706,6 +708,13 @@ export function parseWorkflowFileName(fileName: string): ParsedWorkflowFileName 
 export interface WorkflowRename {
   from: string;
   to: string;
+  /**
+   * The name the entry's label was written from, when that is not `from`.
+   * A rename Obsidian half-applied leaves the README linking to a broken name
+   * (`…labnote.md.md`) the label was never built from, so the label is
+   * compared against this one instead (#550).
+   */
+  labelFrom?: string;
 }
 
 /** Result of {@link reconcileWorkflowChecklist}. */
@@ -730,18 +739,24 @@ export function collapseWorkflowRenames(renames: readonly WorkflowRename[]): Wor
   // originally came from `a`.
   const originOf = new Map<string, string>();
   const finalName = new Map<string, string>();
+  // Carried through the hops, so the label of a half-applied rename is still
+  // compared against the name it was written from (#550).
+  const labelFrom = new Map<string, string>();
 
-  for (const { from, to } of renames) {
+  for (const rename of renames) {
+    const { from, to } = rename;
     if (!from || !to) continue;
     const origin = originOf.get(from) ?? from;
     originOf.delete(from);
     originOf.set(to, origin);
     finalName.set(origin, to);
+    const label = rename.labelFrom ?? labelFrom.get(origin);
+    if (label !== undefined) labelFrom.set(origin, label);
   }
 
   const collapsed: WorkflowRename[] = [];
   for (const [from, to] of finalName) {
-    if (from !== to) collapsed.push({ from, to });
+    if (from !== to) collapsed.push({ from, to, ...(labelFrom.get(from) && { labelFrom: labelFrom.get(from) }) });
   }
   return collapsed;
 }
@@ -1136,9 +1151,13 @@ export function reconcileWorkflowChecklist(
   // new -> old: with "Automatically update internal links" on, Obsidian has
   // already relinked the entry, and the old name is needed to compare labels.
   const origin = new Map<string, string>();
+  // old -> the name the label was written from, where a half-applied rename
+  // left the link on a name no label could match (#550).
+  const labelOrigin = new Map<string, string>();
   for (const r of collapseWorkflowRenames(renames)) {
     remap.set(r.from, r.to);
-    origin.set(r.to, r.from);
+    origin.set(r.to, r.labelFrom ?? r.from);
+    if (r.labelFrom !== undefined) labelOrigin.set(r.from, r.labelFrom);
   }
   const baseName = (fileName: string): string => fileName.split('/').pop() ?? fileName;
   const renumbered: string[] = [];
@@ -1149,7 +1168,7 @@ export function reconcileWorkflowChecklist(
     const link = to ?? written;
     let raw = entry.raw;
     if (opts.labelFor) {
-      const oldName = to ? base : origin.get(base);
+      const oldName = to ? labelOrigin.get(base) ?? base : origin.get(base);
       const label = unescapeChecklistLabel(entry.raw);
       if (oldName !== undefined && labelMatchesFileName(label, oldName)) {
         raw = escapeChecklistLabel(opts.labelFor(to ?? base));
