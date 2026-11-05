@@ -128,6 +128,7 @@ import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
 export { setupResearchAutomationCommand } from './scaffold/scaffold';
 import { activeTableCellEditor, tableCellHostView, writeIntoCell } from './tableCellTarget';
 import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
+import type { StampNote } from './lastUpdatedStamp';
 import { experimentMarkerSpots, formatMarkerSpots, markerExperimentDir } from './issueMarkerIndex';
 import { isVaultGitRepository } from './scaffold/scaffold';
 import { removeSourcesForDocument } from '@labnoteo/core/lib/sampleStorage';
@@ -639,7 +640,7 @@ export function statusNames(host: LabnoteHost): Record<ExperimentStatus, string>
 export async function changeExperimentStatusCommand(
   app: App,
   host: LabnoteHost,
-  stamp: (content: string) => string = c => c,
+  stamp: StampNote = c => c,
   experimentDir?: string
 ): Promise<void> {
   // The workflow view names the experiment itself; the active file may be another one (#128).
@@ -697,7 +698,7 @@ export async function changeExperimentStatusCommand(
   }
   const updated = setFrontMatterKeys(parsed.text, changes);
 
-  await writeNoteThroughVault(app, host, readmePath, stamp(updated));
+  await writeNoteThroughVault(app, host, readmePath, stamp(updated, readmePath));
   let message = host.t('Experiment status changed ({0}): {1} → {2}.', folderName, current ?? host.t('(none)'), chosen);
   if (cleared) {
     message += ` ${host.t('Discussion flag cleared.')}`;
@@ -1090,7 +1091,7 @@ async function readNoteForFrontMatterEdit(
 export async function toggleDiscussionFlagCommand(
   app: App,
   host: LabnoteHost,
-  stamp: (content: string) => string = c => c,
+  stamp: StampNote = c => c,
   experimentDir?: string
 ): Promise<void> {
   // The workflow view names the experiment itself (#134), like the status change (#128).
@@ -1111,7 +1112,7 @@ export async function toggleDiscussionFlagCommand(
     app,
     host,
     readmePath,
-    stamp(setFrontMatterKeys(parsed.text, { [DISCUSS_FLAG_KEY]: next ? true : undefined }))
+    stamp(setFrontMatterKeys(parsed.text, { [DISCUSS_FLAG_KEY]: next ? true : undefined }), readmePath)
   );
 
   const state = await issueAutomationState(host);

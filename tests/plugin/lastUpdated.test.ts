@@ -407,20 +407,20 @@ describe('writeNoteStamped (AI writes)', () => {
   });
 });
 
-describe('stampNote', () => {
-  function openView(path: string, text: string, mode: 'source' | 'preview' = 'source') {
-    const edits: Array<{ text: string; from: number; to: number }> = [];
-    const view = new MarkdownView();
-    view.file = new TFile(path);
-    view.mode = mode;
-    view.editor = {
-      getValue: () => text,
-      offsetToPos: (offset: number) => offset,
-      replaceRange: (t: string, from: number, to: number) => edits.push({ text: t, from, to }),
-    };
-    return { view, edits };
-  }
+function openView(path: string, text: string, mode: 'source' | 'preview' = 'source') {
+  const edits: Array<{ text: string; from: number; to: number }> = [];
+  const view = new MarkdownView();
+  view.file = new TFile(path);
+  view.mode = mode;
+  view.editor = {
+    getValue: () => text,
+    offsetToPos: (offset: number) => offset,
+    replaceRange: (t: string, from: number, to: number) => edits.push({ text: t, from, to }),
+  };
+  return { view, edits };
+}
 
+describe('stampNote', () => {
   it('edits only the date span in an open editor', async () => {
     const fs = new MemFileSystem();
     const text = note();
@@ -444,6 +444,48 @@ describe('stampNote', () => {
     await stampNote(makeApp([view]), makeHost(fs), README, stamp);
 
     expect(edits).toEqual([]);
+    expect(await fs.read(README)).toContain(`last_updated_date: ${TODAY}`);
+  });
+});
+
+/**
+ * #545: a date set by hand was only respected when the note was stamped for
+ * its own edits, so changing the status or letting the AI write overwrote it.
+ */
+describe('a date set by hand is named to every stamp', () => {
+  /** Stamps all but the notes whose date the reader set by hand. */
+  const keeping = (...byHand: string[]) =>
+    (content: string, path?: string) =>
+      path !== undefined && byHand.includes(path) ? content : touchLastUpdatedDate(content, TODAY);
+
+  it('is left alone by the status change and the discussion flag', async () => {
+    for (const run of [changeExperimentStatusCommand, toggleDiscussionFlagCommand]) {
+      const fs = new MemFileSystem({ [README]: note() });
+      await run(makeApp(), makeHost(fs, 'in-progress'), keeping(README));
+      expect(await fs.read(README)).toContain('last_updated_date: 2026-10-01');
+    }
+  });
+
+  it('is left alone in the README an AI write would stamp along with the note', async () => {
+    const fs = new MemFileSystem({ [README]: note() });
+    await writeNoteStamped(makeApp(), makeHost(fs), WORKFLOW, note('\n'), keeping(README));
+    expect(await fs.read(WORKFLOW)).toContain(`last_updated_date: ${TODAY}`);
+    expect(await fs.read(README)).toContain('last_updated_date: 2026-10-01');
+  });
+
+  it('is left alone in an open editor, which is then not written to at all', async () => {
+    const fs = new MemFileSystem({ [README]: note() });
+    const { view, edits } = openView(README, note());
+
+    await stampNote(makeApp([view]), makeHost(fs), README, keeping(README));
+
+    expect(edits).toEqual([]);
+    expect(await fs.read(README)).toContain('last_updated_date: 2026-10-01');
+  });
+
+  it('still stamps the notes it was not named for', async () => {
+    const fs = new MemFileSystem({ [README]: note() });
+    await changeExperimentStatusCommand(makeApp(), makeHost(fs, 'in-progress'), keeping(WORKFLOW));
     expect(await fs.read(README)).toContain(`last_updated_date: ${TODAY}`);
   });
 });

@@ -2602,10 +2602,24 @@ export default class LabnotePlugin extends Plugin {
    * With `path`, the note whose content this is: a date its reader set by hand
    * today stands, as it does when the note is stamped for its own edits (#363).
    */
-  readonly stampLastUpdated = (content: string, path?: string): string =>
-    this.settings.autoUpdateLastUpdated && !(path !== undefined && this.lastUpdatedTracker.keepsHandSet(path))
-      ? touchLastUpdatedDate(content, getSeoulDateString())
-      : content;
+  readonly stampLastUpdated = (content: string, path?: string): string => {
+    if (!this.settings.autoUpdateLastUpdated) return content;
+    if (path !== undefined && this.lastUpdatedTracker.keepsHandSet(path)) {
+      // Said once a day per note, whichever stamp is the one being left out.
+      const stamped = touchLastUpdatedDate(content, getSeoulDateString());
+      if (stamped !== content && this.lastUpdatedTracker.claimHandSetNotice(path)) {
+        this.host.notify(
+          'info',
+          this.t(
+            'Kept the last_updated_date you set by hand in {0}. It updates automatically again from tomorrow.',
+            posix.basename(path)
+          )
+        );
+      }
+      return content;
+    }
+    return touchLastUpdatedDate(content, getSeoulDateString());
+  };
 
   /** Forget hand-set dates and pending edits, so toggling the setting resumes stamping (#202). */
   resetLastUpdatedTracking(): void {

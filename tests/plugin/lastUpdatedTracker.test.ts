@@ -87,6 +87,39 @@ describe('LastUpdatedTracker', () => {
     expect(t.consume(P)).toBe('removed');
   });
 
+  // #545: every stamp that is left out can say so, but the user hears it once.
+  describe('claimHandSetNotice', () => {
+    it('is given out once a day, and again the next day', () => {
+      let day = '2026-10-28';
+      const t = new LastUpdatedTracker(() => day);
+      t.record(P, dateTyped);
+      expect(t.claimHandSetNotice(P)).toBe(true);
+      expect(t.claimHandSetNotice(P)).toBe(false);
+      day = '2026-10-29';
+      expect(t.claimHandSetNotice(P)).toBe(false); // the date is no longer kept
+      t.record(P, dateTyped);
+      expect(t.claimHandSetNotice(P)).toBe(true);
+    });
+
+    it('is refused for a note whose date was never set by hand', () => {
+      const t = new LastUpdatedTracker(() => '2026-10-28');
+      t.record(P, typed);
+      expect(t.claimHandSetNotice(P)).toBe(false);
+    });
+
+    it('shares the one notice with the debounced stamp, either way round', () => {
+      const t = new LastUpdatedTracker(() => '2026-10-28');
+      t.record(P, dateTyped);
+      expect(t.claimHandSetNotice(P)).toBe(true);
+      expect(t.consume(P)).toBe('skip');
+
+      const u = new LastUpdatedTracker(() => '2026-10-28');
+      u.record(P, dateTyped);
+      expect(u.consume(P)).toBe('handSet');
+      expect(u.claimHandSetNotice(P)).toBe(false);
+    });
+  });
+
   // #466: an emptied value read as a hand-set date, so it stayed empty all day.
   it('stamps an emptied date again, whatever was held against the note', () => {
     const cleared: DocChange = { ...typed, dateCleared: true };

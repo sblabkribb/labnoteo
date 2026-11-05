@@ -64,8 +64,9 @@ With **Auto-update last updated date** on, editing a lab note (ticking a checkbo
 included) sets its `last_updated_date` to today (Asia/Seoul) once a day. Editing a workflow note, or creating
 one, updates the experiment README's date too. Changes pulled with git and the plugin's own
 automatic tidy-ups do not count. A note whose date you edited by hand keeps it that day (on a day
-you edited the README's date by hand, neither editing a workflow note nor creating one overwrites
-it). Deleting the `last_updated_date` line from the front matter stops the automatic date, since
+you edited the README's date by hand, nothing overwrites it: not editing a workflow note or
+creating one, not changing the experiment status or the discussion flag, and not an AI write). A
+notice says the date was kept once a day per note. Deleting the `last_updated_date` line from the front matter stops the automatic date, since
 the line is never added back, and a notice says so once; put the line back to have it recorded
 again. It may go back empty (`last_updated_date:`), and today's date fills it on the next edit —
 the same as when you clear a date you had set by hand.
