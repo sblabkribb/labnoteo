@@ -427,6 +427,8 @@ const obsidianKo: Record<string, string> = {
   'Kept the previous {0} as {1}.': '바꾸기 전의 {0} 파일은 {1}로 남겼습니다.',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 "git config core.hooksPath {6}"를 실행하세요.',
+  'Research automation is already up to date ({0} files checked).':
+    '연구노트 자동화가 이미 최신입니다 (파일 {0}개 확인, 바뀐 것 없음).',
   'Created again, as they were missing: {0}.': '없어서 새로 만든 파일: {0}.',
   'Created again, as they were missing: {0} and {1} more.': '없어서 새로 만든 파일: {0} 외 {1}개.',
   'Remove {0} file(s) left by the previous layout ({1})? Afterwards run "git config core.hooksPath {2}" so the pre-commit hook keeps working.':

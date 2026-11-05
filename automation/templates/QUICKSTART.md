@@ -1277,6 +1277,7 @@ API 키는 OpenAI 계열에만 전송되며 Ollama로는 절대 나가지 않습
 - 지금 바로 받으려면 명령 팔레트 → `BRAT: Plugins: Check for updates to all beta plugins and UPDATE`.
 - 업데이트 뒤 Obsidian을 켜면 직접 고치지 않은 자동화 파일(이 문서, `.labnoteo/` 스크립트 등)이 새 버전으로 자동 갱신되고 "자동화 파일 N개를 이 플러그인 버전에 맞게 갱신했습니다" 알림이 뜹니다. 설치 기록(`.labnoteo/installed.json`)이 없는 오래된 보관함도, 이전 버전이 만든 그대로인 파일은 자동으로 갱신됩니다.
 - "설치 후 내용이 바뀌었거나 이전 버전 기록으로 확인할 수 없어 그대로 두었습니다" 알림이 뜨면 명령 팔레트 → `Setup research automation`을 실행하세요. 파일마다 덮어쓸지 묻습니다. 이 알림과 "보관함에 없습니다" 알림은 새 버전마다 한 번만 뜹니다.
+- `Setup research automation`을 다시 실행했는데 바뀔 것이 하나도 없으면 "연구노트 자동화가 이미 최신입니다 (파일 N개 확인, 바뀐 것 없음)"라고만 알립니다. 설치 안내(`SETUP.md`, `git config`)는 실제로 무언가 바뀐 실행에서만 나옵니다.
 - 보관함 최상위의 `AGENTS.md`·`CLAUDE.md`·`QUICKSTART.md`·`wiki-staging/`은 AI 에이전트와 자동화가 그 이름으로만 찾으므로 이름을 바꾸지 마세요. 자동화를 설치한 보관함에서 이름을 바꾸면 경고와 함께 원래 이름으로 되돌릴지 묻습니다(`Open user guide`만 쓴 보관함에는 찾을 자동화가 없으므로 묻지 않습니다). 바뀐 채로 `Setup research automation`을 실행하면 기본 내용으로 새로 만들고(그동안 적은 연구실 규칙은 바뀐 이름의 파일에만 남음) "없어서 새로 만든 파일: …"로 알려 줍니다.
 - `wiki-staging/` 안의 섹션 원고(`Results.md`, `Methods.md` 등 설정 명령이 만든 파일)도 `Home.md` 목차, Wiki 발행, AI 에이전트가 그 이름으로 찾으므로 이름을 바꾸면 같은 경고와 함께 되돌릴지 묻습니다. 되돌리면 Obsidian이 바꿔 둔 `Home.md`의 링크도 함께 원래대로 돌아옵니다. 이미 있는 원고 파일은 `Setup research automation`을 다시 실행해도 덮어쓸지 묻지 않고 그대로 둡니다.
 - 서버 자동화 동작까지 최신으로 맞추려면 아래 항목을 보세요.

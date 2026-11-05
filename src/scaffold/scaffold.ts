@@ -29,6 +29,7 @@ import {
 import {
   compareVersions,
   contentHash,
+  isAutomationInstalled,
   readInstallRecord,
   sameFiles,
   writeInstallRecord,
@@ -356,15 +357,23 @@ export async function setupResearchAutomationCommand(
 ): Promise<void> {
   const result: ScaffoldResult = { written: 0, merged: 0, skipped: 0, removed: 0 };
   const record = await readInstallRecord(host);
+  // Read before the loop: a vault whose only recorded file is the user guide
+  // was never set up, and `record.pluginVersion` alone called it installed, so
+  // the first run reported every file as "created again" (#546). The loop
+  // writes the issue-sync workflow, which would flip the answer midway.
+  const installedBefore = await isAutomationInstalled(host, record);
 
   // Files a reinstall had to create: missing because renamed or deleted (#413).
   const recreated: string[] = [];
+  // Managed files that already held this version, left alone without asking.
+  let upToDate = 0;
   for (const asset of SCAFFOLD_ASSETS) {
     const path = asset.vaultPath;
     const existed = await host.fs.exists(path);
     const tally = await applyAsset(host, asset, record.files[path], LEGACY_TEMPLATE_HASHES, record.blocks?.[path]);
     if (tally) result[tally] += 1;
-    if (tally === 'written' && !existed && record.pluginVersion !== '') recreated.push(path);
+    else if (!asset.seed) upToDate += 1;
+    if (tally === 'written' && !existed && installedBefore) recreated.push(path);
   }
 
   // A declined overwrite is recorded too: the file then counts as edited, and
@@ -393,27 +402,32 @@ export async function setupResearchAutomationCommand(
   result.removed = await removeLegacyAssets(host);
 
   const shown = recreated.slice(0, 5).join(', ');
+  // Nothing was written, merged, skipped or removed: the run changed nothing,
+  // and the setup pointers belong to a first install, not to this one (#551).
+  const untouched = result.written + result.merged + result.skipped + result.removed === 0;
   host.notify(
     'info',
-    [
-      host.t(
-        'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").',
-        String(result.written),
-        String(result.merged),
-        String(result.skipped),
-        String(result.removed),
-        QUICKSTART_DOC_PATH,
-        SETUP_DOC_PATH,
-        HOOKS_DIR_PATH
-      ),
-      ...(recreated.length === 0
-        ? []
-        : [
-            recreated.length > 5
-              ? host.t('Created again, as they were missing: {0} and {1} more.', shown, String(recreated.length - 5))
-              : host.t('Created again, as they were missing: {0}.', shown),
-          ]),
-    ].join(' ')
+    untouched
+      ? host.t('Research automation is already up to date ({0} files checked).', String(upToDate))
+      : [
+          host.t(
+            'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").',
+            String(result.written),
+            String(result.merged),
+            String(result.skipped),
+            String(result.removed),
+            QUICKSTART_DOC_PATH,
+            SETUP_DOC_PATH,
+            HOOKS_DIR_PATH
+          ),
+          ...(recreated.length === 0
+            ? []
+            : [
+                recreated.length > 5
+                  ? host.t('Created again, as they were missing: {0} and {1} more.', shown, String(recreated.length - 5))
+                  : host.t('Created again, as they were missing: {0}.', shown),
+              ]),
+        ].join(' ')
   );
 
   // Without a repository neither the hooks setting nor any push can happen, so

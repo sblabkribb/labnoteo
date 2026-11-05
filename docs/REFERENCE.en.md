@@ -1082,7 +1082,9 @@ name, and offers the name back. The same goes for a section draft the command ma
 agents find by its name; renaming it back also turns the link Obsidian changed in `Home.md` back.
 Rerunning the command after one went missing names the files it had to create again. The
 `wiki-staging/` drafts already in the vault are left as they are: rerunning the command does not
-offer to overwrite them.
+offer to overwrite them. A rerun that changes nothing says only that the automation is already up
+to date, with the number of managed files checked; the pointers to `SETUP.md` and
+`git config core.hooksPath` come with a run that did change something.
 
 ### Open user guide
 
