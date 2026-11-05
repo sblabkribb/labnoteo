@@ -537,7 +537,8 @@ type.
 
 - **Insert reference** follows the cursor: at the end of the note from the front matter or above
   the title, on the next line from a heading or a `@type;ID;…` definition line, at the end of the
-  line from another reference, inside the cells on a table row, and at the cursor otherwise. Text
+  line from another reference, inside the cells on a table row, and at the cursor otherwise. With a
+  Live Preview cell focused it goes into that cell, as a date does. Text
   selected within one body line is replaced by the reference (a template hint such as
   `(samples from the previous step)`); a selection across lines, on a heading or definition line,
   over another reference, or across a table cell's `|` is ignored. A reference with an alias gets a

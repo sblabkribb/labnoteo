@@ -61,7 +61,8 @@ import type LabnotePlugin from './main';
 import { invalidFolderText } from './settings';
 import { processNoteThroughVault } from './commands';
 import { promptModal, confirmModal, pickModal } from './modals';
-import { isReadingViewTarget } from './obsidianHost';
+import { isReadingViewTarget, tableCellEditorOf } from './obsidianHost';
+import { writeIntoCell } from './tableCellTarget';
 import obsidianKo from './l10n.ko';
 
 export type SampleScope = 'local' | 'global';
@@ -146,6 +147,16 @@ export async function insertSampleReference(
   target: EditTarget,
   ref: string
 ): Promise<void> {
+  const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
+  // A reference holds no newline and no `|`, so a focused table cell takes it
+  // as it takes a date (#543): into the cell, not below the table where the
+  // target writes the blocks that would break the table instead.
+  const cell = tableCellEditorOf(target);
+  if (cell) {
+    writeIntoCell(cell, ref, types);
+    plugin.markUserEdit(target.path);
+    return;
+  }
   // Hosts without cursor tracking (none today) fall back to a plain insert.
   if (!target.getCursorOffset) {
     await target.insertAtCursor(ref);
@@ -155,7 +166,6 @@ export async function insertSampleReference(
   const text = await target.getText();
   const cursor = await target.getCursorOffset();
   const selection = await target.getSelectionRange?.();
-  const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
   const plan = planReferenceInsert(text, cursor, ref, types, selection?.end);
   await target.replaceRange(plan.offset, plan.end ?? plan.offset, plan.text);
   await target.revealOffset?.(plan.offset + plan.text.length);

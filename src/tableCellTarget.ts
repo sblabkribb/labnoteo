@@ -9,6 +9,7 @@
 import { EditorView } from '@codemirror/view';
 import type { Editor } from 'obsidian';
 import type { EditTarget } from '@labnoteo/core';
+import { endsAliasedReference } from '@labnoteo/core';
 
 const isTableRow = (line: string): boolean => line.trimStart().startsWith('|');
 
@@ -44,12 +45,28 @@ export function activeTableCellEditor(editor: Editor): Editor | null {
   return component?.tableCell?.editor ?? null;
 }
 
+/** The CodeMirror view behind an editor, which Obsidian keeps out of its API. */
+export function editorView(editor: Editor): EditorView | undefined {
+  return (editor as unknown as { cm?: EditorView }).cm;
+}
+
 /** The note's own editor when `editor` is a table cell editor nested inside it. */
 export function tableCellHostView(editor: Editor): EditorView | null {
-  const cm = (editor as unknown as { cm?: EditorView }).cm;
+  const cm = editorView(editor);
   const outer = cm?.dom?.parentElement?.closest('.cm-editor');
-  if (!cm || !(outer instanceof HTMLElement)) return null;
+  if (!cm || !outer || !(outer instanceof HTMLElement)) return null;
   return EditorView.findFromDOM(outer);
+}
+
+/**
+ * Write text that fits in a table cell into the focused cell's own editor.
+ * Only the cell text is there, so a reference whose alias is read up to
+ * whitespace needs a space before it (#464, #479).
+ */
+export function writeIntoCell(cell: Editor, text: string, types: readonly string[]): void {
+  const from = cell.getCursor('from');
+  const lineBefore = cell.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
+  cell.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
 }
 
 /**

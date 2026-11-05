@@ -1065,6 +1065,43 @@ describe('insertSampleReference', () => {
     expect(state.text).toBe('#### Input\n- Plasmid-1;pET-28a(+)\n');
     expect(state.revealed).toBe(start + 'Plasmid-1;pET-28a(+)'.length);
   });
+
+  // #543: a reference fits in a table cell, so it goes in there like a date,
+  // while the target itself writes below the table.
+  it('writes into the focused table cell, with a space after an alias', async () => {
+    const table = '| ID | Alias |\n| --- | --- |\n| DNA-1 | a |\n';
+    const cell = { text: 'DNA-2;pET ', cursor: 'DNA-2;pET '.length };
+    const cellEditor = {
+      cm: { dom: {} as HTMLElement },
+      getValue: () => cell.text,
+      getCursor: () => ({ line: 0, ch: cell.cursor }),
+      replaceSelection: (t: string) => {
+        cell.text = cell.text.slice(0, cell.cursor) + t + cell.text.slice(cell.cursor);
+      },
+    };
+    const noteCm = {
+      state: { doc: { toString: () => table }, selection: { main: { head: 0 } } },
+      posAtDOM: () => 0,
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    };
+    const view = new MarkdownView();
+    view.file = new TFile('labnote/001_Test/001_WD010_Design.labnote.md');
+    view.mode = 'source';
+    view.editor = { cm: noteCm, editorComponent: { tableCell: { editor: cellEditor } } };
+    const host = createObsidianHost(
+      { workspace: { getActiveViewOfType: () => view, getMostRecentLeaf: () => null } } as unknown as App,
+      fs,
+      key => key
+    );
+    const refPlugin = { settings: { customSampleTypes: [] }, markUserEdit: vi.fn() } as unknown as LabnotePlugin;
+
+    await insertSampleReference(refPlugin, host.editTarget()!, 'RNA-1;siKIF');
+
+    expect(cell.text).toBe('DNA-2;pET RNA-1;siKIF');
+    expect(noteCm.dispatch).not.toHaveBeenCalled();
+    expect(refPlugin.markUserEdit).toHaveBeenCalledOnce();
+  });
 });
 
 // #450: running the command again put a second table under the first without a word.

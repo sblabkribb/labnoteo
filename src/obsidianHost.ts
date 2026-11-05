@@ -12,7 +12,7 @@
  * and what {@link VaultFileSystem} reads, so no absolute-path conversion is
  * needed anywhere in shared logic.
  */
-import { App, MarkdownView, Notice, TFile } from 'obsidian';
+import { App, MarkdownView, Notice, TFile, type Editor } from 'obsidian';
 import type {
   LabnoteHost,
   EditTarget,
@@ -23,9 +23,20 @@ import type {
   Translator,
 } from '@labnoteo/core';
 import { pickModal, pickManyModal, promptModal, confirmModal } from './modals';
-import { noteTargetBelowTable, tableCellHostView } from './tableCellTarget';
+import { activeTableCellEditor, editorView, noteTargetBelowTable, tableCellHostView } from './tableCellTarget';
 
 const readingViewChecks = new WeakMap<EditTarget, () => boolean>();
+const tableCellEditors = new WeakMap<EditTarget, Editor>();
+
+/**
+ * The editor of the table cell `target` was made for, or undefined when no
+ * cell was focused. `target` itself writes to the note below the table, which
+ * is where text holding a newline or a `|` has to go; text that fits in a cell
+ * goes into this editor instead (#196, #543).
+ */
+export function tableCellEditorOf(target: EditTarget): Editor | undefined {
+  return tableCellEditors.get(target);
+}
 
 /**
  * Whether `target` is a note shown in reading view, where a write switches
@@ -56,10 +67,19 @@ export function createObsidianHost(
     if (!view || !file) return undefined;
     const noteView = view;
     const editor = view.editor;
-    const cellHost = tableCellHostView(editor);
-    if (cellHost) {
-      const cell = (editor as unknown as { cm: { dom: HTMLElement } }).cm.dom;
-      return noteTargetBelowTable(file.path, cellHost, cell);
+    // A focused table cell is edited in its own editor holding the cell text
+    // alone (#196). Obsidian 1.14 keeps `view.editor` on the note and hands out
+    // that cell editor through the editor component instead (#303, #543), so it
+    // is probed first; earlier versions, where `view.editor` *is* the cell
+    // editor, still match the second case.
+    const cellEditor = activeTableCellEditor(editor);
+    const cell = cellEditor ?? (tableCellHostView(editor) ? editor : null);
+    const cellHost = cell ? tableCellHostView(cell) ?? editorView(editor) : undefined;
+    const cellDom = cell ? editorView(cell)?.dom : undefined;
+    if (cell && cellHost && cellDom) {
+      const target = noteTargetBelowTable(file.path, cellHost, cellDom);
+      tableCellEditors.set(target, cell);
+      return target;
     }
     // In reading view the editor is hidden: what is written to it is never
     // saved (#216), and its cursor is not where the reader is. Reads take the

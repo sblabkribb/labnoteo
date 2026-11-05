@@ -43,7 +43,6 @@ import {
   MAX_ISSUE_TOPIC,
   planIssueMarkerInsertion,
   planDateInsertion,
-  endsAliasedReference,
   issueSentenceRange,
   lineHasSampleReference,
   DISCUSS_FLAG_KEY,
@@ -127,7 +126,7 @@ import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
 // Re-exported so command registration in main.ts imports every command from one
 // place; the implementation lives under src/scaffold with its asset registry.
 export { setupResearchAutomationCommand } from './scaffold/scaffold';
-import { activeTableCellEditor, tableCellHostView } from './tableCellTarget';
+import { activeTableCellEditor, tableCellHostView, writeIntoCell } from './tableCellTarget';
 import { experimentMarkerSpots, formatMarkerSpots, markerExperimentDir } from './issueMarkerIndex';
 import { isVaultGitRepository } from './scaffold/scaffold';
 import { removeSourcesForDocument } from '@labnoteo/core/lib/sampleStorage';
@@ -855,9 +854,7 @@ export function insertDateCommand(
   // read the cell as the note, so they are skipped either way.
   const cell = activeTableCellEditor(editor) ?? (tableCellHostView(editor) ? editor : null);
   if (cell) {
-    const from = cell.getCursor('from');
-    const lineBefore = cell.getValue().split('\n')[from.line]?.slice(0, from.ch) ?? '';
-    cell.replaceSelection(endsAliasedReference(lineBefore, types) ? ` ${text}` : text);
+    writeIntoCell(cell, text, types);
     return true;
   }
   const plan = planDateInsertion(
