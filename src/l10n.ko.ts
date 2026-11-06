@@ -430,6 +430,11 @@ const obsidianKo: Record<string, string> = {
   'The marked block of {0} was edited after it was installed, and this plugin version has the same block. Put the block back to the installed text? Text outside the block is kept, and the current file is kept as {1}.':
     '{0}의 표시된 블록이 설치 후 고쳐졌습니다. 이 플러그인 버전의 블록은 설치할 때와 같습니다. 블록을 설치할 때의 내용으로 되돌릴까요? 블록 밖의 내용은 그대로 두고, 지금 파일은 {1}로 남깁니다.',
   'Kept the previous {0} as {1}.': '바꾸기 전의 {0} 파일은 {1}로 남겼습니다.',
+  'The BEGIN/END labnoteo (managed) marks of {0} are broken (one is missing or they are out of order), so updates cannot tell their block from your text. Rebuild the block with the new version? Text outside the marks that cannot be part of the block is kept, and the current file is kept as {1}.':
+    '{0}의 BEGIN/END labnoteo (managed) 표시가 깨져 있어(하나가 없거나 순서가 바뀜) 업데이트가 관리 블록과 직접 쓴 글을 가를 수 없습니다. 새 버전으로 블록을 다시 만들까요? 표시 바깥에서 블록일 수 없는 글은 남기고, 지금 파일은 {1}로 남깁니다.',
+  'The BEGIN/END labnoteo (managed) marks of {0} are broken, so it was not updated. Run "{1}" to rebuild the block; the current file is kept as a backup.':
+    '{0}의 BEGIN/END labnoteo (managed) 표시가 깨져 있어 갱신하지 않았습니다. "{1}"을(를) 실행하면 블록을 다시 만들고, 지금 파일은 백업으로 남깁니다.',
+  'Rebuild': '다시 만들기',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 "git config core.hooksPath {6}"를 실행하세요.',
   'Research automation is already up to date ({0} files checked).':

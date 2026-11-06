@@ -1127,6 +1127,12 @@ it is. When a backup by that name is already there, the new one takes the old gu
 (`QUICKSTART.backup-0.125.0.md`, then numbered), so an earlier backup is never written over; the
 dialog and the notice name the file. Text below the block is always kept.
 
+Do not delete the `BEGIN labnoteo (managed)` or `END labnoteo (managed)` line. With one missing,
+doubled or out of order, updates cannot tell the block from the lab's text, so they leave the file
+alone and say so once. Open user guide (for `QUICKSTART.md`) or Setup research automation (for
+`AGENTS.md`) then asks to rebuild the block: the current file is kept as a backup, and only text that
+cannot have been the block stays (before a lone BEGIN, after a lone END).
+
 Setup research automation treats an edited marked block of `AGENTS.md` (and the other marked files)
 the same way: it lists the lines that would go (up to eight), asks to put the block back to the
 installed text when this plugin version ships the same block or to replace it with the new version

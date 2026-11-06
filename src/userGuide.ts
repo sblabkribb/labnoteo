@@ -8,7 +8,14 @@
  */
 import type { LabnoteHost } from '@labnoteo/core';
 import { QUICKSTART_ASSET, QUICKSTART_DOC_CONTENT, QUICKSTART_DOC_PATH } from './scaffold/assets';
-import { freeBackupPath, managedBlockStatus, managedFileContent, upsertManagedBlock } from './scaffold/scaffold';
+import {
+  freeBackupPath,
+  managedBlockBroken,
+  managedBlockStatus,
+  managedFileContent,
+  rebuildBrokenManagedFile,
+  upsertManagedBlock,
+} from './scaffold/scaffold';
 import { compareVersions, contentHash, readInstallRecord, writeInstallRecord } from './scaffold/installRecord';
 
 /** Where the guide's text before a replacement is kept, while that name is free. */
@@ -48,6 +55,24 @@ export async function openUserGuide(
     // Recorded so later plugin updates refresh the guide while it stays unedited.
     await remember();
     host.notify('info', host.t('Created the user guide: {0}', QUICKSTART_DOC_PATH));
+  } else if (!newer && managedBlockBroken(await host.fs.read(QUICKSTART_DOC_PATH))) {
+    // Neither marker can be trusted, so no update could find the block (#563).
+    const current = await host.fs.read(QUICKSTART_DOC_PATH);
+    const backup = await freeBackupPath(host.fs, QUICKSTART_BACKUP_PATH, guideVersion(current));
+    const ok = await host.confirm(
+      host.t(
+        'The BEGIN/END labnoteo (managed) marks of {0} are broken (one is missing or they are out of order), so updates cannot tell their block from your text. Rebuild the block with the new version? Text outside the marks that cannot be part of the block is kept, and the current file is kept as {1}.',
+        QUICKSTART_DOC_PATH,
+        backup
+      ),
+      { confirmLabel: host.t('Rebuild'), destructive: true }
+    );
+    if (ok) {
+      await write(backup, current);
+      await write(QUICKSTART_DOC_PATH, rebuildBrokenManagedFile(current, QUICKSTART_ASSET));
+      await remember();
+      host.notify('info', host.t('Updated the user guide to labnoteo {0}. The previous file is kept as {1}.', pluginVersion, backup));
+    }
   } else if (!newer) {
     const current = await host.fs.read(QUICKSTART_DOC_PATH);
     const status = managedBlockStatus(current, QUICKSTART_ASSET, record.files[QUICKSTART_DOC_PATH]);

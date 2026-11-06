@@ -124,6 +124,41 @@ function managedBlockInner(text: string): string | undefined {
 }
 
 /**
+ * Whether `text` has the managed-block markers, but not as one BEGIN … END
+ * pair (#563): one of them deleted, doubled or out of order. Updates then
+ * cannot tell the block from what the lab wrote around it. A file with
+ * neither marker is not broken: the block was taken out, or it predates them.
+ */
+export function managedBlockBroken(text: string): boolean {
+  const s = text.replace(/\r\n/g, '\n');
+  const begins = s.split(MANAGED_BLOCK_BEGIN).length - 1;
+  const ends = s.split(MANAGED_BLOCK_END).length - 1;
+  if (begins === 0 && ends === 0) return false;
+  if (begins !== 1 || ends !== 1) return true;
+  return s.indexOf(MANAGED_BLOCK_END) < s.indexOf(MANAGED_BLOCK_BEGIN);
+}
+
+/**
+ * A file with broken markers around a fresh block (#563). Only text that
+ * cannot have been the block is kept: before the first marker when that is a
+ * BEGIN, after the last when that is an END. The rest stays in the backup the
+ * caller writes. Without text after it, the asset's trailer follows the block.
+ */
+export function rebuildBrokenManagedFile(current: string, asset: ScaffoldAsset): string {
+  const s = current.replace(/\r\n/g, '\n');
+  const firstBegin = s.indexOf(MANAGED_BLOCK_BEGIN);
+  const firstEnd = s.indexOf(MANAGED_BLOCK_END);
+  const lastBegin = s.lastIndexOf(MANAGED_BLOCK_BEGIN);
+  const lastEnd = s.lastIndexOf(MANAGED_BLOCK_END);
+  const first = Math.min(...[firstBegin, firstEnd].filter(i => i !== -1));
+  const head = first === firstBegin ? s.slice(0, first).trimEnd() : '';
+  const tail = lastEnd !== -1 && lastEnd > lastBegin ? s.slice(lastEnd + MANAGED_BLOCK_END.length) : '';
+  const block = upsertManagedBlock(head, asset.content);
+  if (tail.trim()) return `${block}${tail.replace(/^\n/, '')}`;
+  return asset.trailer ? `${block}\n${asset.trailer}\n` : block;
+}
+
+/**
  * Whether a managed block's text is the template hashed as `hash`. The block
  * holds the template trimmed while the record hashes it as shipped, with its
  * final newline, so both forms are compared.
@@ -246,6 +281,24 @@ export async function applyAsset(
 
   if (asset.merge === 'managed-block') {
     const current = exists ? await host.fs.read(asset.vaultPath) : '';
+    // Ahead of the unmarked case: a lone END would have the whole file replaced
+    // without a backup, and the lab's text after it lost (#563).
+    if (managedBlockBroken(current)) {
+      const backup = await freeBackupPath(host.fs, backupPathFor(asset.vaultPath));
+      const ok = await host.confirm(
+        host.t(
+          'The BEGIN/END labnoteo (managed) marks of {0} are broken (one is missing or they are out of order), so updates cannot tell their block from your text. Rebuild the block with the new version? Text outside the marks that cannot be part of the block is kept, and the current file is kept as {1}.',
+          asset.vaultPath,
+          backup
+        ),
+        { confirmLabel: host.t('Rebuild'), destructive: true }
+      );
+      if (!ok) return 'skipped';
+      await host.fs.write(backup, current);
+      host.notify('info', host.t('Kept the previous {0} as {1}.', asset.vaultPath, backup));
+      await host.fs.write(asset.vaultPath, rebuildBrokenManagedFile(current, asset));
+      return 'merged';
+    }
     if (!current.includes(MANAGED_BLOCK_BEGIN) && (!exists || asset.migrateUnmarked)) {
       if (exists && !isUnedited(current, asset, recorded, legacy)) {
         const ok = await host.confirm(
@@ -467,6 +520,8 @@ export interface RefreshResult {
   pending: string[];
   /** Files of a set-up vault that are not there and were never recorded. */
   missing: string[];
+  /** Files whose managed-block markers are broken, so their block was left alone (#563). */
+  broken: string[];
 }
 
 /** Up to three paths, then a count of the rest. */
@@ -501,7 +556,7 @@ export async function refreshAutomationFiles(
   assets: ScaffoldAsset[] = SCAFFOLD_ASSETS,
   legacy: Readonly<Record<string, readonly string[]>> = LEGACY_TEMPLATE_HASHES
 ): Promise<RefreshResult> {
-  const result: RefreshResult = { updated: [], pending: [], missing: [] };
+  const result: RefreshResult = { updated: [], pending: [], missing: [], broken: [] };
   const record = await readInstallRecord(host);
   if (record.pluginVersion && compareVersions(record.pluginVersion, pluginVersion) > 0) return result;
   const setUp = await host.fs.exists(ISSUE_SYNC_WORKFLOW_PATH);
@@ -517,6 +572,14 @@ export async function refreshAutomationFiles(
     if (asset.merge === 'managed-block') {
       if (!exists) continue;
       const current = await host.fs.read(path);
+      // An upsert would add a second block, or none at all (#563); said once per template.
+      if (managedBlockBroken(current)) {
+        if (files[path] !== template) {
+          result.broken.push(path);
+          files[path] = template;
+        }
+        continue;
+      }
       if (!current.includes(MANAGED_BLOCK_BEGIN)) {
         // Without the markers the user took the block out; do not put it back.
         if (!asset.migrateUnmarked) continue;
@@ -630,6 +693,16 @@ export async function refreshAutomationFiles(
       host.t(
         'These automation files are not in the vault: {0}. Run "Setup research automation" to install them if you need them.',
         shortList(host, result.missing)
+      )
+    );
+  }
+  for (const path of result.broken) {
+    host.notify(
+      'warn',
+      host.t(
+        'The BEGIN/END labnoteo (managed) marks of {0} are broken, so it was not updated. Run "{1}" to rebuild the block; the current file is kept as a backup.',
+        path,
+        host.t(path === QUICKSTART_DOC_PATH ? 'Open user guide' : 'Setup research automation')
       )
     );
   }

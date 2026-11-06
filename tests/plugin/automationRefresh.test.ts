@@ -10,7 +10,9 @@ import {
   applyAsset,
   backupPathFor,
   freeBackupPath,
+  managedBlockBroken,
   managedFileContent,
+  rebuildBrokenManagedFile,
   refreshAutomationFiles,
   setupResearchAutomationCommand,
 } from '../../src/scaffold/scaffold';
@@ -161,7 +163,7 @@ describe('refreshAutomationFiles', () => {
     const result = await refreshAutomationFiles(asHost, '1.1.0', ASSETS, { 'DOC.md': [contentHash('v1\n')] });
 
     expect(await fs.read('DOC.md')).toBe('v2\n');
-    expect(result).toEqual({ updated: ['DOC.md'], pending: [], missing: [] });
+    expect(result).toEqual({ updated: ['DOC.md'], pending: [], missing: [], broken: [] });
   });
 
   it('replaces an unrecorded plugin-owned file without an earlier hash', async () => {
@@ -197,7 +199,7 @@ describe('refreshAutomationFiles', () => {
     const result = await refreshAutomationFiles(asHost, '1.1.0', ASSETS);
 
     expect(await fs.read('DOC.md')).toBe('v3\n');
-    expect(result).toEqual({ updated: [], pending: [], missing: [] });
+    expect(result).toEqual({ updated: [], pending: [], missing: [], broken: [] });
   });
 
   it('refreshes only the managed block of AGENTS.md, and only when it is there', async () => {
@@ -380,6 +382,53 @@ describe('QUICKSTART managed block', () => {
     expect(managedFileContent(GUIDE)).toBe(marked('guide v2', 'Write below.'));
   });
 
+  // #563: a lone marker stopped updates without a word, or doubled the block.
+  describe('with broken markers', () => {
+    const noBegin = `guide v1\n${MANAGED_BLOCK_END}\n\nOur rule\n`;
+    const noEnd = `Intro\n\n${MANAGED_BLOCK_BEGIN}\nguide v1\n\nOur rule\n`;
+
+    it('tells broken markers from a file without any', () => {
+      expect(managedBlockBroken(noBegin)).toBe(true);
+      expect(managedBlockBroken(noEnd)).toBe(true);
+      expect(managedBlockBroken(`${MANAGED_BLOCK_END}\nx\n${MANAGED_BLOCK_BEGIN}\n`)).toBe(true);
+      expect(managedBlockBroken(marked('a', 'b') + marked('c', 'd'))).toBe(true);
+      expect(managedBlockBroken(marked('a', 'b'))).toBe(false);
+      expect(managedBlockBroken('no markers\n')).toBe(false);
+    });
+
+    it('keeps only the text that cannot have been the block', () => {
+      expect(rebuildBrokenManagedFile(noBegin, GUIDE)).toBe(marked('guide v2', 'Our rule'));
+      expect(rebuildBrokenManagedFile(noEnd, GUIDE)).toBe(
+        `Intro\n\n${MANAGED_BLOCK_BEGIN}\nguide v2\n${MANAGED_BLOCK_END}\n\nWrite below.\n`
+      );
+    });
+
+    it('is left alone on load and reported once per template', async () => {
+      const { fs, host, asHost } = makeHost({
+        'GUIDE.md': noBegin,
+        [INSTALL_RECORD_PATH]: record({ 'GUIDE.md': contentHash('guide v1\n') }),
+      });
+      const first = await refreshAutomationFiles(asHost, '1.1.0', [GUIDE], legacy);
+      expect(first.broken).toEqual(['GUIDE.md']);
+      expect(await fs.read('GUIDE.md')).toBe(noBegin);
+      expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('marks of GUIDE.md are broken'));
+      expect((await refreshAutomationFiles(asHost, '1.1.0', [GUIDE], legacy)).broken).toEqual([]);
+    });
+
+    it('is rebuilt by the setup command after asking, with the old file kept', async () => {
+      const { fs, host, asHost } = makeHost({ 'GUIDE.md': noBegin });
+      expect(await applyAsset(asHost, GUIDE)).toBe('merged');
+      expect(host.confirm).toHaveBeenCalledWith(expect.stringContaining('GUIDE.backup.md'), expect.anything());
+      expect(await fs.read('GUIDE.backup.md')).toBe(noBegin);
+      expect(await fs.read('GUIDE.md')).toBe(marked('guide v2', 'Our rule'));
+
+      const declined = makeHost({ 'GUIDE.md': noEnd });
+      declined.host.confirm.mockResolvedValue(false);
+      expect(await applyAsset(declined.asHost, GUIDE)).toBe('skipped');
+      expect(await declined.fs.read('GUIDE.md')).toBe(noEnd);
+    });
+  });
+
   it('refreshes only the block and keeps what is written below it', async () => {
     const { fs, asHost } = makeHost({
       [ISSUE_SYNC_WORKFLOW_PATH]: 'wf\n',
@@ -456,6 +505,7 @@ describe('QUICKSTART managed block', () => {
       updated: [],
       pending: [],
       missing: [],
+      broken: [],
     });
     expect(await same.fs.read('GUIDE.md')).toBe(edited);
 
