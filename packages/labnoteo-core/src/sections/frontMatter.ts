@@ -272,7 +272,8 @@ function splitOutsideLinks(text: string): string[] {
 
 /** Where {@link planDateInsertion} puts the text: `[from, to)` becomes `text`. */
 export type DateInsertion =
-  | { from: number; to: number; text: string }
+  /** `timeDropped`: a date and time put on a front matter date key kept only the date (#557). */
+  | { from: number; to: number; text: string; timeDropped?: true }
   | { reason: 'frontMatter' }
   /** On an empty front matter key whose name is not a date's (#444). */
   | { reason: 'notDateKey'; key: string }
@@ -295,7 +296,9 @@ export function isDateLikeKey(key: string): boolean {
  * ({@link serializeFrontMatterEntry}), so an empty `end_date` can be filled;
  * an empty `author` or a `tags:` with its list below is refused (#444), and
  * so is a date key whose list or block value is on the lines below (#526).
- * Anywhere else in the front matter —
+ * A date and time (`2026-10-18 10:30`) is written as Obsidian's date-time
+ * property (`2026-10-18T10:30`) on a key with `time` in its name, and as the
+ * date alone on any other date key (#557). Anywhere else in the front matter —
  * a line with a value, a `---` line, a list item — typing the date would break
  * the YAML, so it is refused. A unit op's `- Start_date:`/`- End_date:` line
  * follows the same rule (#167): an empty value is filled inside its quotes,
@@ -336,5 +339,11 @@ export function planDateInsertion(
   if (!isDateLikeKey(m[1])) return { reason: 'notDateKey', key: m[1] };
   const next = doc.slice(lineEnd).replace(/^\r?\n/, '').split(/\r?\n/, 1)[0];
   if (/^(?:\s+\S|-(?:\s|$))/.test(next)) return { reason: 'listValue', key: m[1] };
-  return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], text) };
+  // Obsidian reads `2026-10-18 10:30` as text, not as a date (#557).
+  const dateTime = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/.exec(text);
+  if (!dateTime) return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], text) };
+  if (/time/i.test(m[1])) {
+    return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], `${dateTime[1]}T${dateTime[2]}`) };
+  }
+  return { from: lineStart, to: lineEnd, text: serializeFrontMatterEntry(m[1], dateTime[1]), timeDropped: true };
 }

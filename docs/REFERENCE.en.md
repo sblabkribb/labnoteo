@@ -37,7 +37,11 @@ position.
 
 ### Insert date and time
 
-Insert the current timestamp. The front matter and table cell rules are the same as Insert date.
+Insert the current timestamp. The front matter and table cell rules are the same as Insert date,
+except for the value written in the front matter: a key with `time` in its name (`start_time`) gets
+Obsidian's date-time form (`2026-10-18T10:30`), and any other date key (`end_date`) gets the date
+alone, so Obsidian keeps reading it as a date property, with a notice to write the time in the
+`#### Meta` Start_date/End_date.
 
 ### Date picker (📅)
 

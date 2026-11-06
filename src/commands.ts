@@ -911,6 +911,14 @@ export function insertDateCommand(
     changes: [{ from, to: editor.offsetToPos(plan.to), text: plan.text }],
     selection: { from: end },
   });
+  if (plan.timeDropped) {
+    host.notify(
+      'info',
+      host.t(
+        'Only the date went into this front matter date field, so Obsidian keeps reading it as a date. Write the time in the Start_date/End_date of #### Meta.'
+      )
+    );
+  }
   // The 📅 picker says so when the End_date comes before the Start_date; this too (#531).
   const docLines = editor.getValue().split('\n');
   const own = findMetaDateFieldInLine(docLines[from.line] ?? '');

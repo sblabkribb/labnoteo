@@ -102,6 +102,31 @@ describe('date insertion and the front matter', () => {
     expect(planDateInsertion(doc, lineAt(7), lineAt(7), 'D')).toMatchObject({ text: 'end_date: D' });
   });
 
+  // #557: `end_date: 2026-10-18 10:30` turned the property into text.
+  it('writes a date and time as a date on a date key and as a date-time on a time key', () => {
+    const doc = ['---', 'end_date:', 'start_time:', 'End_DateTime:', '---', ''].join('\n');
+    const at = (line: number): number =>
+      doc
+        .split('\n')
+        .slice(0, line)
+        .reduce((n, l) => n + l.length + 1, 0);
+    expect(planDateInsertion(doc, at(1), at(1), '2026-10-18 10:30')).toMatchObject({
+      text: 'end_date: 2026-10-18',
+      timeDropped: true,
+    });
+    const time = planDateInsertion(doc, at(2), at(2), '2026-10-18 10:30');
+    expect(time).toMatchObject({ text: 'start_time: 2026-10-18T10:30' });
+    expect(time).not.toHaveProperty('timeDropped');
+    expect(planDateInsertion(doc, at(3), at(3), '2026-10-18 10:30')).toMatchObject({ text: 'End_DateTime: 2026-10-18T10:30' });
+    expect(planDateInsertion(doc, at(1), at(1), '2026-10-18')).toEqual({ from: at(1), to: at(1) + 'end_date:'.length, text: 'end_date: 2026-10-18' });
+    const body = '---\nt: x\n---\n\n';
+    expect(planDateInsertion(body, body.length, body.length, '2026-10-18 10:30')).toEqual({
+      from: body.length,
+      to: body.length,
+      text: '2026-10-18 10:30',
+    });
+  });
+
   it('takes date and time keys of any case as date keys', () => {
     for (const key of ['created_date', 'End_Date', 'start_time', 'DATE']) expect(isDateLikeKey(key)).toBe(true);
     for (const key of ['author', 'project', 'tags', 'status']) expect(isDateLikeKey(key)).toBe(false);
