@@ -8,6 +8,7 @@ import {
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   minimalReplacement,
+  shouldDeferTocSync,
   computeUnitOpSyncEdits,
   applyTextEdits,
   resolveGithubAnchor,
@@ -736,6 +737,36 @@ describe('locateInsertedUnitOpHeading', () => {
   it('returns -1 when no heading exists at/after the cursor', () => {
     const md = '## Related Unit Operations\n\n> hint\n\n## Conclusions and Discussion\n';
     expect(locateInsertedUnitOpHeading(md, 0, md)).toBe(-1);
+  });
+});
+
+// #562: Enter at the end of an entry left the caret in the next one once the sync moved the new line.
+describe('shouldDeferTocSync', () => {
+  it('waits while the caret is on the line the sync would move', () => {
+    const before = [
+      '## Related Unit Operations',
+      '',
+      '- [UHW010 A](#uhw010-a)',
+      '- ',
+      '- [USW020 B](#usw020-b)',
+      '',
+      '### [UHW010 A]',
+      '',
+      '### [USW020 B]',
+      '',
+    ].join('\n');
+    const edit = minimalReplacement(before, rebuildUnitOpToc(before))!;
+    expect(edit).not.toBeNull();
+    const caret = before.indexOf('- \n') + 2;
+    expect(shouldDeferTocSync(caret, edit)).toBe(true);
+    expect(shouldDeferTocSync(before.indexOf('### [USW020'), edit)).toBe(false);
+  });
+
+  it('counts both ends of the span as inside', () => {
+    expect(shouldDeferTocSync(4, { start: 4, end: 4 })).toBe(true);
+    expect(shouldDeferTocSync(9, { start: 4, end: 9 })).toBe(true);
+    expect(shouldDeferTocSync(3, { start: 4, end: 9 })).toBe(false);
+    expect(shouldDeferTocSync(10, { start: 4, end: 9 })).toBe(false);
   });
 });
 

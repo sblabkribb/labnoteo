@@ -27,6 +27,13 @@ describe('describeLlmError', () => {
     expect(describeLlmError(new Error('Request timed out'), settings(), t)).toContain('Cannot connect to Ollama');
   });
 
+  // #555: an empty endpoint read "Cannot connect to Ollama ()".
+  it('says to enter an address when the endpoint is empty', () => {
+    expect(describeLlmError(new TypeError('Invalid URL'), settings({ llmEndpointOllama: '' }), t)).toBe(
+      'The endpoint is empty. Enter the server address in Settings → Labnote Assistant → AI provider → Ollama endpoint, e.g. http://localhost:11434.'
+    );
+  });
+
   // #203: an endpoint that is not http(s) showed the raw ClientRequest error.
   it('says how to write the endpoint when it is not an http(s) address', () => {
     const err = new Error('ClientRequest only supports http: and https: protocols');

@@ -1,6 +1,6 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
 import { MemFileSystem } from '../fs/memFileSystem';
-import { createLabnoteTools, runTool, type ToolContext } from '../tools';
+import { createLabnoteTools, previewTool, runTool, type ToolContext } from '../tools';
 
 const README = [
   '---',
@@ -45,6 +45,7 @@ describe('labnote tools — registry', () => {
         'get_unit_operation',
         'insert_unit_operation',
         'list_samples',
+        'read_section',
         'search_samples',
         'update_section',
       ].sort()
@@ -196,7 +197,9 @@ describe('create_sample / get_sample / list_samples', () => {
     const got = await tool('get_sample').handler(ctx, { type: 'RNA', id: 'RNA-1', documentPath: NOTE_PATH });
     expect(got.data).toMatchObject({ location });
     const listed = await tool('list_samples').handler(ctx, { type: 'RNA', documentPath: NOTE_PATH });
-    expect(listed.data).toEqual([{ id: 'RNA-1', alias: null, description: null, location, scope: 'local' }]);
+    expect(listed.data).toEqual([
+      { id: 'RNA-1', alias: null, description: null, location, scope: 'local', experiment: NOTE_DIR },
+    ]);
   });
 
   it('keeps an existing location when a later call omits it or leaves it empty', async () => {
@@ -455,17 +458,25 @@ describe('create_sample / get_sample / list_samples', () => {
 });
 
 describe('runTool — unsupported arguments', () => {
-  it('runs the tool and warns about arguments it ignored', async () => {
-    const res = await runTool(createLabnoteTools(), 'create_sample', ctx, {
-      type: 'RNA',
-      id: 'RNA-1',
-      freezer: 'F2',
-      documentPath: NOTE_PATH,
-    });
+  it('runs a read tool and warns about arguments it ignored', async () => {
+    const res = await runTool(createLabnoteTools(), 'list_samples', ctx, { type: 'RNA', freezer: 'F2' });
     expect(res.ok).toBe(true);
     expect(res.warnings).toHaveLength(1);
     expect(res.warnings![0]).toContain('freezer');
-    expect(res.warnings![0]).toContain('Supported: type, id, alias, description, location, documentPath');
+    expect(res.warnings![0]).toContain('Supported: type, documentPath');
+  });
+
+  // #554: an ignored `mode: "append"` was put to the user as a replace.
+  it('refuses a write with arguments it does not take, in the preview too, writing nothing', async () => {
+    const tools = createLabnoteTools();
+    const args = { type: 'RNA', id: 'RNA-1', freezer: 'F2', documentPath: NOTE_PATH };
+    const res = await runTool(tools, 'create_sample', ctx, args);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Unsupported argument(s): freezer; nothing was written');
+    expect(res.error).toContain('Supported: type, id, alias, description, location, documentPath');
+    expect(await fs.exists(`${NOTE_DIR}/resources/labsamples/RNA.json`)).toBe(false);
+    const preview = await previewTool(tools.find(t => t.name === 'create_sample')!, ctx, args);
+    expect(preview).toEqual({ error: res.error });
   });
 
   it('adds no warnings when every argument is declared', async () => {
@@ -599,6 +610,7 @@ describe('update_section', () => {
           parentHeading: '[UHW100 PCR] 첫 증폭',
           occurrence: 1,
           total: 1,
+          mode: 'replace',
           removedLines: 1,
           removedSubheadings: 0,
           previousBody: 'pcr',
@@ -709,6 +721,37 @@ describe('update_section', () => {
       await fs.write(NOTE_PATH, `#### Results\n\n${'a'.repeat(800)}\n`);
       const res = await call({ content: 'new' });
       expect((res.data as { previousBody: string }).previousBody).toHaveLength(500);
+    });
+
+    // #554: a reviewer's comment goes after what others wrote, nothing removed.
+    it('appends after the body and its nested headings with mode "append"', async () => {
+      await fs.write(NOTE_PATH, doc);
+      const res = await call({ content: '- [review] check padj', mode: 'append' });
+      expect(res.data).toMatchObject({ mode: 'append', removedLines: 0, removedSubheadings: 0, previousBody: '' });
+      expect(await fs.read(NOTE_PATH)).toBe(
+        doc.replace('band at 1 kb\n', 'band at 1 kb\n\n- [review] check padj\n')
+      );
+      const preview = await tool('update_section').describe!(ctx, {
+        documentPath: NOTE_PATH,
+        heading: 'Results',
+        content: 'second',
+        mode: 'append',
+      });
+      expect(preview).toMatchObject({ appending: true, removedText: [], addedText: ['second'], removedSubheadings: 0 });
+    });
+
+    it('appends to an empty section, and refuses empty content, clear or an unknown mode', async () => {
+      await fs.write(NOTE_PATH, '#### Results\n\n#### Notes\n\nn\n');
+      await call({ content: 'first', mode: 'append' });
+      expect(await fs.read(NOTE_PATH)).toBe('#### Results\n\nfirst\n\n#### Notes\n\nn\n');
+      for (const extra of [
+        { content: '', mode: 'append' },
+        { content: '', clear: true, mode: 'append' },
+        { content: 'x', mode: 'prepend' },
+      ]) {
+        expect((await call(extra)).ok).toBe(false);
+      }
+      expect(await fs.read(NOTE_PATH)).toBe('#### Results\n\nfirst\n\n#### Notes\n\nn\n');
     });
   });
 
@@ -1022,6 +1065,21 @@ describe('insert_unit_operation', () => {
     expect(tocLines(md).map(l => l.slice(0, 10))).toEqual(['- [UHW015 ', '- [UHW010 ']);
   });
 
+  // #564
+  it('puts a deleted section heading back before listing the block, in the preview too', async () => {
+    const md = (await fs.read(NOTE_PATH)).replace('## Related Unit Operations\n', '');
+    await fs.write(NOTE_PATH, md);
+    const preview = await describe(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    expect(preview).toMatchObject({ place: 'empty' });
+    expect(preview).not.toHaveProperty('beforeConclusions');
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    expect(res).toMatchObject({ ok: true, data: { tocUpdated: true } });
+    const next = await fs.read(NOTE_PATH);
+    expect(next.indexOf('> desc')).toBeLessThan(next.indexOf('## Related Unit Operations'));
+    expect(next.indexOf('## Related Unit Operations')).toBeLessThan(next.indexOf('- [UHW010'));
+    expect(next.indexOf('- [UHW010')).toBeLessThan(next.indexOf('### [UHW010'));
+  });
+
   it('adds a software block with its own sections, and an alias to the heading', async () => {
     const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'USW020', alias: ' rerun ' });
     expect(res).toMatchObject({
@@ -1244,6 +1302,64 @@ describe('ctx.writeNote hook', () => {
   });
 });
 
+describe('read_section (#554)', () => {
+  const doc = [
+    '## [UHW100 PCR] 첫 증폭',
+    '',
+    '#### Method',
+    '',
+    'pcr',
+    '',
+    '## [USW230 Sequence Embedding]',
+    '',
+    '#### Method',
+    '',
+    'embed',
+    '',
+    '##### Detail',
+    '',
+    'd',
+    '',
+  ].join('\n');
+
+  it('reads one section, picked like update_section picks it', async () => {
+    await fs.write(NOTE_PATH, doc);
+    const read = tool('read_section').handler;
+    expect((await read(ctx, { documentPath: NOTE_PATH, heading: 'Method' })).error).toContain('matches 2 sections');
+    const res = await read(ctx, { documentPath: NOTE_PATH, heading: 'Method', parentHeading: 'USW230' });
+    expect(res.data).toEqual({
+      documentPath: NOTE_PATH,
+      heading: 'Method',
+      parentHeading: '[USW230 Sequence Embedding]',
+      occurrence: 1,
+      total: 1,
+      line: 9,
+      lines: 3,
+      subheadings: 1,
+      content: 'embed\n\n##### Detail\n\nd',
+      truncated: false,
+    });
+  });
+
+  it('reads the whole note with its headings when no heading is given', async () => {
+    await fs.write(NOTE_PATH, doc);
+    const res = await tool('read_section').handler(ctx, { documentPath: NOTE_PATH });
+    expect(res.data).toMatchObject({ content: doc, truncated: false });
+    expect((res.data as { headings: string[] }).headings[0]).toBe('## [UHW100 PCR] 첫 증폭');
+  });
+
+  it('reads only Markdown notes inside the vault, outside dot folders', async () => {
+    await fs.write('.obsidian/plugins/labnoteo/data.json', '{"mcpToken":"secret"}');
+    await fs.write('.obsidian/notes.md', 'x');
+    const read = tool('read_section').handler;
+    for (const documentPath of ['.obsidian/plugins/labnoteo/data.json', '.obsidian/notes.md', '../outside.md']) {
+      const res = await read(ctx, { documentPath });
+      expect(res.ok).toBe(false);
+      expect(JSON.stringify(res)).not.toContain('secret');
+    }
+  });
+});
+
 describe('sample lookup across experiments (#169)', () => {
   const OTHER_DIR = 'labnote/002_Other';
   const OTHER_FOLDER = `${OTHER_DIR}/resources/labsamples`;
@@ -1274,6 +1390,34 @@ describe('sample lookup across experiments (#169)', () => {
     expect(got.data).toMatchObject({ id: 'DNA-5', scope: 'local', experiment: OTHER_DIR });
     const global = await tool('get_sample').handler(ctx, { type: 'RNA', id: 'RNA-1' });
     expect(global.data).toMatchObject({ scope: 'global', experiment: null });
+  });
+
+  it('list_samples without a note lists the global samples and every experiment\'s local ones (#566)', async () => {
+    await fs.write(
+      'resources/labsamples/DNA.json',
+      JSON.stringify({ 'DNA-1': { type: 'DNA', alias: 'g', descriptions: [], sources: [] } })
+    );
+    await fs.write(
+      `${NOTE_DIR}/resources/labsamples/DNA.json`,
+      JSON.stringify({ 'DNA-5': { type: 'DNA', alias: 'mine', descriptions: [], sources: [] } })
+    );
+    const all = await tool('list_samples').handler(ctx, { type: 'DNA' });
+    expect(all.ok).toBe(true);
+    const rows = all.data as Array<{ id: string; scope: string; experiment: string | null }>;
+    expect(rows[0]).toMatchObject({ id: 'DNA-1', scope: 'global', experiment: null });
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: OTHER_DIR, discarded: '2026-10-01' }),
+        expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: NOTE_DIR }),
+      ])
+    );
+    expect(rows).toHaveLength(3);
+
+    const one = await tool('list_samples').handler(ctx, { type: 'DNA', documentPath: NOTE_PATH });
+    expect(one.data).toEqual([
+      expect.objectContaining({ id: 'DNA-1', scope: 'global', experiment: null }),
+      expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: NOTE_DIR, alias: 'mine' }),
+    ]);
   });
 
   it('get_sample and list_samples name the known types for an unknown one', async () => {

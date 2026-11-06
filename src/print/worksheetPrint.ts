@@ -14,6 +14,7 @@ import {
   paginateWorksheet,
   type WorksheetPage,
   type WorksheetBlock,
+  type WorksheetQuote,
   type WorksheetSection,
   type WorksheetUnitOp,
 } from '@labnoteo/core/lib/worksheet';
@@ -91,6 +92,18 @@ const inline = (text: string): string => {
 
 const codeHtml = (lines: readonly string[]): string => `<pre class="code">${escapeHtml(lines.join('\n'))}</pre>`;
 
+/**
+ * A callout as a bordered box under its type and title, a plain quote with a
+ * rule on its left (#558): printed as `> [!warning]` it read as markup.
+ */
+function quoteHtml(quote: WorksheetQuote): string {
+  const body = quote.lines.map(l => `<div>${inline(l) || '&nbsp;'}</div>`).join('');
+  if (!quote.callout) return `<blockquote class="quote">${body}</blockquote>`;
+  const label = quote.callout.charAt(0).toUpperCase() + quote.callout.slice(1);
+  const title = quote.title ? ` ${inline(quote.title)}` : '';
+  return `<div class="callout"><div class="callout-title"><b>${escapeHtml(label)}</b>${title}</div>${body}</div>`;
+}
+
 /** A pipe table as a printed table: on paper its `|` marks would be unreadable (#254). */
 function tableHtml(rows: readonly string[][]): string {
   const [header, ...body] = rows;
@@ -123,7 +136,9 @@ function blocksHtml(blocks: readonly WorksheetBlock[]): string {
         ? tableHtml(block.rows)
         : block.kind === 'code'
           ? codeHtml(block.lines)
-          : `<p>${inline(block.footnote ? footnoteDefinitionMarked(block.text) : block.text) || '&nbsp;'}</p>`;
+          : block.kind === 'quote'
+            ? quoteHtml(block)
+            : `<p>${inline(block.footnote ? footnoteDefinitionMarked(block.text) : block.text) || '&nbsp;'}</p>`;
   }
   flush();
   return html;
@@ -170,7 +185,7 @@ function sectionHtml(section: WorksheetSection): string {
           const mark = s.preface ? '' : `<span class="box${s.done ? ' done' : ''}"></span><span class="n">${++n}.</span>`;
           return (
             `<li>${mark}<div class="s">${inline(s.text)}${sub}${s.table ? tableHtml(s.table) : ''}` +
-            `${(s.code ?? []).map(codeHtml).join('')}</div></li>`
+            `${(s.code ?? []).map(codeHtml).join('')}${(s.quotes ?? []).map(quoteHtml).join('')}</div></li>`
           );
         })
         .join('');

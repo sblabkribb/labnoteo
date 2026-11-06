@@ -3,7 +3,7 @@
  * let a slow answer overwrite the results of what is on screen now.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { SearchDebouncer, describeHit, partbankEmptyState } from '../../src/partbank/partbankSearch';
+import { SearchDebouncer, describeHit, partbankEmptyState, truncationNotice } from '../../src/partbank/partbankSearch';
 import type { PartbankSearchHit } from '../../src/partbank/client';
 
 /** A debouncer with a hand-driven clock, so no real time passes. */
@@ -176,5 +176,35 @@ describe('partbankEmptyState', () => {
     expect(partbankEmptyState(' g ', true)).toBe('short');
     expect(partbankEmptyState('gf', true)).toBe('searching');
     expect(partbankEmptyState('gf', false)).toBe('none');
+  });
+});
+
+// #561: the list stopped at ten with no word that there were more.
+describe('truncationNotice', () => {
+  const t = (key: string, ...args: string[]): string => key.replace(/\{(\d)\}/g, (_, i: string) => args[Number(i)]);
+  const hits = (type: PartbankSearchHit['type'], n: number): PartbankSearchHit[] =>
+    Array.from({ length: n }, (_, i) => ({
+      type,
+      id: `${type}${i}`,
+      kid: null,
+      name: null,
+      description: null,
+      moleculeType: null,
+      ownedByMe: true,
+      sharingLevel: 'private',
+    }));
+
+  it('gives the total of each type the server cut', () => {
+    expect(truncationNotice([...hits('plasmid', 10), ...hits('part', 4)], { plasmid: 23, part: 4 }, 10, t)).toBe(
+      'Only the first 10 of each type are shown (plasmid 23). Type more to narrow the search.'
+    );
+    expect(truncationNotice(hits('plasmid', 10), { plasmid: 10 }, 10, t)).toBeUndefined();
+  });
+
+  it('says there may be more when an older server sends no totals', () => {
+    expect(truncationNotice([...hits('primer', 10), ...hits('part', 3)], undefined, 10, t)).toBe(
+      'Only the first 10 of each type are shown (primer 10+). Type more to narrow the search.'
+    );
+    expect(truncationNotice(hits('part', 9), undefined, 10, t)).toBeUndefined();
   });
 });

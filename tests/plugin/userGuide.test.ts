@@ -9,7 +9,13 @@ import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem
 import { QUICKSTART_BACKUP_PATH, guideVersion, openUserGuide } from '../../src/userGuide';
 import { applyAsset, managedFileContent, upsertManagedBlock } from '../../src/scaffold/scaffold';
 import { contentHash } from '../../src/scaffold/installRecord';
-import { INSTALL_RECORD_PATH, QUICKSTART_ASSET, QUICKSTART_DOC_CONTENT, QUICKSTART_DOC_PATH } from '../../src/scaffold/assets';
+import {
+  INSTALL_RECORD_PATH,
+  MANAGED_BLOCK_END,
+  QUICKSTART_ASSET,
+  QUICKSTART_DOC_CONTENT,
+  QUICKSTART_DOC_PATH,
+} from '../../src/scaffold/assets';
 import obsidianKo from '../../src/l10n.ko';
 
 function makeHost(files: Record<string, string> = {}, confirmResult = true) {
@@ -47,6 +53,26 @@ describe('openUserGuide', () => {
     expect(await fs.read(QUICKSTART_DOC_PATH)).toBe('# my notes\n');
     expect(host.notify).not.toHaveBeenCalled();
     expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
+  });
+
+  // #563: with the BEGIN line gone the command opened the guide as it was, and nothing else could fix it.
+  it('rebuilds a guide whose markers are broken after asking, keeping the lab text after END', async () => {
+    const broken = `옛 설명서\n${MANAGED_BLOCK_END}\n\n연구실 규칙\n`;
+    const { fs, host, asHost } = makeHost({ [QUICKSTART_DOC_PATH]: broken });
+
+    await openUserGuide(asHost, '1.0.0');
+
+    expect(host.confirm).toHaveBeenCalledWith(expect.stringContaining('marks of QUICKSTART.md are broken'), expect.anything());
+    expect(await fs.read(QUICKSTART_BACKUP_PATH)).toBe(broken);
+    const rebuilt = await fs.read(QUICKSTART_DOC_PATH);
+    expect(rebuilt.startsWith(upsertManagedBlock('', QUICKSTART_ASSET.content))).toBe(true);
+    expect(rebuilt.endsWith('\n연구실 규칙\n')).toBe(true);
+    expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
+
+    const kept = makeHost({ [QUICKSTART_DOC_PATH]: broken }, false);
+    await openUserGuide(kept.asHost, '1.0.0');
+    expect(await kept.fs.read(QUICKSTART_DOC_PATH)).toBe(broken);
+    expect(await kept.fs.exists(QUICKSTART_BACKUP_PATH)).toBe(false);
   });
 });
 

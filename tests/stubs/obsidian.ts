@@ -165,6 +165,7 @@ export class Modal {
 
 export class SuggestModal<T> extends Modal {
   setPlaceholder(_text: string): void {}
+  setInstructions(_instructions: { command: string; purpose: string }[]): void {}
   getSuggestions(_query: string): T[] {
     return [];
   }

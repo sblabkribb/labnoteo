@@ -182,7 +182,7 @@ Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.
 ## (선택) Labnote 툴 연결 — MCP
 
 MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `search_samples`, `create_sample`,
-`get_unit_operation`, `update_section`, `create_workflow`, `insert_unit_operation`)을 Claude Desktop 같은 외부
+`get_unit_operation`, `read_section`, `update_section`, `create_workflow`, `insert_unit_operation`)을 Claude Desktop 같은 외부
 MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 전용**입니다.
 
 - **엔드포인트**: `http://127.0.0.1:3987` — 루프백 전용이며 라우팅 가능한 인터페이스에는
@@ -243,6 +243,12 @@ MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 �
   바꾸는 범위에 넣지 않으므로, 마지막 절을 고쳐도 구분선이 사라지지 않습니다. 성공하면 바꾼
   위치(`parentHeading`, `occurrence`, `total`)와 지운 내용(`removedLines` 비어 있지 않은 줄 수,
   `removedSubheadings` 하위 제목 수, `previousBody` 옛 본문 앞 500자)을 돌려줍니다.
+- **노트 읽기와 덧붙이기**: `read_section`(읽기 전용)은 `heading`을 주면 그 절의 본문(하위 제목 포함)을,
+  생략하면 노트 전체와 헤딩 목록을 돌려줍니다. 절은 `update_section`과 같은 규칙(`parentHeading`·`occurrence`)으로
+  찾고, 2만 자가 넘으면 잘라 `truncated: true`로 알립니다. 보관함 안의 `.md` 노트만 읽으며 `.obsidian` 같은
+  점(.) 폴더는 거부합니다. 남이 쓴 절에 검토 의견을 남길 때는 `update_section`에 `mode: "append"`를 주면
+  지금 본문(하위 제목 포함) 뒤에 `content`를 덧붙이고 아무것도 지우지 않습니다. 확인 창은 "절 …의 끝에
+  덧붙입니다"와 새로 들어가는 줄을 보여 줍니다. `append`에 빈 `content`나 `clear: true`를 주면 오류입니다.
 - **`update_section`으로 절 비우기**: `content`가 비어 있거나 공백뿐이면 **아무것도 쓰지 않고**
   오류를 돌려줍니다. 절을 일부러 비울 때만 `content: ""`와 `clear: true`를 함께 보내세요.
   `clear: true`인데 `content`가 비어 있지 않아도 오류입니다.
@@ -250,7 +256,10 @@ MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 �
   돌려줍니다(샘플 뷰의 `사용처 보기`와 같은 목록). 기록의 `sources`는 정의되거나 기록된 노트일 뿐이라
   사용처 전체가 아닙니다.
 - **샘플 보관 위치**: `create_sample`은 보관 위치(`location`)도 받습니다. 생략하거나 비워
-  두면 기존 위치를 유지합니다. `list_samples`는 각 샘플의 위치와 범위(`local`/`global`)를 함께 돌려줍니다.
+  두면 기존 위치를 유지합니다. `list_samples`는 각 샘플의 위치와 범위(`local`/`global`), 로컬이면
+  실험 폴더(`experiment`)를 함께 돌려줍니다. `documentPath`를 주면 그 노트 실험의 로컬 샘플을 전역 위에
+  합쳐 보여 주고, 생략하면 전역 샘플 다음에 **모든 실험**의 로컬 샘플을 실험마다 따로 나열합니다(같은 ID가
+  여러 실험에 있으면 여러 번 나옴).
 - **모든 실험에서 샘플 찾기**: `get_sample`을 `documentPath` 없이 부르면 전역 샘플 폴더 다음에
   모든 실험의 `resources/labsamples`를 찾고, 결과의 `scope`와 `experiment`(로컬이면 실험 폴더)로
   어디서 찾았는지 알려 줍니다. `search_samples`(읽기 전용)는 타입을 몰라도 ID·별칭·보관 위치·설명에서
@@ -289,8 +298,10 @@ MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 �
   아니면 아무것도 쓰지 않고 `Note not found`/`Experiment not found` 오류를 돌려줍니다.
   경로를 잘못 적어 실험이 아닌 폴더가 생기는 일을 막기 위해서입니다. 보관함 밖 경로는
   `documentPath is outside the vault` 오류로 거부합니다.
-- **지원하지 않는 입력**: 툴이 모르는 입력 항목은 무시하되, 결과에 `Warning:`으로 시작하는
-  항목을 덧붙여 무엇을 무시했는지와 지원 항목을 알려 줍니다(호출 자체는 실패하지 않음).
+- **지원하지 않는 입력**: 읽기 툴은 모르는 입력 항목을 무시하되, 결과에 `Warning:`으로 시작하는
+  항목을 덧붙여 무엇을 무시했는지와 지원 항목을 알려 줍니다(호출 자체는 실패하지 않음). 쓰기 툴은
+  모르는 입력 항목이 하나라도 있으면 확인 창 없이 **아무것도 쓰지 않고** `Unsupported argument(s)` 오류와
+  지원 항목을 돌려줍니다. 무시된 입력 때문에 뜻과 다른 쓰기를 허용하게 되지 않도록 하기 위해서입니다.
 
 서버는 MCP `2025-06-18` 개정의 **무상태(stateless)** 구현입니다(`initialize`,
 `tools/list`, `tools/call`). DNS 리바인딩 방어를 위해 `Origin` 헤더를 검증하며, 인증이

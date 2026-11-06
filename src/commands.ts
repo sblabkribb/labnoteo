@@ -28,6 +28,7 @@ import {
   workflowPathProblem,
   syncUnitOpTocAfterInsert,
   unitOpSectionLine,
+  missingUnitOpSectionEdit,
   locateInsertedUnitOpHeading,
   unitOpInsertPointAtCursor,
   EXPERIMENT_STATUSES,
@@ -55,6 +56,7 @@ import { getObsidianLanguage } from './i18n';
 import {
   createLabnoteStructure,
   diagnoseExperimentPath,
+  experimentFoldersOutsideLabnote,
   experimentTitleBudget,
   experimentTitleLength,
   getExperimentDir,
@@ -448,6 +450,21 @@ export async function createExperimentCommand(
   opts: { title?: string; retryOf?: string; retryReadme?: string; readmes?: readonly ExperimentReadme[] } = {}
 ): Promise<void> {
   const readmes = opts.readmes ?? (await experimentReadmes(host));
+  // Before the title is typed: with labnote/ renamed, the new one would be 001 again (#559).
+  if (readmes.length === 0) {
+    const elsewhere = experimentFoldersOutsideLabnote(app.vault.getMarkdownFiles().map(f => f.path));
+    if (elsewhere.length > 0) {
+      const ok = await host.confirm(
+        host.t(
+          'labnote/ has no experiment, but {0} experiment folder(s) are elsewhere in the vault: {1}. If labnote/ was renamed or moved, rename it back to labnote first; otherwise the new experiment is numbered 001 again. Create a new experiment anyway?',
+          String(elsewhere.length),
+          elsewhere.slice(0, 3).join(', ') + (elsewhere.length > 3 ? ', …' : '')
+        ),
+        { confirmLabel: host.t('Create anyway') }
+      );
+      if (!ok) return;
+    }
+  }
   const title = await host.prompt({
     title: opts.retryOf
       ? host.t('Retry experiment {0}', posix.basename(opts.retryOf))
@@ -894,6 +911,14 @@ export function insertDateCommand(
     changes: [{ from, to: editor.offsetToPos(plan.to), text: plan.text }],
     selection: { from: end },
   });
+  if (plan.timeDropped) {
+    host.notify(
+      'info',
+      host.t(
+        'Only the date went into this front matter date field, so Obsidian keeps reading it as a date. Write the time in the Start_date/End_date of #### Meta.'
+      )
+    );
+  }
   // The 📅 picker says so when the End_date comes before the Start_date; this too (#531).
   const docLines = editor.getValue().split('\n');
   const own = findMetaDateFieldInLine(docLines[from.line] ?? '');
@@ -1443,7 +1468,7 @@ export async function insertUnitOpAndUpdateToc(
   // Read before the alias prompt opens: a modal takes the focus, and the
   // Source-mode editor then reports the cursor at the start of the note (#544).
   // A caller whose own picker already moved it passes what it read instead.
-  const caret = opts.caret ?? (opened ? await caretBeforeModal(opened) : undefined);
+  let caret = opts.caret ?? (opened ? await caretBeforeModal(opened) : undefined);
   if (askAlias && opened && isValidWorkflowPath(opened.path)) {
     alias = await askAlias(input);
     if (alias === undefined) return false;
@@ -1452,6 +1477,14 @@ export async function insertUnitOpAndUpdateToc(
   // Resolve the insertion point BEFORE inserting and hand it to the insert, so
   // the new heading can be found again after the whole-doc TOC rewrite.
   const before = host.editTarget();
+  // A deleted section heading comes back first, or the list would go under the title (#564).
+  if (before && isValidWorkflowPath(before.path)) {
+    const fix = missingUnitOpSectionEdit(await before.getText());
+    if (fix) {
+      await before.replaceRange(fix.offset, fix.offset, fix.text);
+      if (caret !== undefined && caret >= fix.offset) caret += fix.text.length;
+    }
+  }
   const at = before ? await unitOpInsertPointAtCursor(before, caret) : undefined;
   const insertOffset = at?.offset ?? -1;
 

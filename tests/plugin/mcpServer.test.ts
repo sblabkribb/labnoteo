@@ -250,6 +250,17 @@ describe('buildApprovalMessage', () => {
     );
   });
 
+  // #554
+  it('says an append adds to the end of the section', () => {
+    const msg = buildApprovalMessage(t, 'Allow?', null, { ...preview, appending: true, addedText: ['- [review] ok'] });
+    expect(msg).toContain('This adds to the end of section "[UHW100 PCR] > Results", which now has 12 line(s).');
+    expect(msg).toContain(NONE_REMOVED);
+    expect(msg).toContain('Lines added:\n  - [review] ok');
+    expect(buildApprovalMessage(createObsidianTranslator('ko'), 'Allow?', null, { ...preview, appending: true })).toContain(
+      '절 "[UHW100 PCR] > Results"의 끝에 덧붙입니다.'
+    );
+  });
+
   it('says when the section is emptied and nested headings go with it', () => {
     expect(
       buildApprovalMessage(t, 'Allow?', null, { ...preview, parentHeading: '', clearing: true, removedSubheadings: 2 })

@@ -120,6 +120,20 @@ describe('insertDateCommand', () => {
     ]);
   });
 
+  // #557
+  it('puts only the date on a front matter date key and says where the time goes', () => {
+    const notices: string[] = [];
+    const infoHost = { notify: (_level: string, message: string) => notices.push(message), t: (s: string) => s } as unknown as LabnoteHost;
+    const e = fakeEditor('---\nend_date:\n---\n', 13);
+
+    expect(insertDateCommand(e.editor, infoHost, '2026-11-06 10:30')).toBe(true);
+
+    expect(e.text()).toBe('---\nend_date: 2026-11-06\n---\n');
+    expect(notices).toEqual([
+      'Only the date went into this front matter date field, so Obsidian keeps reading it as a date. Write the time in the Start_date/End_date of #### Meta.',
+    ]);
+  });
+
   // #531: only the 📅 picker warned of an End_date before the Start_date.
   it('warns when the End_date it fills is before the Start_date, a date-only one by day', () => {
     const run = (start: string, text: string) => {

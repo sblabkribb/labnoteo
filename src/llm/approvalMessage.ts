@@ -80,9 +80,11 @@ function describeWorkflowCreate(t: Translator, p: WorkflowCreatePreview): string
 function describeSectionEdit(t: Translator, p: SectionEditPreview): string {
   const section = p.parentHeading ? `${p.parentHeading} > ${p.heading}` : p.heading;
   const lines = String(p.removedLines);
-  const head = p.clearing
-    ? t('This empties section "{0}", which now has {1} line(s).', section, lines)
-    : t('This replaces section "{0}", which now has {1} line(s).', section, lines);
+  const head = p.appending
+    ? t('This adds to the end of section "{0}", which now has {1} line(s).', section, lines)
+    : p.clearing
+      ? t('This empties section "{0}", which now has {1} line(s).', section, lines)
+      : t('This replaces section "{0}", which now has {1} line(s).', section, lines);
   const parts = [head];
   if (p.removedSubheadings > 0) {
     parts.push(t('Its {0} nested heading(s) are replaced too.', String(p.removedSubheadings)));

@@ -57,10 +57,13 @@ export function isDesktopOrigin(origin: string): boolean {
   }
 }
 
+const KNOWN_SOURCE_KEYS: ReadonlySet<string> = new Set(['system', 'connection', 'origin', 'type', 'id', 'kid']);
+
 /**
  * Coerce an untrusted value into a {@link SampleSource}, or `null`. Anything
  * malformed is dropped rather than repaired: a half-built link would send
- * lookups to the wrong item.
+ * lookups to the wrong item. Keys a newer version added to a valid link are
+ * kept (#556).
  */
 export function normalizeSampleSource(value: unknown): SampleSource | null {
   if (!value || typeof value !== 'object') return null;
@@ -71,6 +74,7 @@ export function normalizeSampleSource(value: unknown): SampleSource | null {
   if (typeof v.id !== 'string' || !v.id.trim()) return null;
   if (typeof v.origin !== 'string' || !v.origin.trim()) return null;
   return {
+    ...Object.fromEntries(Object.entries(v).filter(([key]) => !KNOWN_SOURCE_KEYS.has(key))),
     system: 'partbank',
     connection: v.connection,
     origin: v.origin.trim(),

@@ -102,6 +102,39 @@ export function experimentLosingLabsamples(oldPath: string, newPath: string): st
   return getExperimentDir(oldPath);
 }
 
+/**
+ * How many experiments went along when the vault's top-level `labnote/`
+ * folder was renamed or moved to `newPath` (#559), given the names of the
+ * folders in it: experiments are looked for only in a folder by that name, so
+ * all of them drop out and the next one would be numbered 001 again.
+ * Undefined for any other folder, and when it held no experiment.
+ */
+export function experimentsLeavingLabnoteRoot(
+  oldPath: string,
+  newPath: string,
+  childFolders: readonly string[]
+): number | undefined {
+  if (oldPath !== 'labnote' || newPath === 'labnote') return undefined;
+  const count = childFolders.filter(name => /^\d{3}_/.test(name)).length;
+  return count > 0 ? count : undefined;
+}
+
+/**
+ * The experiment folders among the vault's Markdown `paths` that are outside
+ * `labnote/` (#559): a `###_` folder holding a `README.labnote.md`, as left
+ * behind when `labnote/` itself was renamed. Sorted.
+ */
+export function experimentFoldersOutsideLabnote(paths: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const p of paths) {
+    if (path.basename(p) !== 'README.labnote.md') continue;
+    const folder = path.dirname(p);
+    if (!/^\d{3}_/.test(path.basename(folder))) continue;
+    if (diagnoseExperimentPath(folder, { isFolder: true }).kind === 'outside') out.add(folder);
+  }
+  return [...out].sort();
+}
+
 /** {@link diagnoseExperimentPath} result. */
 export type ExperimentPathDiagnosis =
   /** Inside an experiment; `folder` is its `labnote/###_Name` folder. */

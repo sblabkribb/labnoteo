@@ -37,7 +37,11 @@ position.
 
 ### Insert date and time
 
-Insert the current timestamp. The front matter and table cell rules are the same as Insert date.
+Insert the current timestamp. The front matter and table cell rules are the same as Insert date,
+except for the value written in the front matter: a key with `time` in its name (`start_time`) gets
+Obsidian's date-time form (`2026-10-18T10:30`), and any other date key (`end_date`) gets the date
+alone, so Obsidian keeps reading it as a date property, with a notice to write the time in the
+`#### Meta` Start_date/End_date.
 
 ### Date picker (📅)
 
@@ -329,6 +333,10 @@ the alias goes into no file name. The same characters are refused as in Create w
   none, the block goes before `## Conclusions and Discussion`, or at the end of the note. When the
   `##` section above it then takes the TOC, the notice gives only the place (`(before the
   conclusions)`); it says the TOC was not updated only when no section could hold one.
+- The workflow title (`## [WD070 …]`) is never taken for the section. With the section heading
+  deleted, the next insert writes `## Related Unit Operations` back before the TOC entries left
+  (after the workflow description quote when they are gone too) and lists the TOC under it. Until
+  then the TOC is not kept in order.
 - The new block's Experimenter is the note's own `experimenter`, or the README `author` when the
   note names nobody. When the two differ, the notice says which one was used.
 - Run where it can't go (a README, a note without the number, a subfolder of the experiment, an
@@ -355,7 +363,8 @@ the alias goes into no file name. The same characters are refused as in Create w
   break the link.
 - A link line you wrote into the TOC section yourself (`- [protocol](https://…)`, any line not
   starting with a unit-operation ID) is not a TOC entry and is not removed. With auto-sync on, such
-  a line placed between entries moves below them.
+  a line placed between entries moves below them. Not while the cursor is on it (just after Enter
+  at the end of an entry, say): it moves at the next edit of the note once the cursor has left.
 - TOC links use GitHub's anchors (`#uhw010-…`), so they work when the note is viewed on GitHub.
   Clicking one in Obsidian's **reading view** scrolls to its block too (`-1` links of a repeated
   unit operation included); in the editing view use the **Outline** view. Obsidian's Outgoing links
@@ -394,7 +403,9 @@ or IDs, export again to bring the CSV up to date.
 - With ten tables or more the number has as many digits as the table count (`table01` … `table11`)
   so the files sort in table order. Existing CSVs such as `table1.csv` take the new name once the
   overwrite prompt passes, with a notice to update the paths in any analysis script. The names go
-  back to `table1` when the note drops to nine tables or fewer.
+  back to `table1` when the note drops to nine tables or fewer, but only once the CSVs of the removed
+  tables (`table10.csv`) are gone: while one is kept, the names keep its digits so they still sort
+  with it.
 
 **Cell contents**
 
@@ -501,6 +512,9 @@ explorer.
 - Changing only the letter case of a saved custom sample type (`Media` → `media`) is not saved:
   its samples and the IDs already written in notes keep the old spelling, so the name goes back
   and a notice says so.
+- A name Windows keeps for devices (`CON`, `AUX`, `NUL`, `COM1`) is not saved either: its
+  `{Type}.json` cannot exist on Windows. One saved by an older version stays with a warning; move
+  its samples to another type with `Change type`, then remove the name.
 - The **Global sample folder** setting refuses a folder inside an experiment (its
   `resources/labsamples/` is that experiment's Local registry) and puts the previous value back.
   When the old Global folder was such a folder, its samples are not moved to the new one; use
@@ -661,7 +675,9 @@ it faded as `(discarded)` in the sample view.
   longer find it, and partbank's bulk location refresh skips discarded samples. `Cancel`, or
   closing the question with Esc, leaves the sample unmarked.
   Unmarking puts the old location back when the location is empty, and keeps one written in the
-  meantime.
+  meantime. From 0.140.0 the registry (`{Type}.json`) keeps fields this version does not know,
+  but an earlier version that edits the registry can drop later fields such as the kept location.
+  Everyone sharing the vault should update to the same version.
 
 ## partbank
 
@@ -696,7 +712,9 @@ Typing `@dna`, `@plasmid`, `@primer` (or `@sample`) puts **Search partbank** at 
 autocomplete menu, which opens a search window prefilled with whatever was typed after `;`. From
 two characters on it searches after a short pause (shorter, the list says `Type at least 2
 characters to search partbank.`; while waiting, `Searching partbank…`) and lists each hit with its name, KID, kind and
-whether it is yours or shared with you. **Only your own items and items shared with your groups**
+whether it is yours or shared with you. At most 10 hits of each kind are listed; when there are
+more, a line under the list gives the total (`Only the first 10 of each type are shown (plasmid
+23)`), so type more to narrow the search. **Only your own items and items shared with your groups**
 are searched, not public ones; a sample already linked to a public item still refreshes and opens,
 but its usages are not sent. Picking one reads the item and its storage location, registers it,
 and inserts `ID;alias`.
@@ -839,7 +857,9 @@ a title. Sections with
 nothing in them are left as ruled writing space, Method and Results & Discussions widest. Template
 hint lines such as `(samples from the previous step)` are left out even when you wrote below them.
 A fenced code block prints line by line as written, under the step above it without a step number
-of its own, and a ticked Method step (`- [x]`) prints with a ✓ in its box. Inline formatting prints
+of its own, and a ticked Method step (`- [x]`) prints with a ✓ in its box. A callout
+(`> [!warning] Keep on ice`) prints as a bordered box headed by its type and title, a plain quote
+with a rule on its left; between Method steps either goes under the step above without a number. Inline formatting prints
 as the reading view shows it: struck-through text struck (not dropped), highlights underlined,
 footnote references and `<sup>` raised, `<sub>` lowered. A footnote definition (`[^1]: …`) prints
 where it was written, with its label raised, and math (`$…$`, `$$…$$`) prints as the symbols paper
@@ -917,7 +937,8 @@ with the reason for each, and file each by choosing the note, unit operation, an
 ## AI
 
 Set up under Settings → Labnote Assistant → AI provider; with **Provider** left at `Disabled` the AI
-commands do nothing. When a request fails, the notice names the cause and the setting to fix: the
+commands do nothing. An endpoint field is saved when you leave it, and leaving it empty puts the
+default address back with a notice. When a request fails, the notice names the cause and the setting to fix: the
 endpoint when the server cannot be reached (is Ollama running?), the API key on 401/403, the model
 when it is not found (for Ollama, was it pulled with `ollama pull`?), the endpoint path on any other
 404 (the server address only, without `/v1` or `/api`), and how to write the endpoint when it is not
@@ -1122,6 +1143,12 @@ it is. When a backup by that name is already there, the new one takes the old gu
 (`QUICKSTART.backup-0.125.0.md`, then numbered), so an earlier backup is never written over; the
 dialog and the notice name the file. Text below the block is always kept.
 
+Do not delete the `BEGIN labnoteo (managed)` or `END labnoteo (managed)` line. With one missing,
+doubled or out of order, updates cannot tell the block from the lab's text, so they leave the file
+alone and say so once. Open user guide (for `QUICKSTART.md`) or Setup research automation (for
+`AGENTS.md`) then asks to rebuild the block: the current file is kept as a backup, and only text that
+cannot have been the block stays (before a lone BEGIN, after a lone END).
+
 Setup research automation treats an edited marked block of `AGENTS.md` (and the other marked files)
 the same way: it lists the lines that would go (up to eight), asks to put the block back to the
 installed text when this plugin version ships the same block or to replace it with the new version
@@ -1265,3 +1292,7 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
 - Experiment folders must sit directly under `labnote/`; moving one into a subfolder such as
   `labnote/group/020_GFP`, or out of `labnote/` altogether, warns and offers to move it back under
   `labnote/`. Running a workflow command from a note of such a folder says the same.
+- Do not rename the top-level `labnote/` folder either: experiments are looked for only in a folder
+  by that name. Renaming it, or moving it into another folder, warns and offers to rename it back to
+  `labnote`. When `labnote/` has no experiment but experiment folders exist elsewhere in the vault,
+  `Create experiment` asks before numbering the new one 001.

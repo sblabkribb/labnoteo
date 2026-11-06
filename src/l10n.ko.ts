@@ -430,6 +430,11 @@ const obsidianKo: Record<string, string> = {
   'The marked block of {0} was edited after it was installed, and this plugin version has the same block. Put the block back to the installed text? Text outside the block is kept, and the current file is kept as {1}.':
     '{0}의 표시된 블록이 설치 후 고쳐졌습니다. 이 플러그인 버전의 블록은 설치할 때와 같습니다. 블록을 설치할 때의 내용으로 되돌릴까요? 블록 밖의 내용은 그대로 두고, 지금 파일은 {1}로 남깁니다.',
   'Kept the previous {0} as {1}.': '바꾸기 전의 {0} 파일은 {1}로 남겼습니다.',
+  'The BEGIN/END labnoteo (managed) marks of {0} are broken (one is missing or they are out of order), so updates cannot tell their block from your text. Rebuild the block with the new version? Text outside the marks that cannot be part of the block is kept, and the current file is kept as {1}.':
+    '{0}의 BEGIN/END labnoteo (managed) 표시가 깨져 있어(하나가 없거나 순서가 바뀜) 업데이트가 관리 블록과 직접 쓴 글을 가를 수 없습니다. 새 버전으로 블록을 다시 만들까요? 표시 바깥에서 블록일 수 없는 글은 남기고, 지금 파일은 {1}로 남깁니다.',
+  'The BEGIN/END labnoteo (managed) marks of {0} are broken, so it was not updated. Run "{1}" to rebuild the block; the current file is kept as a backup.':
+    '{0}의 BEGIN/END labnoteo (managed) 표시가 깨져 있어 갱신하지 않았습니다. "{1}"을(를) 실행하면 블록을 다시 만들고, 지금 파일은 백업으로 남깁니다.',
+  'Rebuild': '다시 만들기',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 "git config core.hooksPath {6}"를 실행하세요.',
   'Research automation is already up to date ({0} files checked).':
@@ -780,6 +785,10 @@ const obsidianKo: Record<string, string> = {
     '{0}: {1}의 대소문자만 바꿨습니다. 이 타입의 시료와 노트에 이미 쓴 ID는 {1} 철자를 쓰므로 바꾸지 않고 저장된 이름을 유지했습니다.',
   '{0} differs from {1} only in letter case: on Windows both share one {Type}.json, so their samples mix. Keep one of them.':
     '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞이니 하나만 남기세요.',
+  '{0}: Windows keeps this name for a device, so its {Type}.json cannot be made there. It was not saved. Use another name, such as {1}.':
+    '{0}: Windows가 장치 이름으로 쓰는 이름이라 그 {Type}.json을 만들 수 없어 저장하지 않았습니다. {1}처럼 다른 이름을 쓰세요.',
+  '{0} is a name Windows keeps for devices: its {Type}.json cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.':
+    '{0}은(는) Windows가 장치 이름으로 쓰는 이름입니다. 그 {Type}.json은 Windows에서 만들거나 받아 올 수 없어 git이 멈춥니다. 타입 변경으로 시료를 다른 타입으로 옮긴 뒤 이 이름을 지우세요.',
   '{0}: {1} sample(s)': '{0}: 샘플 {1}개',
   'Samples of the removed sample type(s) will no longer show:\n\n{0}\n\nPut the type(s) back in the list?':
     '빠진 타입의 샘플이 더 이상 보이지 않게 됩니다:\n\n{0}\n\n그 타입을 목록에 다시 넣을까요?',
@@ -906,6 +915,18 @@ const obsidianKo: Record<string, string> = {
   '{0} was renamed to {1}, but Home.md, the Wiki publishing and AI agents look for it as {0}, and "Setup research automation" makes an empty {0} when it is missing.':
     '{0}의 이름이 {1}(으)로 바뀌었습니다. Home.md 목차, Wiki 발행, AI 에이전트는 {0}(이)라는 이름으로 찾고, "연구노트 자동화 설정"은 {0}이(가) 없으면 빈 파일을 새로 만듭니다.',
   'Rename back': '이름 되돌리기',
+  'labnote/ was renamed to {0}. Experiments are found only in a folder named labnote at the vault root, so its {1} experiment(s) no longer show, and a new experiment would be numbered 001 again.':
+    'labnote/의 이름이 {0}(으)로 바뀌었습니다. 실험은 보관함 최상위의 labnote 폴더에서만 찾으므로 그 안의 실험 {1}개가 보이지 않고, 새 실험은 다시 001부터 번호를 받습니다.',
+  'labnote/ has no experiment, but {0} experiment folder(s) are elsewhere in the vault: {1}. If labnote/ was renamed or moved, rename it back to labnote first; otherwise the new experiment is numbered 001 again. Create a new experiment anyway?':
+    'labnote/에는 실험이 없지만 보관함의 다른 곳에 실험 폴더 {0}개가 있습니다: {1}. labnote/의 이름을 바꿨거나 옮겼다면 먼저 labnote로 되돌리세요. 그러지 않으면 새 실험이 다시 001번이 됩니다. 그래도 새 실험을 만들까요?',
+  'Create anyway': '그래도 만들기',
+  'Only the first {0} of each type are shown ({1}). Type more to narrow the search.':
+    '종류마다 처음 {0}개만 보여 줍니다({1}). 검색어를 더 적어 좁히세요.',
+  'The endpoint cannot be empty, so it is back to {0}.': '엔드포인트는 비워 둘 수 없어 {0}(으)로 되돌렸습니다.',
+  'The endpoint is empty. Enter the server address in {0}, e.g. {1}.':
+    '엔드포인트가 비어 있습니다. {0}에 {1}처럼 서버 주소를 적으세요.',
+  'Only the date went into this front matter date field, so Obsidian keeps reading it as a date. Write the time in the Start_date/End_date of #### Meta.':
+    '머리말 날짜 칸에는 날짜만 넣었습니다(Obsidian이 날짜 속성으로 읽도록). 시각은 #### Meta의 Start_date·End_date에 적으세요.',
   'Kept the name "{0}". If the title or the README checklist no longer match the file name later, run "{1}".':
     '이름 "{0}"을(를) 그대로 두었습니다. 나중에 제목이나 README 체크리스트가 파일 이름과 맞지 않으면 "{1}"을(를) 실행하세요.',
   'Renamed items keep their old names in the workflow notes and README checklists already made: {0} note(s) use them. Rename those by hand if needed.':
@@ -1018,6 +1039,8 @@ const obsidianKo: Record<string, string> = {
   'Target: {0}': '대상: {0}',
   'This replaces section "{0}", which now has {1} line(s).':
     '절 "{0}"의 내용을 바꿉니다. 지금 {1}줄이 있습니다.',
+  'This adds to the end of section "{0}", which now has {1} line(s).':
+    '절 "{0}"의 끝에 덧붙입니다. 지금 {1}줄이 있습니다.',
   'This empties section "{0}", which now has {1} line(s).':
     '절 "{0}"의 내용을 모두 지웁니다. 지금 {1}줄이 있습니다.',
   'Its {0} nested heading(s) are replaced too.': '그 안의 하위 제목 {0}개도 함께 바뀝니다.',

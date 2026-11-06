@@ -99,6 +99,9 @@ body { font-family: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sa
 .sec .grid th, .sec .grid td { border: 0.2mm solid #999; padding: 0.4mm 1.4mm; text-align: left; }
 .text p { margin: 0; white-space: pre-wrap; }
 .ws pre.code { margin: 0.8mm 0; white-space: pre-wrap; font: 8.5pt/1.4 ui-monospace, Consolas, monospace; }
+.ws .quote { margin: 0.8mm 0; padding-left: 2mm; border-left: 0.6mm solid #999; white-space: pre-wrap; }
+.ws .callout { margin: 0.8mm 0; padding: 0.6mm 1.6mm; border: 0.3mm solid #666; white-space: pre-wrap; }
+.ws .callout-title { margin-bottom: 0.3mm; }
 .ws mark { background: none; text-decoration: underline; }
 .note-body img { max-width: 100%; }
 .note-body table { border-collapse: collapse; }

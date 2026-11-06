@@ -30,7 +30,20 @@ describe('partitionCustomSampleTypes', () => {
       caseDuplicates: [],
       legacyCaseDuplicates: [],
       caseRenamed: [],
+      reserved: [],
+      legacyReserved: [],
     });
+  });
+
+  // #560: CON.json cannot exist on Windows, and git stops at it.
+  it('refuses a name Windows keeps for devices, and keeps one stored before with a warning', () => {
+    const out = partitionCustomSampleTypes('CON, aux, COM¹, Console, LPT1x', []);
+    expect(out.reserved).toEqual(['CON', 'aux', 'COM¹']);
+    expect(out.save).toEqual(['Console', 'LPT1x']);
+    const kept = partitionCustomSampleTypes('CON, Strain', ['CON']);
+    expect(kept.save).toEqual(['CON', 'Strain']);
+    expect(kept.legacyReserved).toEqual(['CON']);
+    expect(kept.reserved).toEqual([]);
   });
 
   // #252: `무세포_용해물` reads as italics in the reading view, so the type no longer matches.
@@ -295,6 +308,13 @@ describe('migrateSettings', () => {
       expect(migrateSettings({ llmEndpoint: '' }).llmEndpointOllama).toBe(
         DEFAULT_SETTINGS.llmEndpointOllama
       );
+    });
+
+    // #555: a field cleared to type a new address was saved empty.
+    it('puts the default back for a blank endpoint', () => {
+      const out = migrateSettings({ llmEndpointOllama: '', llmEndpointOpenai: '  ' });
+      expect(out.llmEndpointOllama).toBe(DEFAULT_SETTINGS.llmEndpointOllama);
+      expect(out.llmEndpointOpenai).toBe(DEFAULT_SETTINGS.llmEndpointOpenai);
     });
   });
 });

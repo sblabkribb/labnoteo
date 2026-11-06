@@ -7,7 +7,7 @@
  * Obsidian talks to Ollama/OpenAI directly).
  */
 import type { ExperimentGrouping, PartbankConnection, Translator } from '@labnoteo/core';
-import type { InvalidFolderReason } from '@labnoteo/core/lib/regexUtils';
+import { isWindowsReservedName, type InvalidFolderReason } from '@labnoteo/core/lib/regexUtils';
 import {
   isValidSampleTypeName,
   SAMPLE_TYPES,
@@ -191,6 +191,10 @@ export interface CustomSampleTypesInput {
   legacyCaseDuplicates: { name: string; clashesWith: string }[];
   /** Stored names typed again in another letter case; the stored spelling is kept (#497). */
   caseRenamed: { name: string; stored: string }[];
+  /** Newly typed names Windows keeps for devices (`CON`), whose `{Type}.json` cannot exist there (#560). */
+  reserved: string[];
+  /** Such names kept from before, so their samples can still be moved to another type. */
+  legacyReserved: string[];
 }
 
 /**
@@ -204,7 +208,10 @@ export interface CustomSampleTypesInput {
  * read and write the one `dna.json`, and their samples mix. So is a name
  * whose `_` the reading view turns into italics (#252). A stored name typed in
  * another case (`CellLine` → `cellline`) keeps its stored spelling (#497): its
- * samples and the ids already written in notes carry that spelling.
+ * samples and the ids already written in notes carry that spelling. So is a
+ * name Windows keeps for a device (`CON`, #560): its `{Type}.json` cannot be
+ * made or checked out there. A stored one is kept, so its samples can still be
+ * moved to another type.
  */
 export function partitionCustomSampleTypes(
   input: string,
@@ -219,6 +226,8 @@ export function partitionCustomSampleTypes(
     caseDuplicates: [],
     legacyCaseDuplicates: [],
     caseRenamed: [],
+    reserved: [],
+    legacyReserved: [],
   };
   const taken = new Map<string, string>(SAMPLE_TYPES.map(t => [t.toLowerCase(), t]));
   const names = input
@@ -244,6 +253,15 @@ export function partitionCustomSampleTypes(
       continue;
     }
     taken.set(name.toLowerCase(), name);
+    if (isWindowsReservedName(name)) {
+      if (previouslySaved.includes(name)) {
+        out.save.push(name);
+        out.legacyReserved.push(name);
+      } else {
+        out.reserved.push(name);
+      }
+      continue;
+    }
     const readable = isValidSampleTypeName(name);
     if (readable && !underscoreTurnsItalic(name)) {
       out.save.push(name);
@@ -353,9 +371,14 @@ export function migrateSettings(raw: unknown): LabnoteSettings {
   }
   if (typeof data.partbankSendUsages === 'boolean') out.partbankSendUsages = data.partbankSendUsages;
 
-  // Provider-specific endpoints (new shape) win when present…
-  if (typeof data.llmEndpointOllama === 'string') out.llmEndpointOllama = data.llmEndpointOllama;
-  if (typeof data.llmEndpointOpenai === 'string') out.llmEndpointOpenai = data.llmEndpointOpenai;
+  // Provider-specific endpoints (new shape) win when present… A blank one,
+  // saved by a field cleared before #555, gets the default back.
+  if (typeof data.llmEndpointOllama === 'string' && data.llmEndpointOllama.trim()) {
+    out.llmEndpointOllama = data.llmEndpointOllama;
+  }
+  if (typeof data.llmEndpointOpenai === 'string' && data.llmEndpointOpenai.trim()) {
+    out.llmEndpointOpenai = data.llmEndpointOpenai;
+  }
   // …otherwise migrate the legacy single `llmEndpoint` onto whichever provider
   // was active (defaulting to Ollama, the old default).
   if (

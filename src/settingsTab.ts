@@ -230,6 +230,24 @@ export class LabnoteSettingTab extends PluginSettingTab {
     return folder;
   }
 
+  /**
+   * Save an AI endpoint once the field is left (#555). Saved on every key, a
+   * field cleared to type a new address left an empty endpoint, which every
+   * AI request then failed on; an empty field gets the default back.
+   */
+  private commitEndpoint(key: 'llmEndpointOllama' | 'llmEndpointOpenai', value: string): string {
+    const s = this.plugin.settings;
+    const endpoint = value.trim() || DEFAULT_SETTINGS[key];
+    if (!value.trim()) {
+      new Notice(this.plugin.t('The endpoint cannot be empty, so it is back to {0}.', endpoint), 8000);
+    }
+    if (endpoint !== s[key]) {
+      s[key] = endpoint;
+      void this.plugin.saveSettings();
+    }
+    return endpoint;
+  }
+
   private renderCustomTypes(typesSetting: Setting): void {
     const s = this.plugin.settings;
     // Names stored before validation existed stay usable (#81).
@@ -243,9 +261,28 @@ export class LabnoteSettingTab extends PluginSettingTab {
           this.scheduleSampleTypesRefresh();
         });
       t.inputEl.addEventListener('blur', () => {
-        const { rejected, italic, caseDuplicates, caseRenamed } = partitionCustomSampleTypes(t.getValue(), storedTypes);
-        if (rejected.length === 0 && italic.length === 0 && caseDuplicates.length === 0 && caseRenamed.length === 0) {
+        const { rejected, italic, caseDuplicates, caseRenamed, reserved } = partitionCustomSampleTypes(
+          t.getValue(),
+          storedTypes
+        );
+        if (
+          rejected.length === 0 &&
+          italic.length === 0 &&
+          caseDuplicates.length === 0 &&
+          caseRenamed.length === 0 &&
+          reserved.length === 0
+        ) {
           return;
+        }
+        if (reserved.length > 0) {
+          new Notice(
+            this.plugin.t(
+              '{0}: Windows keeps this name for a device, so its {Type}.json cannot be made there. It was not saved. Use another name, such as {1}.',
+              reserved.join(', '),
+              reserved.map(r => `${r}Sample`).join(', ')
+            ),
+            8000
+          );
         }
         if (rejected.length > 0) {
           new Notice(
@@ -290,10 +327,19 @@ export class LabnoteSettingTab extends PluginSettingTab {
         t.setValue(s.customSampleTypes.join(', '));
       });
     });
-    const { legacyInvalid, legacyItalic, legacyCaseDuplicates } = partitionCustomSampleTypes(
+    const { legacyInvalid, legacyItalic, legacyCaseDuplicates, legacyReserved } = partitionCustomSampleTypes(
       s.customSampleTypes.join(','),
       storedTypes
     );
+    if (legacyReserved.length > 0) {
+      typesSetting.descEl.createDiv({
+        cls: 'mod-warning',
+        text: this.plugin.t(
+          '{0} is a name Windows keeps for devices: its {Type}.json cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.',
+          legacyReserved.join(', ')
+        ),
+      });
+    }
     if (legacyInvalid.length > 0) {
       typesSetting.descEl.createDiv({
         cls: 'mod-warning',
@@ -393,23 +439,19 @@ export class LabnoteSettingTab extends PluginSettingTab {
           name: t('Ollama endpoint'),
           desc: t('Without http:// or https://, http:// is added when connecting.'),
           render: setting =>
-            setting.addText(text =>
-              text.setValue(s.llmEndpointOllama).onChange(v => {
-                s.llmEndpointOllama = v.trim();
-                save();
-              })
-            ),
+            setting.addText(text => {
+              text.setValue(s.llmEndpointOllama);
+              this.pendingCommits.push(commitOnChange(text, v => this.commitEndpoint('llmEndpointOllama', v)));
+            }),
         },
         {
           name: t('OpenAI endpoint'),
           desc: t('Without http:// or https://, http:// is added when connecting.'),
           render: setting =>
-            setting.addText(text =>
-              text.setValue(s.llmEndpointOpenai).onChange(v => {
-                s.llmEndpointOpenai = v.trim();
-                save();
-              })
-            ),
+            setting.addText(text => {
+              text.setValue(s.llmEndpointOpenai);
+              this.pendingCommits.push(commitOnChange(text, v => this.commitEndpoint('llmEndpointOpenai', v)));
+            }),
         },
         {
           name: t('Model'),

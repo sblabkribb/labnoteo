@@ -912,15 +912,29 @@ describe('table CSV numbering', () => {
     });
   });
 
-  it('renames back when the note goes below ten tables, and leaves the rest for the trash', () => {
+  // #565: renamed back to one digit, `_table2.csv` sorted after the `_table10.csv` left beside it.
+  it('keeps the digits of a leftover above the table count, and renames back once it is gone', () => {
     const files = [csv('01'), csv('02'), csv('10'), csv('11')];
     expect(planTableCsvNames(note, files, 2)).toEqual({
+      names: [csv('01'), csv('02')],
+      renames: [],
+      stale: [csv('10'), csv('11')],
+    });
+    expect(planTableCsvNames(note, [csv('01'), csv('02')], 2)).toEqual({
       names: [csv('1'), csv('2')],
       renames: [
         { from: csv('01'), to: csv('1') },
         { from: csv('02'), to: csv('2') },
       ],
-      stale: [csv('10'), csv('11')],
+      stale: [],
+    });
+  });
+
+  it('widens new names to a leftover number with more digits', () => {
+    expect(planTableCsvNames(note, [csv('1'), csv('12')], 3)).toEqual({
+      names: [csv('01'), csv('02'), csv('03')],
+      renames: [{ from: csv('1'), to: csv('01') }],
+      stale: [csv('12')],
     });
   });
 

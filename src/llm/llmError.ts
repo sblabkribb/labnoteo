@@ -51,6 +51,13 @@ export function describeLlmError(err: unknown, settings: LabnoteSettings, t: Tra
   const setting = (label: string): string =>
     [t('Settings'), 'Labnote Assistant', t('AI provider'), t(label)].join(' → ');
   const endpointSetting = setting(ollama ? 'Ollama endpoint' : 'OpenAI endpoint');
+  if (!endpoint.trim()) {
+    return t(
+      'The endpoint is empty. Enter the server address in {0}, e.g. {1}.',
+      endpointSetting,
+      ollama ? 'http://localhost:11434' : 'https://api.openai.com'
+    );
+  }
 
   if (err instanceof LlmHttpError) {
     if (err.status === 401 || err.status === 403) {

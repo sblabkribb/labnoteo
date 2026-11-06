@@ -1019,16 +1019,19 @@ export interface TableCsvPlan {
 /**
  * Plan the table CSVs of `noteName` for `tableCount` tables among `files`
  * (base names). Renames and leftovers are planned together: a CSV about to be
- * renamed is not also offered for the trash.
+ * renamed is not also offered for the trash. While a leftover numbered above
+ * the table count is kept, the numbers take its digits too (#565): with
+ * `_table10.csv` left, a new `_table9.csv` would sort after it.
  */
 export function planTableCsvNames(noteName: string, files: readonly string[], tableCount: number): TableCsvPlan {
-  const names = Array.from({ length: tableCount }, (_, i) => tableCsvName(noteName, i + 1, tableCount));
   const offset = `${tableCsvStem(noteName)}_table`.length;
   const number = (f: string) => Number(f.slice(offset, -'.csv'.length));
+  const siblings = siblingTableCsvs(noteName, files).sort((a, b) => number(a) - number(b) || a.localeCompare(b));
+  const widest = Math.max(tableCount, ...siblings.map(number));
+  const names = Array.from({ length: tableCount }, (_, i) => tableCsvName(noteName, i + 1, widest));
   const taken = new Set(files);
   const renames: WorkflowRename[] = [];
   const stale: string[] = [];
-  const siblings = siblingTableCsvs(noteName, files).sort((a, b) => number(a) - number(b) || a.localeCompare(b));
   for (const f of siblings) {
     const n = number(f);
     const name = n >= 1 && n <= tableCount ? names[n - 1] : undefined;

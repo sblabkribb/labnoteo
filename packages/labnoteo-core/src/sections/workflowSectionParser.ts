@@ -26,12 +26,23 @@ export function isUnitOpTocEntryLine(text: string): boolean {
 }
 
 /**
+ * The workflow's title, `## [WD070 Name]`. The same shape as `lib/workflowStructure`'s,
+ * kept here so `sections` does not import `lib`.
+ */
+const WORKFLOW_TITLE_RE = /^##\s+\[[A-Z]{2}\d{3}\s+[^\]]+\]/;
+
+/** The heading {@link ensureUnitOpSection} writes. */
+const UNIT_OP_SECTION_HEADING = '## Related Unit Operations';
+
+/**
  * Line index of the unit-operation section's `##` heading, or -1 (#402). The
  * heading is matched loosely, as the README's Related Workflows is: any `##`
  * naming it in English or Korean. Failing that, the first `##` section holding
  * a `### [ID …]` block or a TOC entry is taken, since a heading renamed to
- * anything else still has its unit operations under it. Fenced lines are
- * skipped.
+ * anything else still has its unit operations under it — but not the
+ * workflow's title: with the heading deleted its blocks fall under the title,
+ * and the TOC would go between the title and its description (#564). Fenced
+ * lines are skipped.
  */
 export function findUnitOpSection(lines: readonly { text: string; fenced: boolean }[]): number {
   const isH2 = (j: number): boolean => !lines[j].fenced && /^##\s/.test(lines[j].text);
@@ -39,14 +50,64 @@ export function findUnitOpSection(lines: readonly { text: string; fenced: boolea
   if (named !== -1) return named;
   for (let j = 0; j < lines.length; j++) {
     if (!isH2(j)) continue;
+    const title = WORKFLOW_TITLE_RE.test(lines[j].text);
     let k = j + 1;
     for (; k < lines.length && !isH2(k); k++) {
       const { text, fenced } = lines[k];
-      if (!fenced && (UNIT_OP_HEADING_PATTERN.test(text) || isUnitOpTocEntryLine(text))) return j;
+      if (!title && !fenced && (UNIT_OP_HEADING_PATTERN.test(text) || isUnitOpTocEntryLine(text))) return j;
     }
     j = k - 1;
   }
   return -1;
+}
+
+/**
+ * The edit that puts `## Related Unit Operations` back when a note has unit
+ * operations but no section for them (#564), or null when none is needed.
+ * The heading goes before the first TOC entry left without it, else after the
+ * workflow title's description quote (where the template has it), else before
+ * the first unit-operation block. A note without unit operations is left
+ * alone unless the first one would land under the workflow title.
+ */
+export function missingUnitOpSectionEdit(md: string): { offset: number; text: string } | null {
+  const lines = scanLines(md);
+  if (findUnitOpSection(lines) !== -1) return null;
+  const firstBlock = lines.findIndex(l => !l.fenced && UNIT_OP_HEADING_PATTERN.test(l.text));
+  const firstEntry = lines.findIndex(l => !l.fenced && isUnitOpTocEntryLine(l.text));
+  const title = lines.findIndex(l => !l.fenced && WORKFLOW_TITLE_RE.test(l.text));
+  if (firstBlock === -1 && firstEntry === -1) {
+    if (title === -1) return null;
+    // The first block goes before the conclusions, into the section above them:
+    // one the researcher renamed takes it, as it did before (#455).
+    const conclusions = findConclusionsIdx(lines);
+    for (let j = (conclusions === -1 ? lines.length : conclusions) - 1; j > title; j--) {
+      if (!lines[j].fenced && /^##\s/.test(lines[j].text)) return null;
+    }
+  }
+  const nl = md.includes('\r\n') ? '\r\n' : '\n';
+  if (firstEntry !== -1 && (firstBlock === -1 || firstEntry < firstBlock)) {
+    return { offset: lines[firstEntry].start, text: `${UNIT_OP_SECTION_HEADING}${nl}${nl}` };
+  }
+  if (title !== -1 && (firstBlock === -1 || title < firstBlock)) {
+    const stop = firstBlock === -1 ? lines.length : firstBlock;
+    let last = title;
+    let j = title + 1;
+    while (j < stop && lines[j].text.trim() === '') j++;
+    while (j < stop && /^\s*>/.test(lines[j].text)) last = j++;
+    return { offset: lines[last].end, text: `${nl}${nl}${UNIT_OP_SECTION_HEADING}` };
+  }
+  if (firstBlock === -1) return null;
+  let start = firstBlock;
+  let j = firstBlock - 1;
+  while (j >= 0 && lines[j].text.trim() === '') j--;
+  if (j >= 0 && lines[j].text.trim() === '---') start = j;
+  return { offset: lines[start].start, text: `${UNIT_OP_SECTION_HEADING}${nl}${nl}` };
+}
+
+/** `md` with {@link missingUnitOpSectionEdit} applied. */
+export function ensureUnitOpSection(md: string): string {
+  const edit = missingUnitOpSectionEdit(md);
+  return edit ? md.slice(0, edit.offset) + edit.text + md.slice(edit.offset) : md;
 }
 
 /** {@link findUnitOpSection} on a whole note: the 0-based line of its unit-operation `##` heading, or -1. */
@@ -767,6 +828,16 @@ export function minimalReplacement(
   let e = 0;
   while (e < max - s && before[before.length - 1 - e] === after[after.length - 1 - e]) e++;
   return { start: s, end: before.length - e, text: after.slice(s, after.length - e) };
+}
+
+/**
+ * Whether the TOC sync should wait because the caret is in (or at either end
+ * of) the span `edit` replaces (#562): replacing it would leave the caret in
+ * the next entry, as after Enter at the end of one. The next edit of the note
+ * runs the sync again.
+ */
+export function shouldDeferTocSync(caret: number, edit: { start: number; end: number }): boolean {
+  return caret >= edit.start && caret <= edit.end;
 }
 
 /**
