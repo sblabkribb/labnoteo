@@ -532,6 +532,50 @@ describe('experiments flagged for discussion', () => {
   });
 });
 
+// #515: 2026-11-06 is a Friday; its week starts on Monday 11-02.
+describe('experiments by last update', () => {
+  const today = '2026-11-06';
+  const entries: ExperimentEntry[] = [
+    { folder: 'labnote/012_E', title: 'E', lastUpdated: '2026-11-02', created: '2026-10-01' },
+    { folder: 'labnote/003_C', title: 'C', lastUpdated: '2026-11-01', created: '2026-12-03' },
+    { folder: 'labnote/004_D', title: 'D', lastUpdated: '2026-10-25' },
+    { folder: 'labnote/001_A', title: 'A', lastUpdated: '2026-11-06' },
+    { folder: 'labnote/005_F', title: 'F', lastUpdated: 'yesterday' },
+    { folder: 'labnote/006_G', title: 'G' },
+  ];
+  const labels = { updatedThisWeek: '이번 주', updatedLastWeek: '지난주', updatedEarlier: '그 전', noUpdated: '(날짜 없음)' };
+
+  it('groups by week, Monday first, in a fixed order', () => {
+    const t = buildExperimentTree(entries, labels, 'updated', today);
+    expect(t.children!.map(g => [g.id, g.label, g.kind])).toEqual([
+      ['experimentUpdated:thisWeek', '이번 주 [2]', 'experimentUpdated'],
+      ['experimentUpdated:lastWeek', '지난주 [1]', 'experimentUpdated'],
+      ['experimentUpdated:earlier', '그 전 [1]', 'experimentUpdated'],
+      ['experimentUpdated:none', '(날짜 없음) [2]', 'experimentUpdated'],
+    ]);
+    expect(t.children![0].children!.map(e => e.label)).toEqual(['001 · A', '012 · E']);
+    expect(t.children![3].children!.map(e => e.label)).toEqual(['005 · F', '006 · G']);
+  });
+
+  it('keeps the same group ids from one day to the next and leaves out empty groups', () => {
+    const t = buildExperimentTree(entries.slice(0, 1), {}, 'updated', '2026-11-08');
+    expect(t.children!.map(g => [g.id, g.label])).toEqual([['experimentUpdated:thisWeek', 'This week [1]']]);
+    const next = buildExperimentTree(entries.slice(0, 1), {}, 'updated', '2026-11-09');
+    expect(next.children!.map(g => [g.id, g.label])).toEqual([['experimentUpdated:lastWeek', 'Last week [1]']]);
+  });
+
+  it('finds a date written with "-" in the last update or the creation date, and not a bare number', () => {
+    expect(filterExperiments(entries, '11-01').map(e => e.folder)).toEqual(['labnote/003_C']);
+    expect(filterExperiments(entries, '2026-11').map(e => e.folder)).toEqual([
+      'labnote/012_E',
+      'labnote/003_C',
+      'labnote/001_A',
+    ]);
+    expect(filterExperiments(entries, '2026-12-03').map(e => e.folder)).toEqual(['labnote/003_C']);
+    expect(filterExperiments(entries, '12').map(e => e.folder)).toEqual(['labnote/012_E']);
+  });
+});
+
 // #333
 describe('searching experiments by the status name of the UI', () => {
   const entries: ExperimentEntry[] = [

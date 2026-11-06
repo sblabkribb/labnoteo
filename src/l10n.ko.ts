@@ -176,6 +176,11 @@ const obsidianKo: Record<string, string> = {
   'By project': '과제별',
   'By author': '담당자별',
   'By discussion': '논의 여부별',
+  'By last updated': '마지막 수정일별',
+  'This week': '이번 주',
+  'Last week': '지난주',
+  'Earlier': '그 전',
+  '(no date)': '(날짜 없음)',
   'Something to discuss': '논의할 것 있음',
   'Nothing to discuss': '논의할 것 없음',
   '@issue markers': '@issue 마커',
@@ -342,8 +347,8 @@ const obsidianKo: Record<string, string> = {
     '되돌리려면 워크플로 뷰에서 이 실험을 다시 우클릭해 {0}을(를) 고르세요.',
   '{0} workflow(s) in the checklist are not checked.': '체크리스트에서 체크하지 않은 워크플로가 {0}개 있습니다.',
   'This experiment has no workflows.': '이 실험에는 워크플로가 없습니다.',
-  'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses and workflow note names.':
-    '"{0}"에 맞는 실험이 없습니다. 검색은 폴더 이름, 제목, 과제, 담당자, 상태, 워크플로 노트 이름을 봅니다.',
+  'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses, workflow note names, and dates written with "-" (last updated or created).':
+    '"{0}"에 맞는 실험이 없습니다. 검색은 폴더 이름, 제목, 과제, 담당자, 상태, 워크플로 노트 이름과 "-"를 넣어 쓴 날짜(마지막 수정일·만든 날)를 봅니다.',
   '{0} workflow note(s) have no end_date in their properties: {1}.':
     '머리말 종료일(end_date)이 빈 워크플로 노트가 {0}개 있습니다: {1}.',
   'The discussion flag is on.': '논의 표시가 켜져 있습니다.',

@@ -1049,10 +1049,14 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   `(validation fails)` with a warning icon and a tooltip pointing at **Change experiment status**.
   The grouping you pick is kept for next time.
 - The workflow view's **Experiments** section groups experiments by status, by project, by author
-  (the README `author`, empty ones under **(no author)**), or by discussion. **By discussion** puts
+  (the README `author`, empty ones under **(no author)**), by discussion, or by last update. **By discussion** puts
   the ones flagged for discussion or with at least one `@issue` marker (counted in the notes
   directly in the experiment folder, as the automation does) under **Something to discuss** and the
   rest under **Nothing to discuss**; the tooltip gives the marker count and the author.
+- **By last updated** sorts by the README's `last_updated_date` into **This week**, **Last week**,
+  **Earlier** and **(no date)**, in that order and leaving out empty ones. Weeks start on Monday by
+  the Seoul date; a date later than today counts as this week, and a value that is not a date goes
+  under **(no date)**. A group you closed stays closed the next day.
 - **By author** reads a list `author`, `[[name]]` links, or one line with commas
   (`author: Seoyeon Lee, Haneul Park`; a comma inside `[[...]]` does not split) as the names, and puts an experiment of
   several people in each one's group, so the group counts can add up to more than the experiments.
@@ -1065,7 +1069,9 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   the experiment's workflow notes (an alias such as `WTR-3`, or a catalog ID), the status also by
   its name in the UI language (`검토 필요` for `needs-review` in Korean), and `discuss` for the ones
   with something to discuss (an experiment with the word in its title or a note name stays too;
-  **By discussion** shows only the ones with something to discuss). When nothing matches, the view
+  **By discussion** shows only the ones with something to discuss). A word with `-` in it
+  (`2026-11-01`, `11-01`, `2026-11`) also matches the README's `last_updated_date` or `created_date`;
+  a bare number such as `12` does not, so numbers in titles still find what they did. When nothing matches, the view
   says so and what it searches. An experiment whose status or discussion flag was changed from the
   list stays listed until the search changes.
 - Down or Enter in the search box moves into the results. A new search puts the Tab stop back on
