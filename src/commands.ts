@@ -28,6 +28,7 @@ import {
   workflowPathProblem,
   syncUnitOpTocAfterInsert,
   unitOpSectionLine,
+  missingUnitOpSectionEdit,
   locateInsertedUnitOpHeading,
   unitOpInsertPointAtCursor,
   EXPERIMENT_STATUSES,
@@ -1459,7 +1460,7 @@ export async function insertUnitOpAndUpdateToc(
   // Read before the alias prompt opens: a modal takes the focus, and the
   // Source-mode editor then reports the cursor at the start of the note (#544).
   // A caller whose own picker already moved it passes what it read instead.
-  const caret = opts.caret ?? (opened ? await caretBeforeModal(opened) : undefined);
+  let caret = opts.caret ?? (opened ? await caretBeforeModal(opened) : undefined);
   if (askAlias && opened && isValidWorkflowPath(opened.path)) {
     alias = await askAlias(input);
     if (alias === undefined) return false;
@@ -1468,6 +1469,14 @@ export async function insertUnitOpAndUpdateToc(
   // Resolve the insertion point BEFORE inserting and hand it to the insert, so
   // the new heading can be found again after the whole-doc TOC rewrite.
   const before = host.editTarget();
+  // A deleted section heading comes back first, or the list would go under the title (#564).
+  if (before && isValidWorkflowPath(before.path)) {
+    const fix = missingUnitOpSectionEdit(await before.getText());
+    if (fix) {
+      await before.replaceRange(fix.offset, fix.offset, fix.text);
+      if (caret !== undefined && caret >= fix.offset) caret += fix.text.length;
+    }
+  }
   const at = before ? await unitOpInsertPointAtCursor(before, caret) : undefined;
   const insertOffset = at?.offset ?? -1;
 

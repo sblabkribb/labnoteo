@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyTextEdits,
+  ensureUnitOpSection,
   findUnitOpInsertOffset,
   findUnitOpInsertPointAt,
   isUnitOpSectionTitle,
+  missingUnitOpSectionEdit,
   pruneUnitOpTocEntries,
   rebuildUnitOpToc,
+  unitOpSectionLine,
 } from '../sections/workflowSectionParser';
 import { hasRecordedResults } from '../lib/noteResults';
 import { createWorkflowContent } from '../lib/workflowStructure';
@@ -104,5 +107,46 @@ describe('pruneUnitOpTocEntries', () => {
   it('changes nothing when every entry has its heading', () => {
     const md = note(['- [UHW020 B](#uhw020-b)', '- [UHW010 A](#uhw010-a)'], ['### [UHW010 A]', '', '### [UHW020 B]']);
     expect(pruneUnitOpTocEntries(md)).toEqual([]);
+  });
+});
+
+// #564: with the section heading deleted, the TOC went between the title and its description.
+describe('a deleted unit-operation heading', () => {
+  const title = '## [WD010 Design]\n\n> desc\n';
+
+  it('is not found under the workflow title, and comes back after its description', () => {
+    const full = buildNote([['UHW010', 'Alpha']]);
+    const noHeading = full.replace('## Related Unit Operations\n\n', '');
+    expect(unitOpSectionLine(noHeading)).toBe(-1);
+    const fixed = ensureUnitOpSection(noHeading);
+    expect(fixed).toContain(`${title}\n## Related Unit Operations\n\n- [UHW010`);
+    expect(unitOpSectionLine(fixed)).not.toBe(-1);
+  });
+
+  it('comes back after the description when the list was deleted too', () => {
+    const full = buildNote([['UHW010', 'Alpha']]);
+    const bare = full.replace(/## Related Unit Operations\n\n(- \[.*\n)+\n?/, '');
+    expect(bare).not.toContain('- [UHW010');
+    const fixed = ensureUnitOpSection(bare);
+    expect(fixed.indexOf('## Related Unit Operations')).toBeGreaterThan(fixed.indexOf('> desc'));
+    expect(fixed.indexOf('## Related Unit Operations')).toBeLessThan(fixed.indexOf('### [UHW010'));
+    const rebuilt = rebuildUnitOpToc(fixed);
+    expect(rebuilt.indexOf('- [UHW010')).toBeGreaterThan(rebuilt.indexOf('## Related Unit Operations'));
+  });
+
+  it('comes back in a workflow note that has no unit operation yet', () => {
+    expect(ensureUnitOpSection(`${title}\n## Conclusions\n`)).toBe(`${title}\n## Related Unit Operations\n\n## Conclusions\n`);
+  });
+
+  it('leaves a renamed heading, and a note that is no workflow, alone', () => {
+    const renamed = buildNote([['UHW010', 'Alpha']]).replace('## Related Unit Operations', '## 공정');
+    expect(missingUnitOpSectionEdit(renamed)).toBeNull();
+    expect(missingUnitOpSectionEdit(`${title}\n## 공정\n\n## Conclusions\n`)).toBeNull();
+    expect(missingUnitOpSectionEdit('---\ntitle: x\n---\n\n# Notes\n')).toBeNull();
+  });
+
+  it('goes before the first block when there is no workflow title', () => {
+    const md = '# Note\n\n---\n\n### [UHW010 A]\n\nx\n';
+    expect(ensureUnitOpSection(md)).toBe('# Note\n\n## Related Unit Operations\n\n---\n\n### [UHW010 A]\n\nx\n');
   });
 });

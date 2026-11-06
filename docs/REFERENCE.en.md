@@ -329,6 +329,10 @@ the alias goes into no file name. The same characters are refused as in Create w
   none, the block goes before `## Conclusions and Discussion`, or at the end of the note. When the
   `##` section above it then takes the TOC, the notice gives only the place (`(before the
   conclusions)`); it says the TOC was not updated only when no section could hold one.
+- The workflow title (`## [WD070 …]`) is never taken for the section. With the section heading
+  deleted, the next insert writes `## Related Unit Operations` back before the TOC entries left
+  (after the workflow description quote when they are gone too) and lists the TOC under it. Until
+  then the TOC is not kept in order.
 - The new block's Experimenter is the note's own `experimenter`, or the README `author` when the
   note names nobody. When the two differ, the notice says which one was used.
 - Run where it can't go (a README, a note without the number, a subfolder of the experiment, an

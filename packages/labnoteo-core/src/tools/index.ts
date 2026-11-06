@@ -63,6 +63,7 @@ import {
   findUnitOpInsertPointAt,
   syncUnitOpTocAfterInsert,
   unitOpSectionLine,
+  ensureUnitOpSection,
   type UnitOpInsertPoint,
 } from '../sections/workflowSectionParser';
 import {
@@ -783,7 +784,8 @@ async function resolveUnitOpInsert(
       ),
     };
   }
-  const md = await ctx.fs.read(documentPath);
+  // A deleted section heading is put back first, so the preview shows where the block really goes (#564).
+  const md = ensureUnitOpSection(await ctx.fs.read(documentPath));
   const twin = findSameAliasUnitOp(listUnitOpBlocks(md), op.id, op.name, alias);
   return {
     documentPath,

@@ -17,6 +17,8 @@ export {
   addUnitOpTocEntry,
   syncUnitOpTocAfterInsert,
   unitOpSectionLine,
+  ensureUnitOpSection,
+  missingUnitOpSectionEdit,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
   findUnitOpInsertPointAt,

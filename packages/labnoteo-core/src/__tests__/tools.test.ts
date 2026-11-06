@@ -1022,6 +1022,21 @@ describe('insert_unit_operation', () => {
     expect(tocLines(md).map(l => l.slice(0, 10))).toEqual(['- [UHW015 ', '- [UHW010 ']);
   });
 
+  // #564
+  it('puts a deleted section heading back before listing the block, in the preview too', async () => {
+    const md = (await fs.read(NOTE_PATH)).replace('## Related Unit Operations\n', '');
+    await fs.write(NOTE_PATH, md);
+    const preview = await describe(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    expect(preview).toMatchObject({ place: 'empty' });
+    expect(preview).not.toHaveProperty('beforeConclusions');
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    expect(res).toMatchObject({ ok: true, data: { tocUpdated: true } });
+    const next = await fs.read(NOTE_PATH);
+    expect(next.indexOf('> desc')).toBeLessThan(next.indexOf('## Related Unit Operations'));
+    expect(next.indexOf('## Related Unit Operations')).toBeLessThan(next.indexOf('- [UHW010'));
+    expect(next.indexOf('- [UHW010')).toBeLessThan(next.indexOf('### [UHW010'));
+  });
+
   it('adds a software block with its own sections, and an alias to the heading', async () => {
     const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'USW020', alias: ' rerun ' });
     expect(res).toMatchObject({
