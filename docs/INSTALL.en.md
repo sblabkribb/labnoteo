@@ -61,7 +61,8 @@ note-taking. Run **`Open user guide`** for the researcher quick start, and see t
 ## 6. (Automation) Run `Setup research automation`
 
 It writes `.labnoteo/`, `.github/`, `.gitignore`, `AGENTS.md`, `CLAUDE.md`, `QUICKSTART.md`, and
-`wiki-staging/` into the vault. See
+`wiki-staging/` into the vault. A file whose content already matches is left alone without a
+question, and a re-run with nothing to change says only that the automation is up to date. See
 [Research automation](../README.en.md#research-automation) for what each asset does and how updates
 are applied.
 

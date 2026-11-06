@@ -12,8 +12,12 @@ import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
 import { processNoteThroughVault, writeNoteThroughVault } from './commands';
 
-/** Rewrites a note's `last_updated_date`; identity when the setting is off. */
-export type StampNote = (content: string) => string;
+/**
+ * Rewrites a note's `last_updated_date`; identity when the setting is off.
+ * `path` names the note the content belongs to, so a date its reader set by
+ * hand today is left as it is (#363, #545).
+ */
+export type StampNote = (content: string, path?: string) => string;
 
 /** A `.labnote.md` inside a `labnote/###_*` experiment folder. */
 export function isLabNotePath(path: string): boolean {
@@ -44,14 +48,14 @@ export async function stampNote(
     if (view.getMode() !== 'source') continue;
     const editor = view.editor;
     const before = editor.getValue();
-    const edit = minimalReplacement(before, stamp(before));
+    const edit = minimalReplacement(before, stamp(before, path));
     if (edit) {
       editor.replaceRange(edit.text, editor.offsetToPos(edit.start), editor.offsetToPos(edit.end));
     }
     return;
   }
   if (!(await host.fs.exists(path))) return;
-  await processNoteThroughVault(app, host, path, stamp);
+  await processNoteThroughVault(app, host, path, content => stamp(content, path));
 }
 
 /**
@@ -86,7 +90,7 @@ export async function writeNoteStamped(
     await writeNoteThroughVault(app, host, path, content);
     return;
   }
-  await writeNoteThroughVault(app, host, path, stamp(content));
+  await writeNoteThroughVault(app, host, path, stamp(content, path));
   const readme = experimentReadmeOf(path);
   if (readme) await stampNote(app, host, readme, stamp);
 }

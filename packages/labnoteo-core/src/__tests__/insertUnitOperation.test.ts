@@ -1,5 +1,5 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
-import { insertUnitOperation } from '../commands/insertUnitOperation';
+import { insertUnitOperation, unitOpInsertPointAtCursor } from '../commands/insertUnitOperation';
 import { MemFileSystem } from '../fs/memFileSystem';
 import type { EditTarget, LabnoteHost, NotifyKind } from '../host';
 
@@ -226,6 +226,29 @@ describe('insertUnitOperation', () => {
       const { doc } = await twoBlocks(d => d.lastIndexOf('#### Output'));
       expect(order(doc())).toEqual(['UHW010', 'UHW030', 'UHW020']);
       expect(doc().indexOf('### [UHW020')).toBeLessThan(doc().indexOf('## Conclusions and Discussion'));
+    });
+
+    // #544: the alias prompt left the editor reporting the start of the note,
+    // so the block jumped above the first one wherever the cursor had been.
+    it('uses the cursor read before a dialog over the one the editor reports after it', async () => {
+      const { host, doc } = makeHost({
+        targetPath: VALID_WORKFLOW,
+        doc: EMPTY_WORKFLOW,
+        cursor: () => 0,
+      });
+      await insertUnitOperation(host, { opId: 'UHW010', opName: 'First', opType: 'hw' });
+
+      const saved = doc().indexOf('#### Method');
+      const at = await unitOpInsertPointAtCursor(host.editTarget()!, saved);
+      await insertUnitOperation(host, { opId: 'UHW020', opName: 'Second', opType: 'hw', at });
+
+      expect(order(doc())).toEqual(['UHW010', 'UHW020']);
+    });
+
+    it('clamps a saved cursor to a note that shrank while the dialog was open', async () => {
+      const { host } = makeHost({ targetPath: VALID_WORKFLOW, doc: 'short\n', cursor: () => 0 });
+      const at = await unitOpInsertPointAtCursor(host.editTarget()!, 9999);
+      expect(at.offset).toBeLessThanOrEqual('short\n'.length);
     });
   });
 

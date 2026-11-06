@@ -55,6 +55,7 @@ import {
   workflowChecklistOrder,
   workflowLabelFor,
 } from '@labnoteo/core/lib/workflowStructure';
+import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
 import type LabnotePlugin from '../main';
 import { createLlmProvider, type ChatMessage } from './provider';
 import { describeLlmError } from './llmError';
@@ -79,6 +80,7 @@ function toolContext(plugin: LabnotePlugin): ToolContext {
     globalSampleFolder: plugin.settings.globalSampleFolder,
     customTypes: plugin.settings.customSampleTypes,
     locale: getObsidianLanguage(),
+    sortUnitOpToc: plugin.settings.autoSyncUnitOpToc,
     writeNote: (path, content) => plugin.writeNoteStamped(path, content),
     findSampleUsages: (folder, type, id) => sampleUsages(plugin.app, plugin, folder, type, id),
   };
@@ -174,6 +176,17 @@ function failureReasonText(plugin: LabnotePlugin, code: string, params: readonly
       return plugin.t('A workflow alias cannot contain "*" or "_": the reading view shows part of it in italics.');
     case 'not_experiment_folder':
       return plugin.t('"{0}" is not in an experiment folder (labnote/###_Name).', a.split('/').pop() ?? a);
+    case 'unit_op_readme':
+      return plugin.t(
+        'README.labnote.md is the experiment overview and holds no unit operations. Open one of its workflow notes (###_….labnote.md), or make one with "{0}".',
+        plugin.t('Create workflow')
+      );
+    case 'not_workflow_note':
+      return plugin.t(
+        '"{0}" is not a workflow note: unit operations go into a ###_….labnote.md note directly in the experiment folder. Open one, or make one with "{1}".',
+        a.split('/').pop() ?? a,
+        plugin.t('Create workflow')
+      );
     case 'section_not_found':
       return plugin.t('The note has no "{0}" section.', a);
     default:
@@ -242,21 +255,24 @@ async function complete(
  * arrived, since the user may have kept typing meanwhile. True when a cursor
  * above the body sent the block to the end of the note. `reveal: false` for
  * replies that arrive while the user writes on, which must leave the cursor
- * where it is (#357, #420).
+ * where it is (#357, #420). `caret` overrides that live cursor for a command
+ * whose own dialogs left the editor reporting the start of the note (#544).
  */
 async function insertBlock(
   plugin: LabnotePlugin,
   target: EditTarget,
   answer: string,
-  { reveal = true }: { reveal?: boolean } = {}
+  { reveal = true, caret }: { reveal?: boolean; caret?: number } = {}
 ): Promise<boolean> {
   // Whatever the model wrote, nothing it inserts opens an issue (#354).
   const block = neutralizeIssueMarkers(answer);
   let atEnd = false;
-  if (!target.getCursorOffset) {
+  if (!target.getCursorOffset && caret === undefined) {
     await target.insertAtCursor(`\n${block}\n`);
   } else {
-    const plan = planBlockInsert(await target.getText(), await target.getCursorOffset(), block);
+    const text = await target.getText();
+    const at = caret === undefined ? await target.getCursorOffset!() : caretIn(caret, text);
+    const plan = planBlockInsert(text, at, block);
     await target.replaceRange(plan.offset, plan.offset, plan.text);
     if (reveal) await target.revealOffset?.(plan.offset + plan.text.length);
     atEnd = plan.atEnd === true;
@@ -999,6 +1015,12 @@ export async function askAgentCommand(plugin: LabnotePlugin): Promise<void> {
     return;
   }
 
+  // Read before the goal prompt, the tool approvals and the answer dialog: each
+  // takes the focus, and the Source-mode editor then reports the cursor at the
+  // start of the note, which put the answer in the front matter (#544).
+  const caretBefore = await caretBeforeModal(target);
+  const textBefore = await target.getText();
+
   const goal = await plugin.host.prompt({
     title: plugin.t('Ask the AI assistant'),
     prompt: plugin.t('What should the assistant do?'),
@@ -1006,7 +1028,7 @@ export async function askAgentCommand(plugin: LabnotePlugin): Promise<void> {
   });
   if (!goal?.trim()) return;
 
-  const noteText = (await target.getText()).slice(0, 6000);
+  const noteText = textBefore.slice(0, 6000);
   const notice = new Notice(plugin.t('Contacting {0}…', provider.name), 0);
   try {
     const run = await runAgent(
@@ -1073,7 +1095,12 @@ export async function askAgentCommand(plugin: LabnotePlugin): Promise<void> {
             new Notice(plugin.t('That note is no longer open. Copy the answer instead.'));
             return false;
           }
-          await insertBlock(plugin, current, answer);
+          // A tool the agent ran, or the user writing on, moved everything the
+          // saved cursor pointed at: the answer goes at the end instead.
+          const latest = await current.getText();
+          await insertBlock(plugin, current, answer, {
+            caret: latest === textBefore ? caretBefore : latest.length,
+          });
           return true;
         },
       });

@@ -150,6 +150,7 @@ export class LabnoteMcpServer {
       globalSampleFolder: this.plugin.settings.globalSampleFolder,
       customTypes: this.plugin.settings.customSampleTypes,
       locale: getObsidianLanguage(),
+      sortUnitOpToc: this.plugin.settings.autoSyncUnitOpToc,
       // `update_section` targets a note the user is plausibly looking at right
       // now. Going through the vault means the open editor picks the change up
       // instead of overwriting it on its next flush.

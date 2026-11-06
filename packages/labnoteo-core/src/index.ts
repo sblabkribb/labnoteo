@@ -15,6 +15,7 @@ export {
   rebuildUnitOpToc,
   refreshUnitOpTocEntries,
   addUnitOpTocEntry,
+  syncUnitOpTocAfterInsert,
   unitOpSectionLine,
   locateInsertedUnitOpHeading,
   findUnitOpInsertOffset,
@@ -92,6 +93,7 @@ export {
   removeScanEntry,
   removeAllScanEntries,
   listScanHashes,
+  scanEntryLine,
   listFiledScans,
   renderScanEntry,
   type FiledScan,
@@ -176,6 +178,7 @@ export {
   type SectionEditPreview,
   type SampleCreatePreview,
   type WorkflowCreatePreview,
+  type UnitOpInsertPreview,
   type JsonSchema,
 } from './tools';
 

@@ -15,6 +15,7 @@ import {
 } from '../lib/workflowDataLoader';
 import { compareSamples, normalizeSampleSearch, sampleTypeColors } from '../lib/sampleUtils';
 import { EXPERIMENT_STATUSES } from '../lib/experimentStatus';
+import { getSeoulDateString, seoulWeekBucket, type WeekBucket } from '../lib/dateUtils';
 import * as path from '../util/posixPath';
 
 /** A node kind; mirrors the VS Code `contextValue`s used for menu wiring. */
@@ -24,6 +25,7 @@ export type TreeNodeKind =
   | 'experimentProject'
   | 'experimentAuthor'
   | 'experimentDiscuss'
+  | 'experimentUpdated'
   | 'experiment'
   | 'sampleRoot'
   | 'sampleType'
@@ -64,6 +66,8 @@ export interface ExperimentEntry {
   discuss?: boolean;
   /** The README's `last_updated_date`. */
   lastUpdated?: string;
+  /** The README's `created_date`, for search (#515). */
+  created?: string;
   /** Checked and total entries of the README "Related Workflows" checklist (#157). */
   progress?: { done: number; total: number };
   /** The README's `project`: the larger project the experiment belongs to (#204). */
@@ -89,7 +93,7 @@ export interface ExperimentEntry {
 }
 
 /** What {@link buildExperimentTree} groups experiments by (#204, #220). */
-export type ExperimentGrouping = 'status' | 'project' | 'author' | 'discuss';
+export type ExperimentGrouping = 'status' | 'project' | 'author' | 'discuss' | 'updated';
 
 /** Labels {@link buildExperimentTree} puts into the tree; English defaults. */
 export interface ExperimentTreeLabels {
@@ -101,6 +105,11 @@ export interface ExperimentTreeLabels {
   discussGroup?: string;
   /** Group of the others (#220). */
   noDiscuss?: string;
+  /** Groups by the README's `last_updated_date`, weeks starting on Monday (#515). */
+  updatedThisWeek?: string;
+  updatedLastWeek?: string;
+  updatedEarlier?: string;
+  noUpdated?: string;
   /** Tooltip line name for the `@issue` marker count (#337). */
   markers?: string;
   /** Tooltip line names for the experiment retried and those retrying it (#327). */
@@ -206,11 +215,15 @@ function experimentNumbers(folders: readonly string[]): string {
  * Grouped by `discuss`, the experiments with something to discuss
  * (flagged, or with `@issue` markers) come first and the rest after them
  * (#220, #337).
+ * Grouped by `updated`, by the README's `last_updated_date` against `today`:
+ * this week, last week, earlier, and no date (#515). The group ids do not
+ * carry the date, so a group stays open from one day to the next.
  */
 export function buildExperimentTree(
   experiments: ExperimentEntry[],
   labels: ExperimentTreeLabels = {},
-  groupBy: ExperimentGrouping = 'status'
+  groupBy: ExperimentGrouping = 'status',
+  today: string = getSeoulDateString()
 ): TreeNode {
   const noStatus = labels.noStatus ?? '(none)';
   const root = {
@@ -272,6 +285,33 @@ export function buildExperimentTree(
         ...(flagged.length > 0 ? [group(true, flagged, labels.discussGroup ?? 'Something to discuss')] : []),
         ...(others.length > 0 ? [group(false, others, labels.noDiscuss ?? 'Nothing to discuss')] : []),
       ],
+    };
+  }
+
+  if (groupBy === 'updated') {
+    const names: Record<WeekBucket, string> = {
+      thisWeek: labels.updatedThisWeek ?? 'This week',
+      lastWeek: labels.updatedLastWeek ?? 'Last week',
+      earlier: labels.updatedEarlier ?? 'Earlier',
+      none: labels.noUpdated ?? '(no date)',
+    };
+    const buckets: WeekBucket[] = ['thisWeek', 'lastWeek', 'earlier', 'none'];
+    return {
+      ...root,
+      children: buckets.flatMap(bucket => {
+        const members = experiments.filter(e => seoulWeekBucket(e.lastUpdated, today) === bucket);
+        if (members.length === 0) return [];
+        return [
+          {
+            id: `experimentUpdated:${bucket}`,
+            label: `${names[bucket]} [${members.length}]`,
+            kind: 'experimentUpdated' as const,
+            icon: 'folder',
+            payload: { updated: bucket },
+            children: sortByFolder(members).map(e => experimentNode(e, labels)),
+          },
+        ];
+      }),
     };
   }
 
@@ -399,6 +439,9 @@ function experimentNode(e: ExperimentEntry, labels: ExperimentTreeLabels): TreeN
  * matches its name in `statusWords`, e.g. 검토 필요 for `needs-review`
  * (#333); and the experiments on one retry line match each other's number
  * (#327, #449).
+ * A word with `-` in it (`2026-11-01`, `11-01`, `2026-11`) also matches the
+ * README's `last_updated_date` or `created_date` (#515). Other words do not,
+ * so `12` does not bring in every experiment dated in December.
  */
 export function filterExperiments(
   experiments: ExperimentEntry[],
@@ -423,7 +466,8 @@ export function filterExperiments(
     ]
       .join('\u0000')
       .toLowerCase();
-    return words.every(w => haystack.includes(w));
+    const dates = [e.lastUpdated ?? '', e.created ?? ''].join('\u0000');
+    return words.every(w => haystack.includes(w) || (w.includes('-') && dates.includes(w)));
   });
 }
 

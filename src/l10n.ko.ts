@@ -176,6 +176,11 @@ const obsidianKo: Record<string, string> = {
   'By project': '과제별',
   'By author': '담당자별',
   'By discussion': '논의 여부별',
+  'By last updated': '마지막 수정일별',
+  'This week': '이번 주',
+  'Last week': '지난주',
+  'Earlier': '그 전',
+  '(no date)': '(날짜 없음)',
   'Something to discuss': '논의할 것 있음',
   'Nothing to discuss': '논의할 것 없음',
   '@issue markers': '@issue 마커',
@@ -342,8 +347,8 @@ const obsidianKo: Record<string, string> = {
     '되돌리려면 워크플로 뷰에서 이 실험을 다시 우클릭해 {0}을(를) 고르세요.',
   '{0} workflow(s) in the checklist are not checked.': '체크리스트에서 체크하지 않은 워크플로가 {0}개 있습니다.',
   'This experiment has no workflows.': '이 실험에는 워크플로가 없습니다.',
-  'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses and workflow note names.':
-    '"{0}"에 맞는 실험이 없습니다. 검색은 폴더 이름, 제목, 과제, 담당자, 상태, 워크플로 노트 이름을 봅니다.',
+  'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses, workflow note names, and dates written with "-" (last updated or created).':
+    '"{0}"에 맞는 실험이 없습니다. 검색은 폴더 이름, 제목, 과제, 담당자, 상태, 워크플로 노트 이름과 "-"를 넣어 쓴 날짜(마지막 수정일·만든 날)를 봅니다.',
   '{0} workflow note(s) have no end_date in their properties: {1}.':
     '머리말 종료일(end_date)이 빈 워크플로 노트가 {0}개 있습니다: {1}.',
   'The discussion flag is on.': '논의 표시가 켜져 있습니다.',
@@ -427,6 +432,10 @@ const obsidianKo: Record<string, string> = {
   'Kept the previous {0} as {1}.': '바꾸기 전의 {0} 파일은 {1}로 남겼습니다.',
   'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").':
     '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하고 "git config core.hooksPath {6}"를 실행하세요.',
+  'Research automation is already up to date ({0} files checked).':
+    '연구노트 자동화가 이미 최신입니다 (파일 {0}개 확인, 바뀐 것 없음).',
+  'partbank has no stock for {0}, so there is no storage location to read. Register the stock in partbank, then refresh again.':
+    'partbank에 {0}의 재고가 없어 가져올 보관 위치가 없습니다. partbank에 재고를 등록한 뒤 다시 갱신하세요.',
   'Created again, as they were missing: {0}.': '없어서 새로 만든 파일: {0}.',
   'Created again, as they were missing: {0} and {1} more.': '없어서 새로 만든 파일: {0} 외 {1}개.',
   'Remove {0} file(s) left by the previous layout ({1})? Afterwards run "git config core.hooksPath {2}" so the pre-commit hook keeps working.':
@@ -1022,6 +1031,7 @@ const obsidianKo: Record<string, string> = {
   'This creates {0} sample {1}.': '{0} 샘플 {1}을(를) 만듭니다.',
   'This creates catalog workflow {0} {1}. File: {2}. It is also added to the checklist in {3}.':
     '카탈로그 워크플로 {0} {1}을(를) 새로 만듭니다. 파일: {2}. {3}의 체크리스트에도 등록합니다.',
+  'This inserts unit operation {0} into {1}.': '유닛 오퍼레이션 {0}을(를) {1}에 넣습니다.',
   'This adds to {0} sample {1}.': '이미 있는 {0} 샘플 {1}에 더합니다.',
   'Alias: {0}': '별칭: {0}',
   'Storage location: {0}': '보관 위치: {0}',
@@ -1106,6 +1116,7 @@ const obsidianKo: Record<string, string> = {
     '이 페이지를 언제 출력했나요(YYYY-MM-DD)? 모르거나 출력한 적 없는 종이면 비워 두세요.',
   'Enter a date like 2026-10-15, or leave it empty.': '2026-10-15처럼 날짜를 쓰거나 비워 두세요.',
   'Scan results': '스캔 결과',
+  'Show results': '결과 다시 보기',
   '{0} page(s): {1}': '{0}쪽: {1}',
   '{0} filed': '{0}쪽 붙임',
   '{0} already filed': '{0}쪽 이미 있음',

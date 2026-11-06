@@ -158,6 +158,7 @@ describe('migrateSettings', () => {
     expect(migrateSettings({}).workflowViewGroupBy).toBe('status');
     expect(migrateSettings({ workflowViewGroupBy: 'project' }).workflowViewGroupBy).toBe('project');
     expect(migrateSettings({ workflowViewGroupBy: 'discuss' }).workflowViewGroupBy).toBe('discuss');
+    expect(migrateSettings({ workflowViewGroupBy: 'updated' }).workflowViewGroupBy).toBe('updated');
     expect(migrateSettings({ workflowViewGroupBy: 'owner' }).workflowViewGroupBy).toBe('status');
   });
 

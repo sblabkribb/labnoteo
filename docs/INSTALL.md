@@ -130,8 +130,9 @@ GitHub 자동화가 필요 없다면 [QUICKSTART](https://github.com/sblabkribb/
 명령 팔레트에서 **`Setup research automation`**(연구노트 자동화 설정)을 실행합니다.
 `.labnoteo/`(스크립트·훅), `.github/`(워크플로), `.gitignore`, `AGENTS.md`,
 `CLAUDE.md`, `QUICKSTART.md`, `wiki-staging/`를 현재 보관함에 씁니다. 덮어쓰기 전에는
-확인을 받고(내용이 이미 같은 파일은 묻지 않고 건너뜀), 기존 `.gitignore`에는 누락된 줄만 추가합니다.
-`wiki-staging/`의 원고 파일은 이미 있으면 묻지 않고 그대로 둡니다.
+확인을 받고(내용이 이미 같은 파일은 묻지 않고 그대로 둠), 기존 `.gitignore`에는 누락된 줄만 추가합니다.
+`wiki-staging/`의 원고 파일은 이미 있으면 묻지 않고 그대로 둡니다. 다시 실행했을 때 바뀔 것이
+하나도 없으면 "연구노트 자동화가 이미 최신입니다"라고만 알립니다.
 
 플러그인을 업데이트하면 Obsidian을 켤 때 직접 고치지 않은 파일은 자동으로 새 버전에
 맞춰지고, 직접 고친 파일이 있으면 알림이 뜨니 그때 이 명령을 다시 실행하세요.

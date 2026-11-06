@@ -64,8 +64,9 @@ With **Auto-update last updated date** on, editing a lab note (ticking a checkbo
 included) sets its `last_updated_date` to today (Asia/Seoul) once a day. Editing a workflow note, or creating
 one, updates the experiment README's date too. Changes pulled with git and the plugin's own
 automatic tidy-ups do not count. A note whose date you edited by hand keeps it that day (on a day
-you edited the README's date by hand, neither editing a workflow note nor creating one overwrites
-it). Deleting the `last_updated_date` line from the front matter stops the automatic date, since
+you edited the README's date by hand, nothing overwrites it: not editing a workflow note or
+creating one, not changing the experiment status or the discussion flag, and not an AI write). A
+notice says the date was kept once a day per note. Deleting the `last_updated_date` line from the front matter stops the automatic date, since
 the line is never added back, and a notice says so once; put the line back to have it recorded
 again. It may go back empty (`last_updated_date:`), and today's date fills it on the next edit —
 the same as when you clear a date you had set by hand.
@@ -93,7 +94,9 @@ Create a new `.labnote.md` experiment note.
   no experiment is created. The README `title` keeps the title as typed.
 - **Fill in the README's `author` right away.** Left empty, every workflow and unit operation created
   in the experiment afterwards gets an empty `Experimenter`, without a warning. Write several people
-  as a list (`author: [Seoyeon Lee, Haneul Park]`; `[[name]]` links are read as names).
+  as a list (`author: [Seoyeon Lee, Haneul Park]`; `[[name]]` links are read as names) or on one
+  line with commas (`author: Seoyeon Lee, Haneul Park`), which reads as the same people. A name with
+  a comma of its own (`Smith, John`) is read as two; write it as a `[[...]]` link to keep it whole.
 
 ### Change experiment status
 
@@ -537,7 +540,8 @@ type.
 
 - **Insert reference** follows the cursor: at the end of the note from the front matter or above
   the title, on the next line from a heading or a `@type;ID;…` definition line, at the end of the
-  line from another reference, inside the cells on a table row, and at the cursor otherwise. Text
+  line from another reference, inside the cells on a table row, and at the cursor otherwise. With a
+  Live Preview cell focused it goes into that cell, as a date does. Text
   selected within one body line is replaced by the reference (a template hint such as
   `(samples from the previous step)`); a selection across lines, on a heading or definition line,
   over another reference, or across a table cell's `|` is ignored. A reference with an alias gets a
@@ -558,7 +562,8 @@ type.
   **Change type** names the samples of the new type that already have its alias.
 - Adding and editing both ask before a sample takes a storage slot another sample is in: a
   location whose last part is a cell coordinate (`A1`, `B12`, `7`), since one slot holds one tube.
-  Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
+  The question names the sample in the slot as `alias (ID, scope)`, or by its ID when it has no
+  alias. Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
   `Rack A`) is not asked about, and a slot a discarded sample was in counts as free.
 - **Delete** is refused while note text uses the sample: the notice names each note by its full
   vault path (a Local sample is checked in its experiment and in the notes outside experiments
@@ -730,12 +735,14 @@ and inserts `ID;alias`.
 
 In the sample view's context menu and in the definition window. It reads the location as
 `storage / box / position` and stores it after showing the change once. When partbank shows no
-stock, the current location is kept without asking (empty it in Edit sample to clear it).
+stock, the current location is kept without asking (empty it in Edit sample to clear it). With no
+location stored either, the notice says there is no stock to read a location from, rather than that
+the location is unchanged; register the stock in partbank and refresh again.
 **Refresh storage locations from partbank** (command palette) does every linked sample at once,
 in every experiment of the vault and the Global folder whichever note is open, listing only what
 changes as `old → new` with the experiment folder (or Global) it is in. A sample partbank shows no
 stock for is left out of the list and keeps its location, so a hand-written one is not wiped; the
-closing notice counts those and
+closing notice counts those (samples with no location stored included) and
 the samples that could not be read. Because the value is stored, it stays visible offline and
 in the sample list table and search.
 
@@ -837,7 +844,15 @@ as the reading view shows it: struck-through text struck (not dropped), highligh
 footnote references and `<sup>` raised, `<sub>` lowered. A footnote definition (`[^1]: …`) prints
 where it was written, with its label raised, and math (`$…$`, `$$…$$`) prints as the symbols paper
 shows rather than as TeX (`$3\,\mathrm{mL}$` as 3 mL, `$\Delta G$` as ΔG, `$\frac{a}{b}$` as a/b,
-`$10^{-3}$` with a raised −3); a formula holding anything else prints as written, in italics. The
+`$10^{-3}$` with a raised −3); a formula holding anything else prints as written, in italics.
+A line with a sample reference gets the sample's storage location at its end
+(`DNA-1;pUC19 — -80 freezer / Box P1 / A3`; with several placed samples on the line,
+`— DNA-1: …; DNA-2: …`), so the sheet says where to fetch each tube. This covers Meta values, Method
+steps and the lines under them, list items, paragraphs and table cells, not code blocks or the unit
+operation's title and alias, so the QR code is unchanged. The note's Local ledger is looked up before
+Global, as references resolve; discarded samples, unknown IDs and samples without a location get
+nothing. Notes with sample tracking off and **Print whole note with barcodes** are not annotated, and
+neither the note nor the ledgers are written. The
 dialog opens with focus on **Print**, so Enter prints; tabbing to a toggle shows a focus ring. When
 printing from Obsidian does not work, it opens in the browser. See the
 [printout scan guide](./SCAN.md#2-기록지-출력) (Korean).
@@ -851,6 +866,10 @@ starts on a new page, so the sheets can be filed by unit operation.
 
 Drop photos, PDFs or zips to file them in their notes by QR code, then show the results (open note,
 undo, delete earlier scan). Also the scan icon in the left ribbon.
+
+**Open note** closes the results and opens the note at the scan it filed (at the top when the scan
+is no longer there). A notice then offers **Show results** to bring the same results back, so undo
+is still one click away; pages already undone are left out.
 
 Each result names the block it went to (`note › [UHW290 Name] alias`). From 0.123.0 the QR code
 also carries a fingerprint of the block's name and alias, so a page still finds its block after
@@ -1038,11 +1057,16 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   `(validation fails)` with a warning icon and a tooltip pointing at **Change experiment status**.
   The grouping you pick is kept for next time.
 - The workflow view's **Experiments** section groups experiments by status, by project, by author
-  (the README `author`, empty ones under **(no author)**), or by discussion. **By discussion** puts
+  (the README `author`, empty ones under **(no author)**), by discussion, or by last update. **By discussion** puts
   the ones flagged for discussion or with at least one `@issue` marker (counted in the notes
   directly in the experiment folder, as the automation does) under **Something to discuss** and the
   rest under **Nothing to discuss**; the tooltip gives the marker count and the author.
-- **By author** reads a list `author` or `[[name]]` links as the names, and puts an experiment of
+- **By last updated** sorts by the README's `last_updated_date` into **This week**, **Last week**,
+  **Earlier** and **(no date)**, in that order and leaving out empty ones. Weeks start on Monday by
+  the Seoul date; a date later than today counts as this week, and a value that is not a date goes
+  under **(no date)**. A group you closed stays closed the next day.
+- **By author** reads a list `author`, `[[name]]` links, or one line with commas
+  (`author: Seoyeon Lee, Haneul Park`; a comma inside `[[...]]` does not split) as the names, and puts an experiment of
   several people in each one's group, so the group counts can add up to more than the experiments.
 - **By project** and **By author** put names that differ only in case (`ALE-2026`, `ale-2026`) in
   one group, as the search matches them, named as the lowest-numbered experiment writes it.
@@ -1053,7 +1077,9 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   the experiment's workflow notes (an alias such as `WTR-3`, or a catalog ID), the status also by
   its name in the UI language (`검토 필요` for `needs-review` in Korean), and `discuss` for the ones
   with something to discuss (an experiment with the word in its title or a note name stays too;
-  **By discussion** shows only the ones with something to discuss). When nothing matches, the view
+  **By discussion** shows only the ones with something to discuss). A word with `-` in it
+  (`2026-11-01`, `11-01`, `2026-11`) also matches the README's `last_updated_date` or `created_date`;
+  a bare number such as `12` does not, so numbers in titles still find what they did. When nothing matches, the view
   says so and what it searches. An experiment whose status or discussion flag was changed from the
   list stays listed until the search changes.
 - Down or Enter in the search box moves into the results. A new search puts the Tab stop back on
@@ -1080,7 +1106,9 @@ name, and offers the name back. The same goes for a section draft the command ma
 agents find by its name; renaming it back also turns the link Obsidian changed in `Home.md` back.
 Rerunning the command after one went missing names the files it had to create again. The
 `wiki-staging/` drafts already in the vault are left as they are: rerunning the command does not
-offer to overwrite them.
+offer to overwrite them. A rerun that changes nothing says only that the automation is already up
+to date, with the number of managed files checked; the pointers to `SETUP.md` and
+`git config core.hooksPath` come with a run that did change something.
 
 ### Open user guide
 

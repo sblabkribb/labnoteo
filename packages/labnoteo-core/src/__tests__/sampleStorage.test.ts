@@ -47,6 +47,8 @@ import {
   loadSampleMarks,
   isStorageSlot,
   loadSampleLocations,
+  loadSampleLedger,
+  loadSampleLocationLookup,
   samplesAtLocation,
   type SampleDatabase,
   type SampleRecord,
@@ -147,8 +149,9 @@ describe('loadSampleLocations and samplesAtLocation (#512)', () => {
     'DNA-1': { location: '-80 냉동고 / 박스 P1 / A1' },
     'DNA-2': { location: ' -80 냉동고 /박스 P1/ a1 ' },
     'DNA-3': { location: '-80 냉동고 / 박스 P1 / A1', discarded: '2026-10-25' },
-    'DNA-4': { location: '-80 냉동고 / 박스 P1 / A2' },
+    'DNA-4': { location: '-80 냉동고 / 박스 P1 / A2', alias: 'pET-28a' },
     'DNA-5': { alias: 'no location' },
+    'DNA-6': { location: '-80 냉동고 / 박스 P1 / A4', alias: '  ' },
   });
 
   it('reads the locations without ever rewriting the registry', async () => {
@@ -157,10 +160,19 @@ describe('loadSampleLocations and samplesAtLocation (#512)', () => {
 
     const entries = await loadSampleLocations(fs, FOLDER, 'DNA');
 
-    expect(Object.keys(entries)).toEqual(['DNA-1', 'DNA-2', 'DNA-3', 'DNA-4']);
+    expect(Object.keys(entries)).toEqual(['DNA-1', 'DNA-2', 'DNA-3', 'DNA-4', 'DNA-6']);
     expect(entries['DNA-3'].discarded).toBe('2026-10-25');
     expect(write).not.toHaveBeenCalled();
     expect(await fs.read(`${FOLDER}/DNA.json`)).toBe(raw);
+  });
+
+  // #553: a slot question named IDs only, which say nothing about the tube.
+  it('carries the alias, and leaves out a blank one', async () => {
+    const entries = await loadSampleLocations(new MemFileSystem({ [`${FOLDER}/DNA.json`]: raw }), FOLDER, 'DNA');
+
+    expect(entries['DNA-4'].alias).toBe('pET-28a');
+    expect(entries['DNA-1'].alias).toBeUndefined();
+    expect(entries['DNA-6'].alias).toBeUndefined();
   });
 
   it('finds the samples in a slot, spacing and case aside, and leaves discarded ones out', async () => {
@@ -1660,5 +1672,48 @@ describe('listExperimentSampleFolders (#169)', () => {
       'labnote/002_B/resources/labsamples',
     ]);
     expect(await listExperimentSampleFolders(new MemFileSystem(), '')).toEqual([]);
+  });
+});
+
+// #496
+describe('loadSampleLedger and loadSampleLocationLookup', () => {
+  const LOCAL = 'labnote/001_A/resources/labsamples';
+  const GLOBAL = 'resources/labsamples';
+  // Old-format records a full load would rewrite.
+  const local = JSON.stringify({
+    'DNA-1': { alias: 'pUC19', location: '-80 / Box 1 / A3' },
+    'DNA-2': { alias: 'gone', location: '4도', discarded: '2026-10-01' },
+    'DNA-3': { alias: 'nowhere' },
+    'DNA-4': 'not a record',
+  });
+  const global = JSON.stringify({
+    'DNA-3': { location: 'Global shelf' },
+    'DNA-5': { location: 'Rack G' },
+  });
+
+  it('reads every record by lower-cased ID without writing', async () => {
+    const fs = new MemFileSystem({ [`${LOCAL}/DNA.json`]: local });
+    const write = vi.spyOn(fs, 'write');
+    const ledger = await loadSampleLedger(fs, LOCAL, 'DNA');
+    expect([...ledger.keys()]).toEqual(['dna-1', 'dna-2', 'dna-3', 'dna-4']);
+    expect(ledger.get('dna-2')).toEqual({ alias: 'gone', location: '4도', discarded: '2026-10-01' });
+    expect(ledger.get('dna-4')).toEqual({});
+    expect((await loadSampleLedger(fs, LOCAL, 'RNA')).size).toBe(0);
+    expect(write).not.toHaveBeenCalled();
+    expect(await fs.read(`${LOCAL}/DNA.json`)).toBe(local);
+  });
+
+  it('looks Local up before Global, and has nothing for discarded or unplaced samples', async () => {
+    const fs = new MemFileSystem({ [`${LOCAL}/DNA.json`]: local, [`${GLOBAL}/DNA.json`]: global });
+    const write = vi.spyOn(fs, 'write');
+    const lookup = await loadSampleLocationLookup(fs, [LOCAL, GLOBAL], ['DNA', 'RNA']);
+    expect(lookup('DNA', 'dna-1')).toBe('-80 / Box 1 / A3');
+    expect(lookup('DNA', 'DNA-2')).toBeUndefined();
+    // The Local DNA-3 is the one its reference means, and it has no location.
+    expect(lookup('DNA', 'DNA-3')).toBeUndefined();
+    expect(lookup('DNA', 'DNA-5')).toBe('Rack G');
+    expect(lookup('DNA', 'DNA-9')).toBeUndefined();
+    expect(lookup('RNA', 'DNA-1')).toBeUndefined();
+    expect(write).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import {
   removeAllScanEntries,
   removeScanEntry,
   resolveScanTarget,
+  scanEntryLine,
   type ScanEntry,
 } from '../sections/scanInsert';
 import {
@@ -189,5 +190,21 @@ describe('insertScanEntries / removeScanEntry', () => {
 
   it('does not read entries inside code blocks', () => {
     expect(listScanHashes('```\n<!-- labnoteo-scan page=1/1 sha=abcd -->\n```\n').size).toBe(0);
+  });
+
+  it('finds the line a filed scan starts on, outside code blocks (#549)', () => {
+    const md = [
+      '# Note',
+      '```',
+      '<!-- labnoteo-scan page=1/1 sha=abcd -->',
+      '```',
+      '#### Worksheet scans',
+      '',
+      '<!-- labnoteo-scan page=1/2 sha=ab -->',
+      '<!-- labnoteo-scan page=2/2 sha=abcd -->',
+    ].join('\r\n');
+    expect(scanEntryLine(md, 'abcd')).toBe(7);
+    expect(scanEntryLine(md, 'ab')).toBe(6);
+    expect(scanEntryLine(md, 'ffff')).toBeUndefined();
   });
 });

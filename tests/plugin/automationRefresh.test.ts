@@ -317,6 +317,49 @@ describe('setup command and refresh together', () => {
     await setupResearchAutomationCommand(asHost, '1.0.0');
     expect(host.notify).toHaveBeenCalledWith('info', expect.stringMatching(/Created again, as they were missing: AGENTS\.md\.$/));
   });
+
+  // #546: "Open user guide" records QUICKSTART.md, and the version in that
+  // record made the first real setup read as a reinstall.
+  it('does not call the first setup a re-run in a vault that only opened the user guide', async () => {
+    const { fs, host, asHost } = makeHost();
+    await fs.write(QUICKSTART_DOC_PATH, 'guide\n');
+    await fs.write(INSTALL_RECORD_PATH, record({ [QUICKSTART_DOC_PATH]: contentHash('guide\n') }));
+    expect(await isAutomationInstalled(asHost)).toBe(false);
+
+    await setupResearchAutomationCommand(asHost, '1.0.0');
+
+    expect(host.notify.mock.calls.map(c => String(c[1])).join('\n')).not.toContain('Created again');
+  });
+
+  // #551: a re-run with nothing to do still read as a fresh install.
+  it('says the automation is already up to date when the re-run changed nothing', async () => {
+    const { host, asHost, fs } = makeHost({ '.git': '' });
+    await setupResearchAutomationCommand(asHost, '1.0.0');
+    host.notify.mockClear();
+
+    await setupResearchAutomationCommand(asHost, '1.0.0');
+
+    const [[kind, message]] = host.notify.mock.calls;
+    expect(kind).toBe('info');
+    expect(message).toMatch(/^Research automation is already up to date \(\d+ files checked\)\.$/);
+    expect(message).not.toContain('Admin setup');
+    // The seeded manuscripts are not managed files, so they are not counted.
+    expect(await fs.exists('wiki-staging/Home.md')).toBe(true);
+    expect(Number(/\((\d+) files/.exec(String(message))![1])).toBe(
+      SCAFFOLD_ASSETS.filter(a => !a.seed).length
+    );
+  });
+
+  it('reports the full tally again as soon as one file has to be written', async () => {
+    const { fs, host, asHost } = makeHost({ '.git': '' });
+    await setupResearchAutomationCommand(asHost, '1.0.0');
+    await fs.remove('AGENTS.md');
+    host.notify.mockClear();
+
+    await setupResearchAutomationCommand(asHost, '1.0.0');
+
+    expect(host.notify).toHaveBeenCalledWith('info', expect.stringContaining('Research automation set up (1 written'));
+  });
 });
 
 // #127: the lab's own text in QUICKSTART.md survives updates.

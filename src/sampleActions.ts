@@ -56,12 +56,14 @@ import {
 } from '@labnoteo/core/lib/sampleStorage';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { getSeoulDateString } from '@labnoteo/core/lib/dateUtils';
+import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
 import { invalidVaultFolderReason } from '@labnoteo/core/lib/regexUtils';
 import type LabnotePlugin from './main';
 import { invalidFolderText } from './settings';
 import { processNoteThroughVault } from './commands';
 import { promptModal, confirmModal, pickModal } from './modals';
-import { isReadingViewTarget } from './obsidianHost';
+import { isReadingViewTarget, tableCellEditorOf } from './obsidianHost';
+import { writeIntoCell } from './tableCellTarget';
 import obsidianKo from './l10n.ko';
 
 export type SampleScope = 'local' | 'global';
@@ -144,8 +146,19 @@ function validateDescription(plugin: LabnotePlugin): (value: string) => string |
 export async function insertSampleReference(
   plugin: LabnotePlugin,
   target: EditTarget,
-  ref: string
+  ref: string,
+  caret?: number
 ): Promise<void> {
+  const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
+  // A reference holds no newline and no `|`, so a focused table cell takes it
+  // as it takes a date (#543): into the cell, not below the table where the
+  // target writes the blocks that would break the table instead.
+  const cell = tableCellEditorOf(target);
+  if (cell) {
+    writeIntoCell(cell, ref, types);
+    plugin.markUserEdit(target.path);
+    return;
+  }
   // Hosts without cursor tracking (none today) fall back to a plain insert.
   if (!target.getCursorOffset) {
     await target.insertAtCursor(ref);
@@ -153,9 +166,10 @@ export async function insertSampleReference(
     return;
   }
   const text = await target.getText();
-  const cursor = await target.getCursorOffset();
-  const selection = await target.getSelectionRange?.();
-  const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
+  // `caret` is what a caller read before its own dialog opened, which the
+  // Source-mode editor no longer reports correctly (#544).
+  const cursor = caret === undefined ? await target.getCursorOffset() : caretIn(caret, text);
+  const selection = caret === undefined ? await target.getSelectionRange?.() : undefined;
   const plan = planReferenceInsert(text, cursor, ref, types, selection?.end);
   await target.replaceRange(plan.offset, plan.end ?? plan.offset, plan.text);
   await target.revealOffset?.(plan.offset + plan.text.length);
@@ -240,7 +254,7 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
   let text = await target.getText();
   // Read before the picker below opens: a picker takes the focus, and in Source
   // mode the editor then reports the cursor at the start of the note (#450).
-  const caret = target.getCursorOffset ? await target.getCursorOffset() : undefined;
+  const caret = await caretBeforeModal(target);
   let tables = findSampleListTableRanges(text, headers);
   if (tables.length > 0) {
     // A second table sat silently under the first (#450).
@@ -282,7 +296,7 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
       tables = findSampleListTableRanges(text, headers);
     }
   }
-  const cursor = caret === undefined ? text.length : Math.min(caret, text.length);
+  const cursor = caretIn(caret, text);
   // In the front matter or above the title the table would break the
   // properties, so it goes at the end like a sample reference does (#360).
   const atEnd = cursor !== text.length && isOffsetBeforeBody(text, cursor);
@@ -630,6 +644,7 @@ export async function createSampleInteractive(
     !(await confirmLocationClash(app, plugin, {
       folder: existing?.folder ?? folder,
       id,
+      alias: alias ?? existing?.record.alias,
       location,
       before: existing?.record.location,
     }))
@@ -765,7 +780,7 @@ async function confirmAliasClash(
 async function confirmLocationClash(
   app: App,
   plugin: LabnotePlugin,
-  opts: { folder: string; id: string; location: string | null; before?: string | null }
+  opts: { folder: string; id: string; alias?: string | null; location: string | null; before?: string | null }
 ): Promise<boolean> {
   const { folder, id, location } = opts;
   if (!location || !isStorageSlot(location)) return true;
@@ -784,7 +799,10 @@ async function confirmLocationClash(
       for (const other of samplesAtLocation(entries, location)) {
         if (other === id && scope.folder === folder) continue;
         const where = scope.global ? plugin.t('Global {0} sample', type) : plugin.t('Local {0} sample', type);
-        taken.push(`${other} (${where})`);
+        // The alias first, since that is what the tube is labelled with: an
+        // ID alone said nothing about which sample is in the slot (#553).
+        const alias = entries[other].alias;
+        taken.push(alias ? `${alias} (${other}, ${where})` : `${other} (${where})`);
       }
     }
   }
@@ -793,7 +811,8 @@ async function confirmLocationClash(
     taken.length === 1
       ? plugin.t('{0} is already stored at {1}.', taken[0], location)
       : plugin.t('{0} samples are already stored at {1}: {2}.', String(taken.length), location, taken.join(', '));
-  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', id)}`, plugin.t('Save anyway'));
+  const saving = opts.alias ? `${opts.alias} (${id})` : id;
+  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', saving)}`, plugin.t('Save anyway'));
 }
 
 /** A sample sharing an alias, as an alias question names it: its ID, marked when discarded (#419). */
@@ -939,7 +958,8 @@ export async function editSampleInteractive(
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
   const location = clean(locationRaw);
-  if (!(await confirmLocationClash(app, plugin, { folder, id, location, before: record.location }))) return false;
+  if (!(await confirmLocationClash(app, plugin, { folder, id, alias, location, before: record.location })))
+    return false;
   // An emptied field is easy to submit by accident and nothing brings it back (#471).
   const oldDescription = record.descriptions?.[0]?.trim();
   const clearing = [

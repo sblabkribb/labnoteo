@@ -12,6 +12,7 @@ import {
   clampDateTimeLocal,
   fromDateTimeLocalValue,
   readLastUpdatedDate,
+  seoulWeekBucket,
   toDateTimeLocalValue,
   touchLastUpdatedDate,
   updateAllDateFields,
@@ -315,5 +316,31 @@ describe('readLastUpdatedDate', () => {
   it('is undefined without the field', () => {
     expect(readLastUpdatedDate('---\nstatus: active\n---\n')).toBeUndefined();
     expect(readLastUpdatedDate('no front matter')).toBeUndefined();
+  });
+});
+
+// #515: 2026-11-06 is a Friday; its week runs Monday 11-02 to Sunday 11-08.
+describe('seoulWeekBucket', () => {
+  it.each([
+    ['2026-11-02', 'thisWeek'],
+    ['2026-11-06', 'thisWeek'],
+    ['2026-11-20', 'thisWeek'],
+    ['2026-11-01', 'lastWeek'],
+    ['2026-10-26', 'lastWeek'],
+    ['2026-10-25', 'earlier'],
+    ['2025-12-31', 'earlier'],
+    ['2026-11-03 14:20', 'thisWeek'],
+    ['2026-02-30', 'none'],
+    ['20261101', 'none'],
+    ['', 'none'],
+    [undefined, 'none'],
+  ])('puts %j in %s', (date, bucket) => {
+    expect(seoulWeekBucket(date, '2026-11-06')).toBe(bucket);
+  });
+
+  it('starts the week on Monday, so Sunday still belongs to it', () => {
+    expect(seoulWeekBucket('2026-11-02', '2026-11-08')).toBe('thisWeek');
+    expect(seoulWeekBucket('2026-11-08', '2026-11-09')).toBe('lastWeek');
+    expect(seoulWeekBucket('2026-11-09', '2026-11-09')).toBe('thisWeek');
   });
 });

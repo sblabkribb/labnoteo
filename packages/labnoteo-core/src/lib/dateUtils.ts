@@ -434,3 +434,33 @@ export function touchLastUpdatedDate(content: string, today: string): string {
   found.lines[found.index] = `${prefix}${quote}${today}${quote}${eol}`;
   return found.lines.join('\n');
 }
+
+/** Where a date falls against the week of `today`, weeks starting on Monday (#515). */
+export type WeekBucket = 'thisWeek' | 'lastWeek' | 'earlier' | 'none';
+
+/**
+ * Which week `date` (`YYYY-MM-DD`, a time after it ignored) is in, seen from
+ * `today` (`YYYY-MM-DD`, the Seoul date). A later date counts as this week; one
+ * that does not read as a calendar date is `none`.
+ */
+export function seoulWeekBucket(date: string | undefined, today: string): WeekBucket {
+  const day = calendarDay(date?.trim() ?? '');
+  const now = calendarDay(today);
+  if (day === undefined || now === undefined) return 'none';
+  const monday = now - ((new Date(now * DAY_MS).getUTCDay() + 6) % 7);
+  if (day >= monday) return 'thisWeek';
+  return day >= monday - 7 ? 'lastWeek' : 'earlier';
+}
+
+const DAY_MS = 86_400_000;
+
+/** Days since 1970-01-01 of a leading `YYYY-MM-DD`, when it is a real date. */
+function calendarDay(text: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?![\d])/.exec(text);
+  if (!m) return undefined;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const ms = Date.UTC(y, mo - 1, d);
+  const back = new Date(ms);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return undefined;
+  return ms / DAY_MS;
+}

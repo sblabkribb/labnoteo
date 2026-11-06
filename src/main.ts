@@ -37,10 +37,12 @@ import {
   touchLastUpdatedDate,
 } from '@labnoteo/core/lib/dateUtils';
 import { getSampleDisplayMeta, isCatalogSampleType } from '@labnoteo/core/lib/sampleUtils';
+import { caretBeforeModal } from '@labnoteo/core/lib/caret';
 import { isPathTooLongError, WINDOWS_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
 import {
   classifyWorkflowMoveOut,
   classifyWorkflowRename,
+  type WorkflowRename,
   createWorkflowFileName,
   isCopiedWorkflowFileName,
   isValidWorkflowPath,
@@ -229,7 +231,7 @@ export default class LabnotePlugin extends Plugin {
   // Pending README auto-sync events, coalesced per experiment folder.
   private readonly readmeSyncQueue = new Map<
     string,
-    { renames: { from: string; to: string }[]; deletes: string[] }
+    { renames: WorkflowRename[]; deletes: string[] }
   >();
   private readonly readmeSyncTimers = new Map<string, number>();
   // Folders whose README sync is paused (renumbering): events queue, no timer.
@@ -904,6 +906,10 @@ export default class LabnotePlugin extends Plugin {
       return;
     }
 
+    // Read before the type picker opens: it takes the focus, and the
+    // Source-mode editor then reports the cursor at the start of the note (#544).
+    const caret = await caretBeforeModal(target);
+
     const types = getSampleDisplayMeta(this.settings.customSampleTypes).types;
     const type = await pickModal(
       this.app,
@@ -936,7 +942,7 @@ export default class LabnotePlugin extends Plugin {
       referenceText = created?.referenceText;
     }
     if (!referenceText) return;
-    await insertSampleReference(this, target, referenceText);
+    await insertSampleReference(this, target, referenceText, caret);
   }
 
   /**
@@ -1010,8 +1016,18 @@ export default class LabnotePlugin extends Plugin {
         if (!effect) return;
         switch (effect.kind) {
           case 'renamed':
-          case 'restored':
-            this.queueReadmeSync(effect.dir).renames.push({ from: effect.from, to: effect.to });
+          case 'restored': {
+            const queued = this.queueReadmeSync(effect.dir);
+            queued.renames.push({ from: effect.from, to: effect.to });
+            // The first rename may have left the README linking to the broken
+            // name, when Obsidian offered to update links and the user took it
+            // (`…labnote.md.md`, #550). Which of the two the README holds is
+            // not knowable here, so both are offered; the label still comes
+            // from the original name either way.
+            const brokenName = posix.basename(oldPath);
+            if (effect.kind === 'restored' && brokenName !== effect.from) {
+              queued.renames.push({ from: brokenName, to: effect.to, labelFrom: effect.from });
+            }
             this.scheduleReadmeSync(effect.dir);
             // Renumbering holds the folder and moves the CSVs itself (#60);
             // it keeps the names after the number, so titles stay as they are.
@@ -1023,6 +1039,7 @@ export default class LabnotePlugin extends Plugin {
               this.run(() => this.noticeRenamedNumberClash(dir, to));
             }
             return;
+          }
           case 'strayMoved':
             this.strayWorkflows.set(newPath, effect.origin);
             return;
@@ -2597,10 +2614,24 @@ export default class LabnotePlugin extends Plugin {
    * With `path`, the note whose content this is: a date its reader set by hand
    * today stands, as it does when the note is stamped for its own edits (#363).
    */
-  readonly stampLastUpdated = (content: string, path?: string): string =>
-    this.settings.autoUpdateLastUpdated && !(path !== undefined && this.lastUpdatedTracker.keepsHandSet(path))
-      ? touchLastUpdatedDate(content, getSeoulDateString())
-      : content;
+  readonly stampLastUpdated = (content: string, path?: string): string => {
+    if (!this.settings.autoUpdateLastUpdated) return content;
+    if (path !== undefined && this.lastUpdatedTracker.keepsHandSet(path)) {
+      // Said once a day per note, whichever stamp is the one being left out.
+      const stamped = touchLastUpdatedDate(content, getSeoulDateString());
+      if (stamped !== content && this.lastUpdatedTracker.claimHandSetNotice(path)) {
+        this.host.notify(
+          'info',
+          this.t(
+            'Kept the last_updated_date you set by hand in {0}. It updates automatically again from tomorrow.',
+            posix.basename(path)
+          )
+        );
+      }
+      return content;
+    }
+    return touchLastUpdatedDate(content, getSeoulDateString());
+  };
 
   /** Forget hand-set dates and pending edits, so toggling the setting resumes stamping (#202). */
   resetLastUpdatedTracking(): void {
@@ -2750,7 +2781,7 @@ export default class LabnotePlugin extends Plugin {
   }
 
   /** Get (or create) the pending-event queue for an experiment folder. */
-  private queueReadmeSync(dir: string): { renames: { from: string; to: string }[]; deletes: string[] } {
+  private queueReadmeSync(dir: string): { renames: WorkflowRename[]; deletes: string[] } {
     let q = this.readmeSyncQueue.get(dir);
     if (!q) {
       q = { renames: [], deletes: [] };
@@ -2798,7 +2829,7 @@ export default class LabnotePlugin extends Plugin {
   /** Put taken events back in front of anything queued since, keeping hop order. */
   private requeueReadmeSync(
     dir: string,
-    q: { renames: { from: string; to: string }[]; deletes: string[] }
+    q: { renames: WorkflowRename[]; deletes: string[] }
   ): void {
     const later = this.readmeSyncQueue.get(dir);
     this.readmeSyncQueue.set(dir, {
@@ -2851,7 +2882,7 @@ export default class LabnotePlugin extends Plugin {
    */
   private async flushReadmeSync(
     dir: string,
-    q: { renames: { from: string; to: string }[]; deletes: string[] }
+    q: { renames: WorkflowRename[]; deletes: string[] }
   ): Promise<number> {
     const settled = await this.settleModals();
     if (this.unloaded) return 0;

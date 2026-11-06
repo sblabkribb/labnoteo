@@ -11,6 +11,7 @@
 import { Notice } from 'obsidian';
 import { isPartbankType, type PartbankType } from '@labnoteo/core';
 import { isSameSampleFolder } from '@labnoteo/core/lib/sampleStorage';
+import { caretBeforeModal } from '@labnoteo/core/lib/caret';
 import type LabnotePlugin from '../main';
 import { confirmModal, pickModal } from '../modals';
 import { insertSampleReference } from '../sampleActions';
@@ -150,13 +151,16 @@ export async function deliverReference(
   const target = plugin.host.editTarget();
   if (target && plugin.sampleTrackingFor(target.path)) {
     const used = discarded ? ` ${plugin.t('{0} was marked discarded on {1}.', discarded.id, discarded.date)}` : '';
+    // Read before the confirmation opens: it takes the focus, and the
+    // Source-mode editor then reports the cursor at the start of the note (#544).
+    const caret = await caretBeforeModal(target);
     const ok = await confirmModal(
       plugin.app,
       plugin.t('Insert {0} into the open note?', referenceText) + used,
       plugin.t('Insert')
     );
     if (!ok) return undefined;
-    await insertSampleReference(plugin, target, referenceText);
+    await insertSampleReference(plugin, target, referenceText, caret);
     return target.path;
   }
   await navigator.clipboard.writeText(referenceText);

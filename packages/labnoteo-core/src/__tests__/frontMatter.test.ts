@@ -11,6 +11,7 @@
 // throws against current behaviour, and Phase 1-2 (yaml.dump for scalars +
 // line-anchored closing fence) will flip them to normal `it(...)`.
 import {
+  frontMatterNames,
   isDateLikeKey,
   parseFrontMatterYaml,
   planDateInsertion,
@@ -298,5 +299,14 @@ describe('setFrontMatterKeys', () => {
       '---\ntitle: x\n# 다음 랩미팅 안건\nstatus: planned\n---\n'
     );
     expect(setFrontMatterKeys("---\ndiscuss: 'a # b'\n---\n", { discuss: undefined })).toBe('---\n---\n');
+  });
+});
+
+// #548: one comma line is several people, so the author grouping lists each.
+describe('frontMatterNames', () => {
+  it('splits a string at commas outside wikilinks', () => {
+    expect(frontMatterNames('김연구, 박협업')).toEqual(['김연구', '박협업']);
+    expect(frontMatterNames(['김연구, 박협업', '박협업'])).toEqual(['김연구', '박협업']);
+    expect(frontMatterNames('[[Kim, Y|김]], , 박협업')).toEqual(['김', '박협업']);
   });
 });

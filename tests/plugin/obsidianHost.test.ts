@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { MarkdownView, Notice, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { createObsidianHost, isReadingViewTarget } from '../../src/obsidianHost';
+import { createObsidianHost, isReadingViewTarget, tableCellEditorOf } from '../../src/obsidianHost';
 
 const NOTE = 'labnote/001_Test/001_WD010_A.labnote.md';
 
@@ -123,6 +123,77 @@ describe('editTarget in reading view (#216)', () => {
     const reading = setup({ mode: 'preview', data: 'saved', editorText: 'live text' });
     reading.editor.selectionEnd = 4;
     expect(await reading.host.editTarget()!.getSelectionRange!()).toBeUndefined();
+  });
+});
+
+/**
+ * #543: Obsidian 1.14 keeps `view.editor` on the note while a table cell is
+ * focused, so the cell went unnoticed and blocks landed inside the table.
+ */
+describe('editTarget with a table cell focused', () => {
+  const TABLE = 'intro\n\n| ID | Alias |\n| --- | --- |\n| DNA-1 | a |\n\nafter\n';
+
+  /** The note's CodeMirror view; `environment: node` has no DOM for a real one. */
+  function cellSetup(text: string) {
+    const state = { text, focused: false };
+    const cellDom = {} as HTMLElement;
+    const view = {
+      state: {
+        doc: { toString: () => state.text },
+        selection: { main: { head: 0 } },
+      },
+      posAtDOM: (dom: HTMLElement) => (dom === cellDom ? text.indexOf('| DNA-1') : 0),
+      dispatch: (tr: { changes?: { from: number; to: number; insert: string } }) => {
+        const c = tr.changes;
+        if (c) state.text = state.text.slice(0, c.from) + c.insert + state.text.slice(c.to);
+      },
+      focus: () => {
+        state.focused = true;
+      },
+    };
+    const cellEditor = { ...fakeEditor('DNA-1 | a'), cm: { dom: cellDom } };
+    const noteEditor = {
+      ...fakeEditor(text),
+      cm: view,
+      editorComponent: { tableCell: { editor: cellEditor } },
+    };
+    const mdView = new MarkdownView();
+    mdView.file = new TFile(NOTE);
+    mdView.mode = 'source';
+    mdView.editor = noteEditor;
+    const app = {
+      workspace: { getActiveViewOfType: () => mdView, getMostRecentLeaf: () => null },
+    } as unknown as App;
+    return { host: createObsidianHost(app, new MemFileSystem(), t), state, cellEditor, noteEditor };
+  }
+
+  it('sends an insert to the note below the table, not into the cell', async () => {
+    const { host, state, noteEditor } = cellSetup(TABLE);
+    const target = host.editTarget()!;
+
+    expect(await target.getCursorOffset!()).toBe(TABLE.indexOf('\n\nafter'));
+    await target.insertAtCursor('| extra |');
+
+    expect(state.text).toBe(TABLE.replace('| DNA-1 | a |\n', '| DNA-1 | a |\n| extra |\n'));
+    // The note editor is the table itself, so writing through it would break it.
+    expect(noteEditor.text).toBe(TABLE);
+  });
+
+  it('hands out the cell editor for text that fits in a cell', () => {
+    const { host, cellEditor } = cellSetup(TABLE);
+    expect(tableCellEditorOf(host.editTarget()!)).toBe(cellEditor);
+  });
+
+  it('leaves a note with no cell focused on its own editor', async () => {
+    const { host, state } = cellSetup(TABLE);
+    host.editTarget(); // the cell path above, for contrast
+    const plain = setup({ mode: 'source', data: TABLE, editorText: TABLE });
+    const target = plain.host.editTarget()!;
+
+    expect(tableCellEditorOf(target)).toBeUndefined();
+    await target.insertAtCursor('x');
+    expect(plain.editor.text).toBe(`x${TABLE}`);
+    expect(state.text).toBe(TABLE);
   });
 });
 

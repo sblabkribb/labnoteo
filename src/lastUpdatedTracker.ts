@@ -88,6 +88,19 @@ export class LastUpdatedTracker {
     return this.manual.get(path)?.day === this.today();
   }
 
+  /**
+   * Take the one notice a hand-set date earns, for a stamp that is being left
+   * out right now (#545). It shares the flag {@link consume} sets, so a note
+   * whose date was kept while typing says nothing again when its status is
+   * changed, and the two stamps `create_workflow` makes say it once.
+   */
+  claimHandSetNotice(path: string): boolean {
+    const hand = this.manual.get(path);
+    if (!hand || hand.day !== this.today() || hand.reported) return false;
+    hand.reported = true;
+    return true;
+  }
+
   clear(): void {
     this.pending.clear();
     this.manual.clear();

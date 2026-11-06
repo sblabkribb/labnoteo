@@ -12,6 +12,8 @@ import { stepFence, type OpenFence } from '../sections/sectionEdit';
 import { fitRow, isTableHeaderLine, isTableRowLine, splitTableCells } from './exportTablesCsv';
 import { HW_PLACEHOLDERS, SW_PLACEHOLDERS } from './unitOpTemplate';
 import { stripAiCallouts } from './aiCallout';
+import { findSampleReferenceSpans, type SampleLocationLookup } from './sampleStorage';
+import { escapeMarkdownInline } from './sampleUtils';
 
 export type UnitOpKind = 'hw' | 'sw';
 
@@ -304,6 +306,71 @@ export function listWorksheetUnitOps(md: string): WorksheetUnitOp[] {
       sections: sections.filter(s => s.title !== WORKSHEET_SCANS_HEADING).map(toSection),
     };
   });
+}
+
+/**
+ * `text` with the storage location of the samples it references added at the
+ * end (#496): ` — -80 / Box 1 / A3` for one sample, ` — DNA-1: …; DNA-2: …`
+ * for several. The reference itself is left as written: a plain reference's
+ * alias runs to the end of the line, so nothing could be put after it inside.
+ */
+function withSampleLocations(text: string, types: readonly string[], lookup: SampleLocationLookup): string {
+  const spans = findSampleReferenceSpans(text, types);
+  const seen = new Set<string>();
+  const found: { id: string; location: string }[] = [];
+  for (const span of spans) {
+    const key = `${span.type}\u0000${span.id.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const location = lookup(span.type, span.id);
+    if (location) found.push({ id: span.id, location: escapeMarkdownInline(location) });
+  }
+  if (found.length === 0) return text;
+  if (seen.size === 1) return `${text} — ${found[0].location}`;
+  return `${text} — ${found.map(f => `${escapeMarkdownInline(f.id)}: ${f.location}`).join('; ')}`;
+}
+
+/**
+ * The unit operations with each sample reference's storage location added to
+ * the line it is on (#496), so the sheet says where to fetch the tube. Meta
+ * values, Method steps and the lines under them, list items, paragraphs and
+ * table cells are annotated; code blocks, the title, alias and description
+ * are not, so the QR code's fingerprint is the same. Discarded and unknown
+ * samples, and ones without a location, add nothing.
+ */
+export function annotateWorksheetSamples(
+  unitOps: readonly WorksheetUnitOp[],
+  types: readonly string[],
+  lookup: SampleLocationLookup
+): WorksheetUnitOp[] {
+  const line = (text: string): string => withSampleLocations(text, types, lookup);
+  const rows = (table: string[][]): string[][] => table.map(row => row.map(line));
+  const section = (s: WorksheetSection): WorksheetSection => {
+    switch (s.type) {
+      case 'meta':
+        return { ...s, fields: s.fields.map(f => ({ ...f, value: line(f.value) })) };
+      case 'steps':
+        return {
+          ...s,
+          steps: s.steps.map(step => ({
+            ...step,
+            text: line(step.text),
+            sub: step.sub.map(line),
+            ...(step.table ? { table: rows(step.table) } : {}),
+          })),
+        };
+      case 'text':
+        return {
+          ...s,
+          blocks: s.blocks.map(b =>
+            b.kind === 'table' ? { ...b, rows: rows(b.rows) } : b.kind === 'code' ? b : { ...b, text: line(b.text) }
+          ),
+        };
+      case 'blank':
+        return s;
+    }
+  };
+  return unitOps.map(op => ({ ...op, sections: op.sections.map(section) }));
 }
 
 /**

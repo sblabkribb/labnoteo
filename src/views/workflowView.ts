@@ -183,10 +183,14 @@ export class WorkflowTreeView extends ItemView {
     groupBy.createEl('option', { value: 'project', text: this.plugin.t('By project') });
     groupBy.createEl('option', { value: 'author', text: this.plugin.t('By author') });
     groupBy.createEl('option', { value: 'discuss', text: this.plugin.t('By discussion') });
+    groupBy.createEl('option', { value: 'updated', text: this.plugin.t('By last updated') });
     groupBy.value = this.plugin.settings.workflowViewGroupBy;
     this.registerDomEvent(groupBy, 'change', () => {
       this.plugin.settings.workflowViewGroupBy =
-        groupBy.value === 'project' || groupBy.value === 'author' || groupBy.value === 'discuss'
+        groupBy.value === 'project' ||
+        groupBy.value === 'author' ||
+        groupBy.value === 'discuss' ||
+        groupBy.value === 'updated'
           ? groupBy.value
           : 'status';
       void this.plugin.saveSettings();
@@ -205,8 +209,8 @@ export class WorkflowTreeView extends ItemView {
 
   /**
    * Experiments whose README the metadata cache has read, with its `title`,
-   * `status`, `discuss` flag and `last_updated_date`, and the checklist
-   * progress read so far (#157).
+   * `status`, `discuss` flag, `last_updated_date` and `created_date` (#515),
+   * and the checklist progress read so far (#157).
    */
   private experiments(): ExperimentEntry[] {
     const entries = this.app.vault
@@ -215,6 +219,7 @@ export class WorkflowTreeView extends ItemView {
       .map(f => {
         const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
         const updated: unknown = fm?.last_updated_date;
+        const created: unknown = fm?.created_date;
         const folder = posix.dirname(f.path);
         return {
           folder,
@@ -222,6 +227,7 @@ export class WorkflowTreeView extends ItemView {
           status: typeof fm?.status === 'string' ? fm.status : undefined,
           discuss: fm ? isDiscussFlagged(fm) : false,
           lastUpdated: typeof updated === 'string' && updated.trim() ? updated.trim() : undefined,
+          created: typeof created === 'string' && created.trim() ? created.trim() : undefined,
           progress: this.checklistProgress(f),
           project:
             typeof fm?.project === 'string' || typeof fm?.project === 'number' ? String(fm.project) : undefined,
@@ -366,7 +372,7 @@ export class WorkflowTreeView extends ItemView {
       if (none) {
         this.noMatchEl.setText(
           this.plugin.t(
-            'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses and workflow note names.',
+            'No experiment matches "{0}". The search reads folder names, titles, projects, authors, statuses, workflow note names, and dates written with "-" (last updated or created).',
             this.query.trim()
           )
         );
@@ -398,6 +404,10 @@ export class WorkflowTreeView extends ItemView {
         noProject: this.plugin.t('(no project)'),
         author: this.plugin.t('Author'),
         noAuthor: this.plugin.t('(no author)'),
+        updatedThisWeek: this.plugin.t('This week'),
+        updatedLastWeek: this.plugin.t('Last week'),
+        updatedEarlier: this.plugin.t('Earlier'),
+        noUpdated: this.plugin.t('(no date)'),
         unreadable: this.plugin.t('(front matter unreadable)'),
         frontMatterError: this.plugin.t('README front matter could not be read'),
       },

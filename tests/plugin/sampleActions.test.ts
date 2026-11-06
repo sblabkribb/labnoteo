@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from 'obsidian';
 import { MarkdownView, Notice, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { upsertSampleRecord } from '../../packages/labnoteo-core/src/lib/sampleStorage';
+import { loadSamplesByType, upsertSampleRecord } from '../../packages/labnoteo-core/src/lib/sampleStorage';
 import {
   changeSampleTypeInteractive,
   createSampleInteractive,
@@ -114,8 +114,9 @@ describe('createSampleInteractive', () => {
 
       expect(await add()).toBeUndefined();
 
+      // #553: the alias first, since that is what the tube is labelled with.
       expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
-        'RNA-9 (Local RNA sample) is already stored at -80 / p1 / a1. Save RNA-'
+        'kept (RNA-9, Local RNA sample) is already stored at -80 / p1 / a1. Save R1 (RNA-'
       );
       expect(Object.keys(JSON.parse(await fs.read(REGISTRY)))).toEqual(['RNA-9']);
     });
@@ -155,9 +156,41 @@ describe('createSampleInteractive', () => {
 
       expect(await add()).toBeUndefined();
 
+      // No alias on DNA-3, so it stays `ID (scope)`.
       expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
-        'DNA-3 (Global DNA sample) is already stored at -80 / P1 / C3. Save RNA-'
+        'DNA-3 (Global DNA sample) is already stored at -80 / P1 / C3. Save R1 (RNA-'
       );
+    });
+
+    // #553
+    it('names every sample in the slot by its alias when more than one is there', async () => {
+      await fs.write(
+        `${GLOBAL}/DNA.json`,
+        JSON.stringify({ 'DNA-3': { type: 'DNA', alias: 'pET', descriptions: [], sources: [], location: '-80 / P1 / A1' } })
+      );
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('R1', '', '-80 / P1 / A1');
+
+      await add();
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
+        '2 samples are already stored at -80 / P1 / A1: kept (RNA-9, Local RNA sample), pET (DNA-3, Global DNA sample).'
+      );
+    });
+
+    // #553: Edit sample takes the same route, and named only IDs there too.
+    it('names the aliases when an edit moves a sample into a taken slot', async () => {
+      await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: 'moving', description: null, location: '4도' });
+      const record = (await loadSamplesByType(fs, FOLDER, 'RNA'))['RNA-1'];
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('moving', '', '-80 / P1 / A1');
+
+      await editSampleInteractive(new App(), plugin, { type: 'RNA', folder: FOLDER, id: 'RNA-1', record });
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
+        'kept (RNA-9, Local RNA sample) is already stored at -80 / P1 / A1. Save moving (RNA-1) anyway?'
+      );
+      expect(JSON.parse(await fs.read(REGISTRY))['RNA-1'].location).toBe('4도');
     });
   });
 
@@ -1064,6 +1097,55 @@ describe('insertSampleReference', () => {
 
     expect(state.text).toBe('#### Input\n- Plasmid-1;pET-28a(+)\n');
     expect(state.revealed).toBe(start + 'Plasmid-1;pET-28a(+)'.length);
+  });
+
+  // #544: the type picker and the partbank confirmation left the editor
+  // reporting the start of the note, which put the reference in the properties.
+  it('uses the cursor read before a dialog over the one the editor reports after it', async () => {
+    const doc = '---\nstatus: planned\n---\n\n## Samples\nbefore\n';
+    const { target, state } = makeTarget(doc, 0); // what the editor says once the dialog closed
+    const saved = doc.indexOf('before') + 'before'.length;
+
+    await insertSampleReference(refPlugin(), target, 'RNA-1;siKIF', saved);
+
+    expect(state.text).toBe('---\nstatus: planned\n---\n\n## Samples\nbefore RNA-1;siKIF\n');
+  });
+
+  // #543: a reference fits in a table cell, so it goes in there like a date,
+  // while the target itself writes below the table.
+  it('writes into the focused table cell, with a space after an alias', async () => {
+    const table = '| ID | Alias |\n| --- | --- |\n| DNA-1 | a |\n';
+    const cell = { text: 'DNA-2;pET ', cursor: 'DNA-2;pET '.length };
+    const cellEditor = {
+      cm: { dom: {} as HTMLElement },
+      getValue: () => cell.text,
+      getCursor: () => ({ line: 0, ch: cell.cursor }),
+      replaceSelection: (t: string) => {
+        cell.text = cell.text.slice(0, cell.cursor) + t + cell.text.slice(cell.cursor);
+      },
+    };
+    const noteCm = {
+      state: { doc: { toString: () => table }, selection: { main: { head: 0 } } },
+      posAtDOM: () => 0,
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    };
+    const view = new MarkdownView();
+    view.file = new TFile('labnote/001_Test/001_WD010_Design.labnote.md');
+    view.mode = 'source';
+    view.editor = { cm: noteCm, editorComponent: { tableCell: { editor: cellEditor } } };
+    const host = createObsidianHost(
+      { workspace: { getActiveViewOfType: () => view, getMostRecentLeaf: () => null } } as unknown as App,
+      fs,
+      key => key
+    );
+    const refPlugin = { settings: { customSampleTypes: [] }, markUserEdit: vi.fn() } as unknown as LabnotePlugin;
+
+    await insertSampleReference(refPlugin, host.editTarget()!, 'RNA-1;siKIF');
+
+    expect(cell.text).toBe('DNA-2;pET RNA-1;siKIF');
+    expect(noteCm.dispatch).not.toHaveBeenCalled();
+    expect(refPlugin.markUserEdit).toHaveBeenCalledOnce();
   });
 });
 

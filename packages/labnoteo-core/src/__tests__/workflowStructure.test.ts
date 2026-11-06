@@ -120,6 +120,11 @@ describe('parseExperimenterFromReadme', () => {
     ['author:\n  - [[이서연]]\n  - "[[박하늘|하늘]]"', '이서연, 하늘'],
     ['author: "[[이서연#소속]]"', '이서연'],
     ['author: 42', '42'],
+    // #548
+    ['author: 김연구,박협업', '김연구, 박협업'],
+    ['author: 김연구, 박협업, 김연구', '김연구, 박협업'],
+    ['author: "[[김연구]], [[박협업|협업]]"', '김연구, 협업'],
+    ['author: "[[Kim, Y]], 박협업"', 'Kim, Y, 박협업'],
   ])('reads %j as names', (fm, names) => {
     expect(parseExperimenterFromReadme(`---\n${fm}\n---\n`)).toBe(names);
   });
@@ -1874,6 +1879,63 @@ describe('classifyWorkflowRename', () => {
       '001_WB030_Gibson v3.labnote.md',
       '002_WB040_Next.labnote.md',
     ]);
+  });
+
+  /**
+   * #550: a `#` in the new name breaks the rename, Obsidian relinks the README
+   * to `…labnote.md.md`, and the entry then matched nothing: neither the
+   * relink after the name was fixed nor the stale-entry check saw it.
+   */
+  describe('a README left linking to a half-applied rename', () => {
+    const BROKEN = '001_WB030_조립_#3.labnote.md.md';
+    const FIXED = '001_WB030_조립_3차.labnote.md';
+    const readme = readmeWith([`- [ ] [WB030 조립 2차](./${BROKEN})`]);
+
+    it('reads the entry, which the parser used to skip', () => {
+      expect(parseWorkflowChecklistFromReadme(readme)).toEqual([
+        { done: false, title: 'WB030 조립 2차', fileName: BROKEN },
+      ]);
+      expect(isWorkflowChecklistEntryLine(`- [ ] [A](./${BROKEN})`)).toBe(true);
+    });
+
+    it('relinks it and relabels from the original name, not the broken one', () => {
+      const res = reconcileWorkflowChecklist(
+        readme,
+        [{ from: BROKEN, to: FIXED, labelFrom: '001_WB030_조립_2차.labnote.md' }],
+        { labelFor: () => 'WB030 조립 3차' }
+      );
+      expect(res.content).toContain(`- [ ] [WB030 조립 3차](./${FIXED})`);
+    });
+
+    it('keeps the label the user wrote when it was never the file name', () => {
+      const own = readmeWith([`- [ ] [손으로 적은 이름](./${BROKEN})`]);
+      const res = reconcileWorkflowChecklist(
+        own,
+        [{ from: BROKEN, to: FIXED, labelFrom: '001_WB030_조립_2차.labnote.md' }],
+        { labelFor: () => 'WB030 조립 3차' }
+      );
+      expect(res.content).toContain(`- [ ] [손으로 적은 이름](./${FIXED})`);
+    });
+
+    it('carries the original name through a chain of renames', () => {
+      expect(
+        collapseWorkflowRenames([
+          { from: BROKEN, to: 'staging.labnote.md', labelFrom: '001_WB030_조립_2차.labnote.md' },
+          { from: 'staging.labnote.md', to: FIXED },
+        ])
+      ).toEqual([{ from: BROKEN, to: FIXED, labelFrom: '001_WB030_조립_2차.labnote.md' }]);
+    });
+
+    // The safety net for a rename nobody is left to apply (Obsidian restarted).
+    it('reports it as a stale entry when no rename reaches it', () => {
+      const plan = planWorkflowChecklistSync(readme, [FIXED]);
+      expect(plan.stale).toEqual([{ link: BROKEN, title: 'WB030 조립 2차', reason: 'missing' }]);
+      expect(plan.added.map(a => a.fileName)).toEqual([FIXED]);
+    });
+
+    it('does not renumber the broken link onto the fixed file', () => {
+      expect(matchMissingChecklistEntries(readme, [FIXED])).toEqual({ relink: [], missing: [] });
+    });
   });
 });
 

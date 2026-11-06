@@ -87,9 +87,17 @@ export function locationChangesOf(
  * showing no stock is often a sharing boundary rather than a move, and the
  * text may have been typed by hand.
  */
-export function storableChanges(changes: readonly LocationChange[]): { offer: LocationChange[]; noStock: number } {
-  const offer = changes.filter(c => c.after);
-  return { offer, noStock: changes.length - offer.length };
+export function storableChanges(changes: readonly LocationChange[]): { offer: LocationChange[] } {
+  return { offer: changes.filter(c => c.after) };
+}
+
+/**
+ * How many of `results` partbank has no stock for. Counted over every result,
+ * not over the changes: a sample with no location stored and none to read is
+ * no change, and used to be left out of the tally altogether (#552).
+ */
+export function noStockCount(results: readonly { after: string | null }[]): number {
+  return results.filter(r => !r.after).length;
 }
 
 /** `main`, then how many kept their location for lack of stock and how many could not be read. */
@@ -185,17 +193,25 @@ export async function refreshOneLocation(
     return false;
   }
   const before = args.record.location ?? null;
-  if ((before ?? '') === (after ?? '')) {
-    new Notice(plugin.t('The storage location is unchanged.'));
-    return false;
-  }
+  // Ahead of the "unchanged" answer: a sample with no location stored and no
+  // stock in partbank matched it, and "unchanged" read as a confirmed empty
+  // location rather than as nothing to read (#552).
   if (!after) {
     new Notice(
-      plugin.t(
-        'partbank shows no stock for {0}, so the current location is kept. To clear it, empty the location in Edit sample.',
-        args.id
-      )
+      before
+        ? plugin.t(
+            'partbank shows no stock for {0}, so the current location is kept. To clear it, empty the location in Edit sample.',
+            args.id
+          )
+        : plugin.t(
+            'partbank has no stock for {0}, so there is no storage location to read. Register the stock in partbank, then refresh again.',
+            args.id
+          )
     );
+    return false;
+  }
+  if ((before ?? '') === (after ?? '')) {
+    new Notice(plugin.t('The storage location is unchanged.'));
     return false;
   }
   const change: LocationChange = {
@@ -265,7 +281,8 @@ export async function refreshLocationsIn(
     notice.hide();
   }
 
-  const { offer, noStock } = storableChanges(locationChangesOf(results));
+  const { offer } = storableChanges(locationChangesOf(results));
+  const noStock = noStockCount(results);
   if (stopped) plugin.partbank.notifyError(stopped, plugin.settings.partbankDefaultConnection);
   const finish = (main: string): void => {
     new Notice(locationRefreshNotice(plugin, main, noStock, failed));

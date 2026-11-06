@@ -69,7 +69,7 @@ describe('parseImportRequest', () => {
 // #284: declining the insert still put the reference on the clipboard.
 describe('deliverReference', () => {
   const writeText = vi.fn();
-  const target = { path: 'labnote/001_A/001_WD010_A.labnote.md' };
+  const target = { path: 'labnote/001_A/001_WD010_A.labnote.md', getCursorOffset: async () => 12 };
   const plugin = (open: boolean, tracked = true) =>
     ({
       app: {},
@@ -89,7 +89,9 @@ describe('deliverReference', () => {
   it('inserts into the open note when confirmed', async () => {
     vi.mocked(confirmModal).mockResolvedValue(true);
     await deliverReference(plugin(true), 'DNA-1;pX');
-    expect(insertSampleReference).toHaveBeenCalledWith(expect.anything(), target, 'DNA-1;pX');
+    // The cursor read before the confirmation is handed on, since the dialog
+    // leaves the Source-mode editor reporting the start of the note (#544).
+    expect(insertSampleReference).toHaveBeenCalledWith(expect.anything(), target, 'DNA-1;pX', 12);
     expect(writeText).not.toHaveBeenCalled();
   });
 

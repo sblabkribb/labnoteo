@@ -21,12 +21,6 @@ steps:
     tool: modal_button
     args: { text: $t(Open note) }
     hold: 1000
-  - tool: ui_press
-    args: { keys: Escape }
-  - tool: ui_click
-    args: { selector: .workspace-leaf.mod-active .cm-content }
-  - tool: editor_move
-    args: { text: Worksheet scans, ch: 0 }
   - caption: { ko: 유닛 오퍼레이션 끝 Worksheet scans에 썸네일이 붙습니다, en: A thumbnail goes under Worksheet scans at the end of the step }
     highlight: { selector: .cm-content .image-embed }
     poster: true
