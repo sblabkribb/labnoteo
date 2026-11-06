@@ -435,18 +435,18 @@
     {
       "id": "scan-import",
       "lang": "en",
-      "version": "0.130.0",
-      "durationSec": 32.7,
-      "bytes": 332454,
-      "recordedAt": "2026-10-28T00:20:18.277Z"
+      "version": "0.139.0",
+      "durationSec": 29,
+      "bytes": 273351,
+      "recordedAt": "2026-11-06T14:17:35.113Z"
     },
     {
       "id": "scan-import",
       "lang": "ko",
-      "version": "0.130.0",
-      "durationSec": 33.5,
-      "bytes": 369467,
-      "recordedAt": "2026-10-28T00:02:07.445Z"
+      "version": "0.139.0",
+      "durationSec": 29.1,
+      "bytes": 251558,
+      "recordedAt": "2026-11-06T14:16:55.367Z"
     },
     {
       "id": "setup-research-automation",
