@@ -196,7 +196,9 @@ describe('create_sample / get_sample / list_samples', () => {
     const got = await tool('get_sample').handler(ctx, { type: 'RNA', id: 'RNA-1', documentPath: NOTE_PATH });
     expect(got.data).toMatchObject({ location });
     const listed = await tool('list_samples').handler(ctx, { type: 'RNA', documentPath: NOTE_PATH });
-    expect(listed.data).toEqual([{ id: 'RNA-1', alias: null, description: null, location, scope: 'local' }]);
+    expect(listed.data).toEqual([
+      { id: 'RNA-1', alias: null, description: null, location, scope: 'local', experiment: NOTE_DIR },
+    ]);
   });
 
   it('keeps an existing location when a later call omits it or leaves it empty', async () => {
@@ -1289,6 +1291,34 @@ describe('sample lookup across experiments (#169)', () => {
     expect(got.data).toMatchObject({ id: 'DNA-5', scope: 'local', experiment: OTHER_DIR });
     const global = await tool('get_sample').handler(ctx, { type: 'RNA', id: 'RNA-1' });
     expect(global.data).toMatchObject({ scope: 'global', experiment: null });
+  });
+
+  it('list_samples without a note lists the global samples and every experiment\'s local ones (#566)', async () => {
+    await fs.write(
+      'resources/labsamples/DNA.json',
+      JSON.stringify({ 'DNA-1': { type: 'DNA', alias: 'g', descriptions: [], sources: [] } })
+    );
+    await fs.write(
+      `${NOTE_DIR}/resources/labsamples/DNA.json`,
+      JSON.stringify({ 'DNA-5': { type: 'DNA', alias: 'mine', descriptions: [], sources: [] } })
+    );
+    const all = await tool('list_samples').handler(ctx, { type: 'DNA' });
+    expect(all.ok).toBe(true);
+    const rows = all.data as Array<{ id: string; scope: string; experiment: string | null }>;
+    expect(rows[0]).toMatchObject({ id: 'DNA-1', scope: 'global', experiment: null });
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: OTHER_DIR, discarded: '2026-10-01' }),
+        expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: NOTE_DIR }),
+      ])
+    );
+    expect(rows).toHaveLength(3);
+
+    const one = await tool('list_samples').handler(ctx, { type: 'DNA', documentPath: NOTE_PATH });
+    expect(one.data).toEqual([
+      expect.objectContaining({ id: 'DNA-1', scope: 'global', experiment: null }),
+      expect.objectContaining({ id: 'DNA-5', scope: 'local', experiment: NOTE_DIR, alias: 'mine' }),
+    ]);
   });
 
   it('get_sample and list_samples name the known types for an unknown one', async () => {

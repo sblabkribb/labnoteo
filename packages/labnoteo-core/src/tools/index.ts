@@ -916,12 +916,16 @@ export function createLabnoteTools(): ToolDef[] {
       name: 'list_samples',
       mutates: false,
       description:
-        'List all stored samples of a given type (local scope merged over global). Each entry says whether it is `local` (the note\'s experiment) or `global`.',
+        'List all stored samples of a given type. With documentPath, that note\'s experiment-local samples are merged over the global ones; without it, the global samples come first and then every experiment\'s local ones, each listed separately (the same id may appear in several experiments). Each entry gives its `scope` (local/global) and `experiment` folder for a local sample.',
       inputSchema: {
         type: 'object',
         properties: {
           type: { type: 'string' },
-          documentPath: { type: 'string' },
+          documentPath: {
+            type: 'string',
+            description:
+              'Vault-relative path of a note: lists its experiment\'s local samples merged over the global ones. Omit to list every experiment.',
+          },
         },
         required: ['type'],
       },
@@ -932,22 +936,31 @@ export function createLabnoteTools(): ToolDef[] {
         if (!type.ok) return type.error;
         const documentPath = safePath(ctx, args, 'documentPath');
 
-        const merged: Record<string, { rec: SampleRecord; scope: 'local' | 'global' }> = {};
-        const scopes = sampleScopes(
-          ctx,
-          documentPath ? noteLabsamplesFolder(documentPath, ctx.globalSampleFolder) : undefined
-        ).reverse();
-        for (const { folder, scope } of scopes) {
-          for (const [id, rec] of Object.entries(await loadSamplesByType(ctx.fs, folder, type.type))) {
-            merged[id] = { rec, scope };
+        type Entry = { id: string; rec: SampleRecord; scope: 'local' | 'global'; experiment: string | null };
+        const entries: Entry[] = [];
+        if (documentPath) {
+          const merged: Record<string, Entry> = {};
+          const scopes = sampleScopes(ctx, noteLabsamplesFolder(documentPath, ctx.globalSampleFolder)).reverse();
+          for (const { folder, scope, experiment } of scopes) {
+            for (const [id, rec] of Object.entries(await loadSamplesByType(ctx.fs, folder, type.type))) {
+              merged[id] = { id, rec, scope, experiment };
+            }
+          }
+          entries.push(...Object.values(merged));
+        } else {
+          for (const { folder, scope, experiment } of [...sampleScopes(ctx), ...(await experimentSampleScopes(ctx))]) {
+            for (const [id, rec] of Object.entries(await loadSamplesByType(ctx.fs, folder, type.type))) {
+              entries.push({ id, rec, scope, experiment });
+            }
           }
         }
-        const data = Object.entries(merged).map(([id, { rec, scope }]) => ({
+        const data = entries.map(({ id, rec, scope, experiment }) => ({
           id,
           alias: rec.alias,
           description: rec.descriptions?.[0] ?? null,
           location: rec.location ?? null,
           scope,
+          experiment,
           ...(rec.discarded ? { discarded: rec.discarded } : {}),
           ...(rec.discardedLocation ? { discardedLocation: rec.discardedLocation } : {}),
         }));

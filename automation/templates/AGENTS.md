@@ -87,7 +87,8 @@ Claude Code, Codex, Cursor 등)는 아래 규칙을 따라 작업합니다.
   비었다고 위치를 모르는 시료로 보지 마세요.
 - 시료가 어느 실험에 있는지 모르면 MCP `search_samples`(ID·별칭·보관 위치·설명 검색)를 쓰세요.
   `get_sample`은 `documentPath` 없이 부르면 전역 대장 다음 모든 실험의 대장을 찾고, 결과의
-  `scope`·`experiment`가 찾은 곳입니다.
+  `scope`·`experiment`가 찾은 곳입니다. `list_samples`도 `documentPath` 없이 부르면 전역 대장 다음
+  모든 실험의 로컬 시료를 실험마다 따로 돌려주고, 주면 그 노트 실험의 시료만 전역 위에 합칩니다.
 - MCP `create_workflow`의 `alias`는 앱에서 `Create workflow` 뒤에 넣는 별칭과 같습니다. 파일 이름·제목·체크리스트
   라벨에서 카탈로그 이름 뒤에 붙습니다. `#`(제목 링크가 끊김)와 `*`, 영문·숫자 사이가 아닌 `_`(읽기
   화면에서 기울임으로 보임)는 거부되니 띄어쓰기로 바꾸세요(`pUC19_v2`처럼 영문·숫자 사이의 `_`는 됨).
