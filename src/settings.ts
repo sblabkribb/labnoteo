@@ -371,9 +371,14 @@ export function migrateSettings(raw: unknown): LabnoteSettings {
   }
   if (typeof data.partbankSendUsages === 'boolean') out.partbankSendUsages = data.partbankSendUsages;
 
-  // Provider-specific endpoints (new shape) win when present…
-  if (typeof data.llmEndpointOllama === 'string') out.llmEndpointOllama = data.llmEndpointOllama;
-  if (typeof data.llmEndpointOpenai === 'string') out.llmEndpointOpenai = data.llmEndpointOpenai;
+  // Provider-specific endpoints (new shape) win when present… A blank one,
+  // saved by a field cleared before #555, gets the default back.
+  if (typeof data.llmEndpointOllama === 'string' && data.llmEndpointOllama.trim()) {
+    out.llmEndpointOllama = data.llmEndpointOllama;
+  }
+  if (typeof data.llmEndpointOpenai === 'string' && data.llmEndpointOpenai.trim()) {
+    out.llmEndpointOpenai = data.llmEndpointOpenai;
+  }
   // …otherwise migrate the legacy single `llmEndpoint` onto whichever provider
   // was active (defaulting to Ollama, the old default).
   if (

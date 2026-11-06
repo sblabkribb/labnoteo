@@ -309,6 +309,13 @@ describe('migrateSettings', () => {
         DEFAULT_SETTINGS.llmEndpointOllama
       );
     });
+
+    // #555: a field cleared to type a new address was saved empty.
+    it('puts the default back for a blank endpoint', () => {
+      const out = migrateSettings({ llmEndpointOllama: '', llmEndpointOpenai: '  ' });
+      expect(out.llmEndpointOllama).toBe(DEFAULT_SETTINGS.llmEndpointOllama);
+      expect(out.llmEndpointOpenai).toBe(DEFAULT_SETTINGS.llmEndpointOpenai);
+    });
   });
 });
 

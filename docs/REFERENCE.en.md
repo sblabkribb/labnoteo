@@ -933,7 +933,8 @@ with the reason for each, and file each by choosing the note, unit operation, an
 ## AI
 
 Set up under Settings → Labnote Assistant → AI provider; with **Provider** left at `Disabled` the AI
-commands do nothing. When a request fails, the notice names the cause and the setting to fix: the
+commands do nothing. An endpoint field is saved when you leave it, and leaving it empty puts the
+default address back with a notice. When a request fails, the notice names the cause and the setting to fix: the
 endpoint when the server cannot be reached (is Ollama running?), the API key on 401/403, the model
 when it is not found (for Ollama, was it pulled with `ollama pull`?), the endpoint path on any other
 404 (the server address only, without `/v1` or `/api`), and how to write the endpoint when it is not
