@@ -192,6 +192,23 @@ describe('worksheetPrintPages', () => {
     expect(body).not.toContain('<span class="n">3.</span>');
   });
 
+  // #558
+  it('prints a callout as a box under its step and a quote with a rule, not as > marks', () => {
+    const body = worksheetBody(md =>
+      md.replace(
+        '#### Method\n- (method used in this step)',
+        ['#### Method', '1. 해동', '', '> [!warning] 얼음 위', '> **10분** 이내', '', '2. 원심', '> 천천히'].join('\n')
+      )
+    );
+    expect(body).toContain(
+      '<div class="callout"><div class="callout-title"><b>Warning</b> 얼음 위</div><div>10분 이내</div></div>'
+    );
+    expect(body).toContain('<blockquote class="quote"><div>천천히</div></blockquote>');
+    expect(body).toContain('<span class="n">2.</span><div class="s">원심');
+    expect(body).not.toContain('<span class="n">3.</span>');
+    expect(body).not.toContain('[!warning]');
+  });
+
   it('gives a table above the first step no box or number', () => {
     const body = worksheetBody(md =>
       md.replace('#### Method\n- (method used in this step)', ['#### Method', '| a |', '| --- |', '| 1 |', '', '1. 시작'].join('\n'))

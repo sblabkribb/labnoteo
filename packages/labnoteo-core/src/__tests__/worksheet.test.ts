@@ -75,6 +75,57 @@ describe('listWorksheetUnitOps', () => {
     });
   });
 
+  // #558: a callout printed as `> [!warning]` text joined to the step above, or took a step number after a blank line.
+  it('keeps quotes and callouts under the step above, without a number', () => {
+    const md = buildNote([hw('UHW010')]).replace(
+      '#### Method\n- (method used in this step)',
+      [
+        '#### Method',
+        '1. Thaw cells',
+        '> [!warning] Keep on ice',
+        '> No more than 10 min',
+        'at room temperature',
+        '2. Spin',
+        '',
+        '> [!tip]-',
+        '> slow down',
+        '',
+        '3. Wash',
+        '   > rinse twice',
+      ].join('\n')
+    );
+    expect(listWorksheetUnitOps(md)[0].sections.find(s => s.title === 'Method')).toEqual({
+      type: 'steps',
+      title: 'Method',
+      steps: [
+        {
+          text: 'Thaw cells',
+          sub: [],
+          quotes: [{ kind: 'quote', callout: 'warning', title: 'Keep on ice', lines: ['No more than 10 min at room temperature'] }],
+        },
+        { text: 'Spin', sub: [], quotes: [{ kind: 'quote', callout: 'tip', lines: ['slow down'] }] },
+        { text: 'Wash', sub: [], quotes: [{ kind: 'quote', lines: ['rinse twice'] }] },
+      ],
+    });
+  });
+
+  it('prints a quote in a text section as a block of its own, ended by a list item', () => {
+    const md = buildNote([hw('UHW010')]).replace(
+      '#### Results & Discussions\n- (Any results and discussions. Link file path if needed)',
+      '#### Results & Discussions\n> [!summary] AI summary\n> Band at 1 kb\n> > nested\n- next point'
+    );
+    const results = listWorksheetUnitOps(md)[0].sections.find(s => s.title === 'Results & Discussions');
+    expect(results).toEqual({
+      type: 'text',
+      title: 'Results & Discussions',
+      blocks: [
+        { kind: 'quote', callout: 'summary', title: 'AI summary', lines: ['Band at 1 kb', '> nested'] },
+        { kind: 'item', level: 0, text: 'next point' },
+      ],
+    });
+    expect(sectionWeight(results!)).toBe(2 + 4 + 1);
+  });
+
   // #400: a template line left above what was written printed as text or as step 1.
   it('leaves out the template lines kept above what was written', () => {
     const md = buildNote([hw('UHW010')])

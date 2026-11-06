@@ -857,7 +857,9 @@ a title. Sections with
 nothing in them are left as ruled writing space, Method and Results & Discussions widest. Template
 hint lines such as `(samples from the previous step)` are left out even when you wrote below them.
 A fenced code block prints line by line as written, under the step above it without a step number
-of its own, and a ticked Method step (`- [x]`) prints with a ✓ in its box. Inline formatting prints
+of its own, and a ticked Method step (`- [x]`) prints with a ✓ in its box. A callout
+(`> [!warning] Keep on ice`) prints as a bordered box headed by its type and title, a plain quote
+with a rule on its left; between Method steps either goes under the step above without a number. Inline formatting prints
 as the reading view shows it: struck-through text struck (not dropped), highlights underlined,
 footnote references and `<sup>` raised, `<sub>` lowered. A footnote definition (`[^1]: …`) prints
 where it was written, with its label raised, and math (`$…$`, `$$…$$`) prints as the symbols paper

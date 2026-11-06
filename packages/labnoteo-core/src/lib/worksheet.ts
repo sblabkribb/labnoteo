@@ -25,7 +25,19 @@ export type WorksheetBlock =
   | { kind: 'para'; text: string; footnote?: true }
   | { kind: 'table'; rows: string[][] }
   /** A fenced code block's lines, without the fences (#418). */
-  | { kind: 'code'; lines: string[] };
+  | { kind: 'code'; lines: string[] }
+  | WorksheetQuote;
+
+/**
+ * A block quote's lines without their `>` (#558). A callout (`> [!warning] Title`)
+ * has its type, lowercased, and its title; its first line is not among `lines`.
+ */
+export interface WorksheetQuote {
+  kind: 'quote';
+  callout?: string;
+  title?: string;
+  lines: string[];
+}
 
 /**
  * One Method step: its own line, the lines nested under it, and a table and
@@ -38,6 +50,8 @@ export interface WorksheetStep {
   sub: string[];
   table?: string[][];
   code?: string[][];
+  /** Quotes and callouts written below it, printed under it without a number (#558). */
+  quotes?: WorksheetQuote[];
   done?: true;
   preface?: true;
 }
@@ -120,6 +134,8 @@ function splitSections(lines: readonly string[]): { description: string; section
 
 const LIST_ITEM_RE = /^[ \t]*(?:[-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/;
 const FOOTNOTE_DEF_RE = /^\s*\[\^[^\]\s]+\]:/;
+const QUOTE_RE = /^[ \t]*>[ \t]?(.*)$/;
+const CALLOUT_RE = /^\[!([^\]\s]+)\][+-]?\s*(.*)$/;
 
 /** Width of a line's indent in columns, a tab counting as four. */
 function indentWidth(line: string): number {
@@ -143,7 +159,9 @@ function levelOf(indent: number, open: number[]): number {
  * tables stay tables instead of printing their `|` marks (#253, #254), a
  * fenced code block keeps its lines as written (#418), and a line that is
  * none of these continues the item or paragraph above it. A footnote
- * definition starts a paragraph of its own.
+ * definition starts a paragraph of its own. A run of `>` lines, indented or
+ * not, is a quote or callout (#558); a plain line right after one continues
+ * it, as Markdown reads it, while a list item, table, fence or blank line ends it.
  */
 export function parseWorksheetBlocks(lines: readonly string[]): WorksheetBlock[] {
   const blocks: WorksheetBlock[] = [];
@@ -168,6 +186,24 @@ export function parseWorksheetBlocks(lines: readonly string[]): WorksheetBlock[]
     }
     if (line.trim() === '') {
       afterBlank = true;
+      continue;
+    }
+    const quoted = QUOTE_RE.exec(line);
+    if (quoted) {
+      const text = quoted[1].trim();
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === 'quote' && !afterBlank) {
+        if (text) last.lines.push(text);
+      } else {
+        const callout = CALLOUT_RE.exec(text);
+        blocks.push(
+          callout
+            ? { kind: 'quote', callout: callout[1].toLowerCase(), ...(callout[2] ? { title: callout[2] } : {}), lines: [] }
+            : { kind: 'quote', lines: text ? [text] : [] }
+        );
+        open.length = 0;
+      }
+      afterBlank = false;
       continue;
     }
     if (isTableHeaderLine(lines, i)) {
@@ -195,6 +231,11 @@ export function parseWorksheetBlocks(lines: readonly string[]): WorksheetBlock[]
     }
     const footnote = FOOTNOTE_DEF_RE.test(line);
     const last = blocks[blocks.length - 1];
+    if (!afterBlank && !footnote && last?.kind === 'quote') {
+      if (last.lines.length > 0) last.lines[last.lines.length - 1] += ` ${line.trim()}`;
+      else last.lines.push(line.trim());
+      continue;
+    }
     if (!afterBlank && !footnote && last && (last.kind === 'item' || last.kind === 'para')) {
       last.text += ` ${line.trim()}`;
       continue;
@@ -226,6 +267,11 @@ function toSteps(blocks: readonly WorksheetBlock[]): WorksheetStep[] {
     }
     if (block.kind === 'code') {
       (above().code ??= []).push(block.lines);
+      continue;
+    }
+    // A callout after a blank line no longer takes a step number (#558).
+    if (block.kind === 'quote') {
+      (above().quotes ??= []).push(block);
       continue;
     }
     if (block.kind === 'para' && block.footnote) {
@@ -345,6 +391,7 @@ export function annotateWorksheetSamples(
 ): WorksheetUnitOp[] {
   const line = (text: string): string => withSampleLocations(text, types, lookup);
   const rows = (table: string[][]): string[][] => table.map(row => row.map(line));
+  const quote = (q: WorksheetQuote): WorksheetQuote => ({ ...q, lines: q.lines.map(line) });
   const section = (s: WorksheetSection): WorksheetSection => {
     switch (s.type) {
       case 'meta':
@@ -357,13 +404,20 @@ export function annotateWorksheetSamples(
             text: line(step.text),
             sub: step.sub.map(line),
             ...(step.table ? { table: rows(step.table) } : {}),
+            ...(step.quotes ? { quotes: step.quotes.map(quote) } : {}),
           })),
         };
       case 'text':
         return {
           ...s,
           blocks: s.blocks.map(b =>
-            b.kind === 'table' ? { ...b, rows: rows(b.rows) } : b.kind === 'code' ? b : { ...b, text: line(b.text) }
+            b.kind === 'table'
+              ? { ...b, rows: rows(b.rows) }
+              : b.kind === 'code'
+                ? b
+                : b.kind === 'quote'
+                  ? quote(b)
+                  : { ...b, text: line(b.text) }
           ),
         };
       case 'blank':
@@ -396,11 +450,29 @@ const tableLines = (rows: readonly string[][]): number => rows.length + 1;
 /** A code block prints each line, a long one wrapping. */
 const codeLines = (lines: readonly string[]): number => lines.reduce((n, line) => n + wrapped(line), 0);
 
+/** A quote prints each line, a callout its title line too, with room for the box around it. */
+const quoteLines = (quote: WorksheetQuote): number =>
+  (quote.callout ? 1 : 0) + quote.lines.reduce((n, line) => n + wrapped(line), 0) + 1;
+
 const stepWeight = (step: WorksheetStep): number =>
   (step.preface && !step.text ? 0 : wrapped(step.text)) +
   step.sub.reduce((n, line) => n + wrapped(line), 0) +
   (step.table ? tableLines(step.table) : 0) +
-  (step.code ?? []).reduce((n, lines) => n + codeLines(lines), 0);
+  (step.code ?? []).reduce((n, lines) => n + codeLines(lines), 0) +
+  (step.quotes ?? []).reduce((n, quote) => n + quoteLines(quote), 0);
+
+const blockWeight = (block: WorksheetBlock): number => {
+  switch (block.kind) {
+    case 'table':
+      return tableLines(block.rows);
+    case 'code':
+      return codeLines(block.lines);
+    case 'quote':
+      return quoteLines(block);
+    default:
+      return wrapped(block.text);
+  }
+};
 
 /** Estimated printed height of a section, in text lines (heading included). */
 export function sectionWeight(section: WorksheetSection): number {
@@ -411,13 +483,7 @@ export function sectionWeight(section: WorksheetSection): number {
     case 'steps':
       return heading + section.steps.reduce((n, s) => n + stepWeight(s), 0);
     case 'text':
-      return (
-        heading +
-        section.blocks.reduce(
-          (n, b) => n + (b.kind === 'table' ? tableLines(b.rows) : b.kind === 'code' ? codeLines(b.lines) : wrapped(b.text)),
-          0
-        )
-      );
+      return heading + section.blocks.reduce((n, b) => n + blockWeight(b), 0);
     case 'blank':
       return heading + BLANK_WRITING_LINES;
   }
