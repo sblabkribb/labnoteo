@@ -94,7 +94,9 @@ Create a new `.labnote.md` experiment note.
   no experiment is created. The README `title` keeps the title as typed.
 - **Fill in the README's `author` right away.** Left empty, every workflow and unit operation created
   in the experiment afterwards gets an empty `Experimenter`, without a warning. Write several people
-  as a list (`author: [Seoyeon Lee, Haneul Park]`; `[[name]]` links are read as names).
+  as a list (`author: [Seoyeon Lee, Haneul Park]`; `[[name]]` links are read as names) or on one
+  line with commas (`author: Seoyeon Lee, Haneul Park`), which reads as the same people. A name with
+  a comma of its own (`Smith, John`) is read as two; write it as a `[[...]]` link to keep it whole.
 
 ### Change experiment status
 
@@ -1051,7 +1053,8 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   the ones flagged for discussion or with at least one `@issue` marker (counted in the notes
   directly in the experiment folder, as the automation does) under **Something to discuss** and the
   rest under **Nothing to discuss**; the tooltip gives the marker count and the author.
-- **By author** reads a list `author` or `[[name]]` links as the names, and puts an experiment of
+- **By author** reads a list `author`, `[[name]]` links, or one line with commas
+  (`author: Seoyeon Lee, Haneul Park`; a comma inside `[[...]]` does not split) as the names, and puts an experiment of
   several people in each one's group, so the group counts can add up to more than the experiments.
 - **By project** and **By author** put names that differ only in case (`ALE-2026`, `ale-2026`) in
   one group, as the search matches them, named as the lowest-numbered experiment writes it.

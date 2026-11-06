@@ -224,7 +224,9 @@ export function copyFrontMatterKeys(source: string, content: string, keys: reado
 /**
  * The names a front-matter value such as `author` or `experimenter` holds
  * (#394): a string, a flow or block list, or the nested lists an unquoted
- * `[[이서연]]` reads as, alone or as a list item. A wikilink gives its shown text (`[[a|b]]` → `b`,
+ * `[[이서연]]` reads as, alone or as a list item. A string holds one name per
+ * comma (`김연구, 박협업`), as the plugin writes several experimenters (#548);
+ * a comma inside `[[...]]` does not split. A wikilink gives its shown text (`[[a|b]]` → `b`,
  * `[[a#h]]` → `a`); empty entries are dropped and repeats kept once.
  */
 export function frontMatterNames(value: unknown): string[] {
@@ -235,15 +237,37 @@ export function frontMatterNames(value: unknown): string[] {
       return;
     }
     if (typeof v !== 'string' && typeof v !== 'number') return;
-    const name = String(v)
-      .trim()
-      .replace(/^\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]$/, (_, target: string, shown?: string) =>
-        (shown ?? target).trim()
-      );
-    if (name && !names.includes(name)) names.push(name);
+    for (const part of splitOutsideLinks(String(v))) {
+      const name = part
+        .trim()
+        .replace(/^\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]$/, (_, target: string, shown?: string) =>
+          (shown ?? target).trim()
+        );
+      if (name && !names.includes(name)) names.push(name);
+    }
   };
   add(value, 0);
   return names;
+}
+
+function splitOutsideLinks(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.startsWith('[[', i)) {
+      depth++;
+      i++;
+    } else if (depth > 0 && text.startsWith(']]', i)) {
+      depth--;
+      i++;
+    } else if (depth === 0 && text[i] === ',') {
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
 }
 
 /** Where {@link planDateInsertion} puts the text: `[from, to)` becomes `text`. */

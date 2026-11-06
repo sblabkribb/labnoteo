@@ -120,6 +120,11 @@ describe('parseExperimenterFromReadme', () => {
     ['author:\n  - [[이서연]]\n  - "[[박하늘|하늘]]"', '이서연, 하늘'],
     ['author: "[[이서연#소속]]"', '이서연'],
     ['author: 42', '42'],
+    // #548
+    ['author: 김연구,박협업', '김연구, 박협업'],
+    ['author: 김연구, 박협업, 김연구', '김연구, 박협업'],
+    ['author: "[[김연구]], [[박협업|협업]]"', '김연구, 협업'],
+    ['author: "[[Kim, Y]], 박협업"', 'Kim, Y, 박협업'],
   ])('reads %j as names', (fm, names) => {
     expect(parseExperimenterFromReadme(`---\n${fm}\n---\n`)).toBe(names);
   });
