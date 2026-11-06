@@ -25,6 +25,7 @@ import {
   rebuildUnitOpToc,
   refreshUnitOpTocEntries,
   minimalReplacement,
+  shouldDeferTocSync,
   parseFrontMatterYaml,
   reassignIssueMarkerIds,
   removeAllScanEntries,
@@ -2629,6 +2630,7 @@ export default class LabnotePlugin extends Plugin {
             : refreshUnitOpTocEntries(before);
           const edit = minimalReplacement(before, after);
           if (!edit) return;
+          if (shouldDeferTocSync(editor.posToOffset(editor.getCursor()), edit)) return;
           editor.replaceRange(
             edit.text,
             editor.offsetToPos(edit.start),

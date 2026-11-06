@@ -22,6 +22,7 @@ export {
   findUnitOpInsertPointAt,
   type UnitOpInsertPoint,
   minimalReplacement,
+  shouldDeferTocSync,
   computeUnitOpSyncEdits,
   pruneUnitOpTocEntries,
   isUnitOpSectionTitle,

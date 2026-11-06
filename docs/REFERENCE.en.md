@@ -355,7 +355,8 @@ the alias goes into no file name. The same characters are refused as in Create w
   break the link.
 - A link line you wrote into the TOC section yourself (`- [protocol](https://…)`, any line not
   starting with a unit-operation ID) is not a TOC entry and is not removed. With auto-sync on, such
-  a line placed between entries moves below them.
+  a line placed between entries moves below them. Not while the cursor is on it (just after Enter
+  at the end of an entry, say): it moves at the next edit of the note once the cursor has left.
 - TOC links use GitHub's anchors (`#uhw010-…`), so they work when the note is viewed on GitHub.
   Clicking one in Obsidian's **reading view** scrolls to its block too (`-1` links of a repeated
   unit operation included); in the editing view use the **Outline** view. Obsidian's Outgoing links

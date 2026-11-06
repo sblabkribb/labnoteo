@@ -770,6 +770,16 @@ export function minimalReplacement(
 }
 
 /**
+ * Whether the TOC sync should wait because the caret is in (or at either end
+ * of) the span `edit` replaces (#562): replacing it would leave the caret in
+ * the next entry, as after Enter at the end of one. The next edit of the note
+ * runs the sync again.
+ */
+export function shouldDeferTocSync(caret: number, edit: { start: number; end: number }): boolean {
+  return caret >= edit.start && caret <= edit.end;
+}
+
+/**
  * Given the post-insert markdown, the pre-insert cursor offset, and the
  * TOC-rebuilt markdown, return the character offset of the just-inserted
  * `### [..]` unit-op heading within the rebuilt text (or -1 if none).
