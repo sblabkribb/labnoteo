@@ -7,6 +7,7 @@ import type {
   SectionEditPreview,
   ToolPreview,
   Translator,
+  UnitOpInsertPreview,
   WorkflowCreatePreview,
 } from '@labnoteo/core';
 
@@ -26,7 +27,32 @@ export function buildApprovalMessage(
   if (preview?.kind === 'sectionEdit') parts.push(describeSectionEdit(t, preview));
   if (preview?.kind === 'sampleCreate') parts.push(describeSampleCreate(t, preview));
   if (preview?.kind === 'workflowCreate') parts.push(describeWorkflowCreate(t, preview));
+  if (preview?.kind === 'unitOpInsert') parts.push(describeUnitOpInsert(t, preview));
   return parts.join('\n\n');
+}
+
+// Where it goes in the words of the app's insert notice (#491).
+function describeUnitOpInsert(t: Translator, p: UnitOpInsertPreview): string {
+  const where =
+    p.place === 'after'
+      ? t('(after {0})', p.after ?? '')
+      : p.place === 'first'
+        ? t('(before the first unit operation)')
+        : p.place === 'end'
+          ? t('(after the last unit operation)')
+          : p.place === 'noSection'
+            ? p.beforeConclusions
+              ? t('(before the conclusions: no unit operation section was found, so the table of contents was not updated)')
+              : t('(at the end of the note: no unit operation section was found, so the table of contents was not updated)')
+            : '';
+  const heading = `[${p.opId} ${p.opName}]${p.alias ? ` ${p.alias}` : ''}`;
+  const note = p.documentPath.split('/').pop() ?? p.documentPath;
+  const head = t('This inserts unit operation {0} into {1}.', heading, where ? `${note} ${where}` : note);
+  if (!p.sameAliasAs) return head;
+  return `${head}\n${t(
+    '{0} is already in this note, so the two would read the same in the headings and the table of contents. Give this one its own alias to tell them apart.',
+    p.sameAliasAs
+  )}`;
 }
 
 /** Whether the write erases recorded lines, so Cancel should be the default answer (#187, #198). */

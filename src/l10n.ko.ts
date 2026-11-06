@@ -1031,6 +1031,7 @@ const obsidianKo: Record<string, string> = {
   'This creates {0} sample {1}.': '{0} 샘플 {1}을(를) 만듭니다.',
   'This creates catalog workflow {0} {1}. File: {2}. It is also added to the checklist in {3}.':
     '카탈로그 워크플로 {0} {1}을(를) 새로 만듭니다. 파일: {2}. {3}의 체크리스트에도 등록합니다.',
+  'This inserts unit operation {0} into {1}.': '유닛 오퍼레이션 {0}을(를) {1}에 넣습니다.',
   'This adds to {0} sample {1}.': '이미 있는 {0} 샘플 {1}에 더합니다.',
   'Alias: {0}': '별칭: {0}',
   'Storage location: {0}': '보관 위치: {0}',

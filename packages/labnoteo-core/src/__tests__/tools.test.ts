@@ -43,6 +43,7 @@ describe('labnote tools — registry', () => {
         'create_workflow',
         'get_sample',
         'get_unit_operation',
+        'insert_unit_operation',
         'list_samples',
         'search_samples',
         'update_section',
@@ -981,6 +982,147 @@ describe('create_workflow', () => {
       expect(
         await describe(ctx, { documentPath: 'labnote/031_없는실험/README.labnote.md', workflowId: 'WT110' })
       ).toHaveProperty('error');
+    });
+  });
+});
+
+// #491
+describe('insert_unit_operation', () => {
+  const insert = (c: ToolContext, a: Record<string, unknown>) => tool('insert_unit_operation').handler(c, a);
+  const describe = (c: ToolContext, a: Record<string, unknown>) => tool('insert_unit_operation').describe!(c, a);
+  const tocLines = (md: string) => md.split('\n').filter(l => /^- \[U[HS]W\d+ /.test(l));
+
+  beforeEach(async () => {
+    const { createWorkflowContent } = await import('../lib/workflowStructure');
+    await fs.write(NOTE_PATH, createWorkflowContent({ id: 'WD010', name: 'Design', description: 'desc' }, ''));
+  });
+
+  it('adds a lab block after the last one, lists it, and says what to fill', async () => {
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW015' });
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'uhw010' });
+    expect(res).toMatchObject({
+      ok: true,
+      data: {
+        documentPath: NOTE_PATH,
+        heading: '[UHW010 Liquid Handling]',
+        opType: 'hw',
+        place: 'end',
+        after: '[UHW015 Bulk Liquid Dispenser]',
+        tocUpdated: true,
+        parentHeading: '[UHW010 Liquid Handling]',
+        sectionsToFill: ['Method', 'Results & Discussions'],
+      },
+    });
+    expect(res).not.toHaveProperty('warnings');
+    const md = await fs.read(NOTE_PATH);
+    expect(md.indexOf('### [UHW015')).toBeLessThan(md.indexOf('### [UHW010'));
+    // The README author, as the note names nobody; the catalog equipment in its section.
+    expect(md).toContain('- Experimenter: Dr. Kim');
+    expect(md).toContain('#### Equipment\n- Multiple dispenser system');
+    expect(tocLines(md).map(l => l.slice(0, 10))).toEqual(['- [UHW015 ', '- [UHW010 ']);
+  });
+
+  it('adds a software block with its own sections, and an alias to the heading', async () => {
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'USW020', alias: ' rerun ' });
+    expect(res).toMatchObject({
+      ok: true,
+      data: { heading: '[USW020 Primer Design] rerun', opType: 'sw', sectionsToFill: ['Method', 'Discussion'] },
+    });
+    const md = await fs.read(NOTE_PATH);
+    expect(md).toContain('### [USW020 Primer Design] rerun');
+    expect(md).toContain('- Software: SnapGene, Primer3, OligoAnalyzer');
+  });
+
+  it('lets update_section fill the new block by the parentHeading it returns', async () => {
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'second' });
+    const { parentHeading } = res.data as { parentHeading: string };
+    const filled = await tool('update_section').handler(ctx, {
+      documentPath: NOTE_PATH,
+      heading: 'Method',
+      parentHeading,
+      content: '1. Spin',
+    });
+    expect(filled).toMatchObject({ ok: true, data: { occurrence: 1, total: 1 } });
+    const md = await fs.read(NOTE_PATH);
+    expect(md.indexOf('1. Spin')).toBeGreaterThan(md.indexOf('### [UHW010 Liquid Handling] second'));
+  });
+
+  it('keeps the list order with sorting off, and sorts it with sorting on (#457)', async () => {
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010' });
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW015' });
+    const md = await fs.read(NOTE_PATH);
+    const [a, b] = tocLines(md);
+    await fs.write(NOTE_PATH, md.replace(`${a}\n${b}`, `${b}\n${a}`));
+
+    // The new entry follows the entry of the block before it in the note, as in the app.
+    await insert({ ...ctx, sortUnitOpToc: false }, { documentPath: NOTE_PATH, opId: 'UHW020' });
+    expect(tocLines(await fs.read(NOTE_PATH)).map(l => l.slice(3, 9))).toEqual(['UHW015', 'UHW020', 'UHW010']);
+
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'USW005' });
+    expect(tocLines(await fs.read(NOTE_PATH)).map(l => l.slice(3, 9))).toEqual(['UHW010', 'UHW015', 'UHW020', 'USW005']);
+  });
+
+  it('writes the note once through the hook', async () => {
+    const calls: string[] = [];
+    const writeNote = async (path: string, content: string) => {
+      calls.push(path);
+      await fs.write(path, content);
+    };
+    expect(await insert({ ...ctx, writeNote }, { documentPath: NOTE_PATH, opId: 'UHW010' })).toMatchObject({ ok: true });
+    expect(calls).toEqual([NOTE_PATH]);
+  });
+
+  it('previews the block and its place without writing, catalog files included', async () => {
+    await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'a' });
+    await fs.remove('resources/workflows/unitoperations_hw_en.json');
+    await fs.remove('resources/workflows/unitoperations_sw_en.json');
+    const before = fs.snapshot();
+    expect(await describe(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'A' })).toEqual({
+      kind: 'unitOpInsert',
+      documentPath: NOTE_PATH,
+      opId: 'UHW010',
+      opName: 'Liquid Handling',
+      alias: 'A',
+      opType: 'hw',
+      place: 'end',
+      after: '[UHW010 Liquid Handling] a',
+      sameAliasAs: '[UHW010 Liquid Handling] a',
+    });
+    expect(fs.snapshot()).toEqual(before);
+    const res = await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'A' });
+    expect(res.warnings?.[0]).toContain('[UHW010 Liquid Handling] a is already in this note');
+  });
+
+  it('refuses a README, a note that is no workflow, a bad alias and an unknown ID', async () => {
+    const readme = `${NOTE_DIR}/README.labnote.md`;
+    expect(await describe(ctx, { documentPath: readme, opId: 'UHW010' })).toMatchObject({
+      code: 'unit_op_readme',
+      params: [readme],
+    });
+    await fs.write(`${NOTE_DIR}/notes.md`, '# x\n');
+    expect(await insert(ctx, { documentPath: `${NOTE_DIR}/notes.md`, opId: 'UHW010' })).toMatchObject({
+      ok: false,
+      code: 'not_workflow_note',
+    });
+    expect(await insert(ctx, { documentPath: 'notes/x.labnote.md', opId: 'UHW010' })).toMatchObject({
+      ok: false,
+      code: 'not_experiment_folder',
+    });
+    expect(await insert(ctx, { documentPath: '../x.labnote.md', opId: 'UHW010' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('outside the vault'),
+    });
+    expect(await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'a#1' })).toMatchObject({
+      ok: false,
+      code: 'workflow_alias_hash',
+    });
+    expect(await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW010', alias: 'a\nb' })).toMatchObject({ ok: false });
+    const miss = await insert(ctx, { documentPath: NOTE_PATH, opId: 'UHW01' });
+    expect(miss.error).toMatch(/^Unit operation not found: UHW01\. Did you mean: UHW01\d/);
+    expect(await insert(ctx, { documentPath: `${NOTE_DIR}/002_None.labnote.md`, opId: 'UHW010' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Note not found'),
     });
   });
 });

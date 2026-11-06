@@ -26,9 +26,7 @@ import {
   listUnitOpBlocks,
   insertUnitOperation,
   workflowPathProblem,
-  rebuildUnitOpToc,
-  refreshUnitOpTocEntries,
-  addUnitOpTocEntry,
+  syncUnitOpTocAfterInsert,
   unitOpSectionLine,
   locateInsertedUnitOpHeading,
   unitOpInsertPointAtCursor,
@@ -1462,9 +1460,7 @@ export async function insertUnitOpAndUpdateToc(
     const target = host.editTarget();
     if (!target) return false;
     const md = await target.getText();
-    const heading = insertOffset >= 0 ? md.indexOf('### [', insertOffset) : -1;
-    const updated =
-      opts.sortToc || heading === -1 ? rebuildUnitOpToc(md) : refreshUnitOpTocEntries(addUnitOpTocEntry(md, heading));
+    const updated = syncUnitOpTocAfterInsert(md, insertOffset, opts.sortToc);
     if (updated !== md) {
       await target.replaceRange(0, md.length, updated);
     }

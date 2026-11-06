@@ -80,6 +80,7 @@ function toolContext(plugin: LabnotePlugin): ToolContext {
     globalSampleFolder: plugin.settings.globalSampleFolder,
     customTypes: plugin.settings.customSampleTypes,
     locale: getObsidianLanguage(),
+    sortUnitOpToc: plugin.settings.autoSyncUnitOpToc,
     writeNote: (path, content) => plugin.writeNoteStamped(path, content),
     findSampleUsages: (folder, type, id) => sampleUsages(plugin.app, plugin, folder, type, id),
   };
@@ -175,6 +176,17 @@ function failureReasonText(plugin: LabnotePlugin, code: string, params: readonly
       return plugin.t('A workflow alias cannot contain "*" or "_": the reading view shows part of it in italics.');
     case 'not_experiment_folder':
       return plugin.t('"{0}" is not in an experiment folder (labnote/###_Name).', a.split('/').pop() ?? a);
+    case 'unit_op_readme':
+      return plugin.t(
+        'README.labnote.md is the experiment overview and holds no unit operations. Open one of its workflow notes (###_….labnote.md), or make one with "{0}".',
+        plugin.t('Create workflow')
+      );
+    case 'not_workflow_note':
+      return plugin.t(
+        '"{0}" is not a workflow note: unit operations go into a ###_….labnote.md note directly in the experiment folder. Open one, or make one with "{1}".',
+        a.split('/').pop() ?? a,
+        plugin.t('Create workflow')
+      );
     case 'section_not_found':
       return plugin.t('The note has no "{0}" section.', a);
     default:

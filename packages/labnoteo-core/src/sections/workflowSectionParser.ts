@@ -736,6 +736,18 @@ export function refreshUnitOpTocEntries(md: string): string {
 }
 
 /**
+ * The table of contents once a unit operation block was inserted at
+ * `insertOffset`, shared by the insert command and the AI tool (#491): rebuilt
+ * in note order, or with `sortToc` off (#457) the new entry added where it
+ * belongs and the others left in their order. Rebuilt as well when the new
+ * heading cannot be found.
+ */
+export function syncUnitOpTocAfterInsert(md: string, insertOffset: number, sortToc: boolean): string {
+  const heading = insertOffset >= 0 ? md.indexOf('### [', insertOffset) : -1;
+  return sortToc || heading === -1 ? rebuildUnitOpToc(md) : refreshUnitOpTocEntries(addUnitOpTocEntry(md, heading));
+}
+
+/**
  * Smallest single-range edit that turns `before` into `after`, by stripping the
  * shared prefix and suffix. Returns the character range in `before` to replace
  * plus the replacement text, or `null` when the strings are identical.

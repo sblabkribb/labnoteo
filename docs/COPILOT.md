@@ -182,7 +182,7 @@ Copilot 설정의 *Custom vault instructions* 칸은 **보관함 루트 `AGENTS.
 ## (선택) Labnote 툴 연결 — MCP
 
 MCP 서버를 켜면 Labnote의 툴(`get_sample`, `list_samples`, `search_samples`, `create_sample`,
-`get_unit_operation`, `update_section`, `create_workflow`)을 Claude Desktop 같은 외부
+`get_unit_operation`, `update_section`, `create_workflow`, `insert_unit_operation`)을 Claude Desktop 같은 외부
 MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 전용**입니다.
 
 - **엔드포인트**: `http://127.0.0.1:3987` — 루프백 전용이며 라우팅 가능한 인터페이스에는
@@ -208,7 +208,11 @@ MCP 클라이언트나 로컬 `claude` CLI에 노출합니다. **데스크톱 �
   이름), 새 파일 이름, 체크리스트에 등록할 README를 보여 줍니다(파일 번호는 확인 시점의
   예상값이라, 그 사이 다른 워크플로가 생기면 실제 번호가 하나 밀릴 수 있습니다). 그 실험에 ID와 별칭이
   같은 워크플로가 이미 있으면 앱의 별칭 입력 창처럼 "…에 같은 ID와 별칭이 이미 있어 README 체크리스트에서
-  둘이 똑같이 보입니다"도 보여 줍니다. 대상 절이
+  둘이 똑같이 보입니다"도 보여 줍니다. `insert_unit_operation`은 넣을 유닛 오퍼레이션(`[ID 이름] 별칭`)과
+  노트, 들어갈 자리(앱의 삽입 알림처럼 "마지막 유닛 오퍼레이션 다음" 등)를 보여 주고, 노트에 ID와 별칭이
+  같은 블록이 이미 있으면 그것도 알려 줍니다. 블록은 앱의 `유닛 오퍼레이션 삽입`과 같은 모양으로 들어가고,
+  목차는 설정의 **유닛오퍼레이션 TOC 자동 정렬**(`Auto-sync unit operation TOC`)을 따릅니다. 절 내용은 이어지는 `update_section`이 따로
+  확인을 받아 채웁니다. README와 워크플로 노트가 아닌 파일은 확인 창 없이 거부합니다. 대상 절이
   없거나 여러 개이거나, 카탈로그에 없는 워크플로이거나, 인자가 잘못되어 어차피 실패할 호출은
   확인 창 없이 바로 오류로 돌려줍니다.
 - **쓰기 요청은 한 줄로 처리합니다**: 쓰기 툴 호출이 동시에 여러 개 오면 받은 순서대로 하나씩

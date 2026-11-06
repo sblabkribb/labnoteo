@@ -16,7 +16,7 @@ import {
   timingSafeEqual,
   tokenFingerprint,
 } from '../../src/llm/mcpServer';
-import { buildApprovalMessage } from '../../src/llm/approvalMessage';
+import { buildApprovalMessage, erasesRecordedLines } from '../../src/llm/approvalMessage';
 import { createObsidianTranslator } from '../../src/i18n';
 
 // #47: a write approval must not hang forever, and a request the client has
@@ -351,6 +351,47 @@ describe('buildApprovalMessage', () => {
     expect(message.split('\n').at(-1)).toBe(
       '002_WT030_Wet_Validation_상위_8종.labnote.md already has this ID and alias, so the two would read the same in the README checklist. Give this one its own alias to tell them apart.'
     );
+  });
+
+  // #491
+  describe('insert_unit_operation', () => {
+    const notePath = 'labnote/043_X/001_WD010_Design.labnote.md';
+    const insert = {
+      kind: 'unitOpInsert' as const,
+      documentPath: notePath,
+      opId: 'UHW010',
+      opName: 'Liquid Handling',
+      opType: 'hw' as const,
+      place: 'end' as const,
+      after: '[UHW015 Bulk Liquid Dispenser]',
+    };
+
+    it('names the block, the note and where it goes, in the words of the insert notice', () => {
+      expect(buildApprovalMessage(t, 'Allow?', notePath, { ...insert, alias: 'rerun' })).toBe(
+        `Allow?\n\nTarget: ${notePath}\n\nThis inserts unit operation [UHW010 Liquid Handling] rerun into ` +
+          '001_WD010_Design.labnote.md (after the last unit operation).'
+      );
+      expect(buildApprovalMessage(t, 'Allow?', null, { ...insert, place: 'empty' })).toBe(
+        'Allow?\n\nThis inserts unit operation [UHW010 Liquid Handling] into 001_WD010_Design.labnote.md.'
+      );
+      expect(buildApprovalMessage(t, 'Allow?', null, { ...insert, place: 'noSection', beforeConclusions: true })).toContain(
+        '(before the conclusions: no unit operation section was found, so the table of contents was not updated).'
+      );
+    });
+
+    it('says, as the app does, when the note has the same ID and alias', () => {
+      const message = buildApprovalMessage(t, 'Allow?', notePath, { ...insert, sameAliasAs: '[UHW010 Liquid Handling]' });
+      expect(message.split('\n').at(-1)).toBe(
+        '[UHW010 Liquid Handling] is already in this note, so the two would read the same in the headings and the table of contents. Give this one its own alias to tell them apart.'
+      );
+      expect(erasesRecordedLines(insert)).toBe(false);
+    });
+
+    it('reads in Korean too', () => {
+      expect(buildApprovalMessage(createObsidianTranslator('ko'), '허용?', null, insert)).toBe(
+        '허용?\n\n유닛 오퍼레이션 [UHW010 Liquid Handling]을(를) 001_WD010_Design.labnote.md (마지막 유닛 오퍼레이션 다음)에 넣습니다.'
+      );
+    });
   });
 });
 

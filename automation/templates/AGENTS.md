@@ -93,6 +93,11 @@ Claude Code, Codex, Cursor 등)는 아래 규칙을 따라 작업합니다.
   화면에서 기울임으로 보임)는 거부되니 띄어쓰기로 바꾸세요(`pUC19_v2`처럼 영문·숫자 사이의 `_`는 됨).
   같은 ID·별칭의 워크플로가 이미 있으면 결과의 `warnings`가 그 파일을 알려 줍니다. 같은 워크플로를
   또 만든 것인지 사용자에게 말하고, 다른 것이면 별칭을 구분해 주세요.
+- 워크플로 노트에 유닛 오퍼레이션을 더할 때는 블록을 손으로 쓰지 말고 MCP `insert_unit_operation`을
+  쓰세요. 앱의 `Insert unit operation`처럼 카탈로그 블록을 마지막 유닛 오퍼레이션 뒤에 넣고 목차도
+  맞춥니다(README에는 넣지 않음). 그다음 결과의 `parentHeading`을 그대로 넘겨 `update_section`으로
+  `sectionsToFill`의 절(HW는 `Method`·`Results & Discussions`, SW는 `Method`·`Discussion`)을 채우세요.
+  `alias` 규칙은 `create_workflow`와 같고, 같은 ID·별칭의 블록이 이미 있으면 `warnings`가 알려 줍니다.
 - MCP `update_section`은 절 본문 **전체를 바꿉니다**(하위 제목 포함). 바꾸지 않을 절은
   호출하지 마세요. 빈 `content`는 거부되며, 절을 일부러 비울 때만 `content: ""`와
   `clear: true`를 함께 보냅니다. 결과의 `removedLines`·`removedSubheadings`·`previousBody`로

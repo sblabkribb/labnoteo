@@ -41,7 +41,7 @@ import {
   loadUnitOperations,
   type UnitOperationItem,
 } from '../lib/workflowDataLoader';
-import { WORKFLOWS_CATALOG } from '../catalog';
+import { UNIT_OPERATIONS_HW_CATALOG, UNIT_OPERATIONS_SW_CATALOG, WORKFLOWS_CATALOG } from '../catalog';
 import {
   getNextWorkflowNumber,
   createWorkflowFileName,
@@ -50,10 +50,21 @@ import {
   insertWorkflowChecklistEntries,
   hasWorkflowChecklistSection,
   parseExperimenterFromReadme,
+  parseExperimenterFromNote,
+  diagnoseWorkflowPath,
   workflowAliasProblem,
   findSameAliasWorkflow,
   workflowChecklistLabels,
 } from '../lib/workflowStructure';
+import { buildHwUnitOpMarkdown, buildSwUnitOpMarkdown } from '../lib/unitOpTemplate';
+import { getSeoulDateTimeString } from '../lib/dateUtils';
+import { findSameAliasUnitOp, listUnitOpBlocks } from '../sections/scanInsert';
+import {
+  findUnitOpInsertPointAt,
+  syncUnitOpTocAfterInsert,
+  unitOpSectionLine,
+  type UnitOpInsertPoint,
+} from '../sections/workflowSectionParser';
 import {
   findSectionMatches,
   listHeadings,
@@ -86,6 +97,12 @@ export interface ToolContext {
    * fall back to {@link ToolContext.fs}.
    */
   writeNote?(path: string, content: string): Promise<void>;
+  /**
+   * Whether inserting a unit operation sorts the note's unit operation list
+   * into note order, as the "Auto-sync unit operation TOC" setting does in the
+   * app (#457, #491). Unset sorts.
+   */
+  sortUnitOpToc?: boolean;
   /**
    * Optional: vault paths of the notes that use the sample `(type, id)` stored
    * in `folder`. `get_sample` returns them as `usages` (#131); a host without
@@ -162,7 +179,12 @@ export interface ToolDef {
 }
 
 /** {@link ToolDef.describe} result. */
-export type ToolPreview = ToolError | SectionEditPreview | SampleCreatePreview | WorkflowCreatePreview;
+export type ToolPreview =
+  | ToolError
+  | SectionEditPreview
+  | SampleCreatePreview
+  | WorkflowCreatePreview
+  | UnitOpInsertPreview;
 
 /** `update_section` preview: the section that will be replaced or cleared. */
 export interface SectionEditPreview {
@@ -231,6 +253,23 @@ export interface WorkflowCreatePreview {
   fileName: string;
   readmePath: string;
   /** The workflow file of the experiment with the same ID and alias (#484). */
+  sameAliasAs?: string;
+}
+
+/** `insert_unit_operation` preview: the block it adds to a workflow note, and where (#491). */
+export interface UnitOpInsertPreview {
+  kind: 'unitOpInsert';
+  documentPath: string;
+  opId: string;
+  opName: string;
+  alias?: string;
+  opType: 'hw' | 'sw';
+  /** Where the block goes, as {@link findUnitOpInsertPointAt} says. */
+  place: UnitOpInsertPoint['place'];
+  /** Heading of the block it follows, for `place: 'after'`. */
+  after?: string;
+  beforeConclusions?: boolean;
+  /** Heading of the block in the note with the same ID and alias. */
   sameAliasAs?: string;
 }
 
@@ -652,6 +691,108 @@ async function resolveWorkflowCreate(
     alias,
     fileName: createWorkflowFileName(sequence, info, alias),
     ...(sameAliasAs ? { sameAliasAs } : {}),
+  };
+}
+
+/** A unit operation catalog, read only: the bundled one while the vault has no copy yet. */
+async function unitOpCatalog(ctx: ToolContext, type: 'hw' | 'sw'): Promise<UnitOperationItem[]> {
+  const file = getWorkflowFilePath(ctx.workspaceRoot, type === 'hw' ? 'unitoperations_hw' : 'unitoperations_sw');
+  if (ctx.workspaceRoot && !(await ctx.fs.exists(file))) {
+    return (type === 'hw' ? UNIT_OPERATIONS_HW_CATALOG : UNIT_OPERATIONS_SW_CATALOG).unitOperations;
+  }
+  return (await loadUnitOperations(ctx.fs, ctx.workspaceRoot, type)).unitOperations;
+}
+
+interface ResolvedUnitOpInsert {
+  documentPath: string;
+  md: string;
+  op: UnitOperationItem;
+  opType: 'hw' | 'sw';
+  alias?: string;
+  at: UnitOpInsertPoint;
+  sameAliasAs?: string;
+}
+
+/**
+ * Validate an `insert_unit_operation` call (#491), so the handler and the
+ * approval preview agree on the block and its place. Reads only, like
+ * {@link resolveWorkflowCreate}: the catalog files are seeded by the handler,
+ * after the user allows the write.
+ */
+async function resolveUnitOpInsert(
+  ctx: ToolContext,
+  args: Record<string, unknown>
+): Promise<ResolvedUnitOpInsert | ToolError> {
+  const documentPath = safePath(ctx, args, 'documentPath');
+  const opId = str(args, 'opId');
+  if (!documentPath) {
+    const outside = outsideVaultError(args, 'documentPath');
+    if (outside) return { error: outside.error! };
+  }
+  if (!documentPath || !opId) return { error: 'documentPath and opId are required' };
+  const where = diagnoseWorkflowPath(documentPath);
+  if (where.kind === 'readme') {
+    return {
+      error:
+        'documentPath is the experiment README, which holds no unit operations. Use one of its workflow notes (###_….labnote.md), or make one with create_workflow',
+      code: 'unit_op_readme',
+      params: [documentPath],
+    };
+  }
+  if (where.kind === 'notWorkflow') {
+    return {
+      error:
+        'documentPath is not a workflow note: unit operations go into a ###_….labnote.md note directly in an experiment folder',
+      code: 'not_workflow_note',
+      params: [documentPath],
+    };
+  }
+  if (where.kind !== 'ok') {
+    return {
+      error: 'documentPath is not inside a labnote/### experiment folder',
+      code: 'not_experiment_folder',
+      params: [documentPath],
+    };
+  }
+  if (!(await ctx.fs.exists(documentPath))) return { error: `Note not found: ${documentPath}` };
+  if (args.alias !== undefined && typeof args.alias !== 'string') return { error: 'alias must be a string' };
+  const alias = typeof args.alias === 'string' ? args.alias.trim() : '';
+  if (/[\r\n]/.test(alias)) return { error: 'alias must be a single line' };
+  const aliasProblem = workflowAliasProblem(alias);
+  if (aliasProblem === 'hash') {
+    return { error: 'alias must not contain "#": links to its heading would break', code: 'workflow_alias_hash' };
+  }
+  if (aliasProblem === 'markdown') {
+    return {
+      error:
+        'alias must not contain "*", or "_" next to anything but ASCII letters and digits: the reading view shows part of it in italics. Use a space instead',
+      code: 'workflow_alias_markdown',
+    };
+  }
+
+  const hw = await unitOpCatalog(ctx, 'hw');
+  const sw = await unitOpCatalog(ctx, 'sw');
+  const foundHw = findIdIgnoringCase(hw, opId);
+  const op = foundHw ?? findIdIgnoringCase(sw, opId);
+  if (!op) {
+    return {
+      error: notFoundWithSuggestions(
+        `Unit operation not found: ${opId}`,
+        [...hw, ...sw].map(o => o.id),
+        opId
+      ),
+    };
+  }
+  const md = await ctx.fs.read(documentPath);
+  const twin = findSameAliasUnitOp(listUnitOpBlocks(md), op.id, op.name, alias);
+  return {
+    documentPath,
+    md,
+    op,
+    opType: foundHw ? 'hw' : 'sw',
+    ...(alias ? { alias } : {}),
+    at: findUnitOpInsertPointAt(md, md.length),
+    ...(twin ? { sameAliasAs: `[${twin.opId} ${twin.opName}]${twin.alias ? ` ${twin.alias}` : ''}` } : {}),
   };
 }
 
@@ -1138,6 +1279,93 @@ export function createLabnoteTools(): ToolDef[] {
           workflowName: resolved.info.name,
           fileName: resolved.fileName,
           readmePath: resolved.readmePath,
+          ...(resolved.sameAliasAs ? { sameAliasAs: resolved.sameAliasAs } : {}),
+        };
+      },
+    },
+
+    {
+      name: 'insert_unit_operation',
+      mutates: true,
+      description:
+        'Add a unit operation block from the catalog to a workflow note (###_….labnote.md), after its last unit operation, and update the note\'s unit operation list. ' +
+        'The block has the template sections with placeholder lines and the experimenter and start date filled in, as the app\'s "Insert unit operation" makes it. ' +
+        'Then fill its sections with update_section, passing the returned parentHeading so a unit operation already in the note is not edited instead. ' +
+        'An optional alias names this instance (e.g. "rerun"): it follows the catalog name in the heading.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          documentPath: { type: 'string', description: 'The workflow note, e.g. labnote/001_Exp/001_WD010_Design.labnote.md.' },
+          opId: { type: 'string', description: 'Catalog unit operation id, e.g. UHW010 or USW020 (case-insensitive).' },
+          alias: {
+            type: 'string',
+            description:
+              'Optional name for this unit operation, added after the catalog name in the heading. Must not contain "#" or "*", nor "_" except between ASCII letters and digits.',
+          },
+        },
+        required: ['documentPath', 'opId'],
+      },
+      async handler(ctx, args) {
+        const resolved = await resolveUnitOpInsert(ctx, args);
+        if ('error' in resolved) return { ok: false, ...resolved };
+        const { documentPath, md, op, opType, alias, at, sameAliasAs } = resolved;
+
+        await ensureWorkflowResources(ctx.fs, ctx.workspaceRoot);
+        // The note's own experimenter first, then the README author, as in the app (#404).
+        const readmePath = posix.join(posix.dirname(documentPath), README_NAME);
+        const author = (await ctx.fs.exists(readmePath)) ? parseExperimenterFromReadme(await ctx.fs.read(readmePath)) : '';
+        const experimenter = parseExperimenterFromNote(md) || author;
+        const info = {
+          opId: op.id,
+          opName: op.name,
+          opDescription: op.description ?? '',
+          descriptionExtra: alias ? ` ${alias}` : undefined,
+        };
+        const meta = { experimenter, dateTime: getSeoulDateTimeString() };
+        const block =
+          opType === 'sw'
+            ? buildSwUnitOpMarkdown(info, { ...meta, software: op.software })
+            : buildHwUnitOpMarkdown(info, { ...meta, equipment: op.equipment });
+        const inserted = md.slice(0, at.offset) + block + md.slice(at.offset);
+        const next = syncUnitOpTocAfterInsert(inserted, at.offset, ctx.sortUnitOpToc ?? true);
+        await writeNote(ctx, documentPath, next);
+
+        const heading = `[${op.id} ${op.name}]${alias ? ` ${alias}` : ''}`;
+        return {
+          ok: true,
+          data: {
+            documentPath,
+            heading,
+            opType,
+            place: at.place,
+            ...(at.after ? { after: at.after } : {}),
+            tocUpdated: unitOpSectionLine(next) !== -1,
+            parentHeading: heading,
+            sectionsToFill: opType === 'sw' ? ['Method', 'Discussion'] : ['Method', 'Results & Discussions'],
+          },
+          ...(sameAliasAs
+            ? {
+                warnings: [
+                  `${sameAliasAs} is already in this note with the same ID and ${alias ? `alias "${alias}"` : 'no alias'}, so the two read the same in the headings and the unit operation list, and update_section needs occurrence to tell them apart. Tell the user; if it is not a repeat, give this one its own alias.`,
+                ],
+              }
+            : {}),
+        };
+      },
+      async describe(ctx, args) {
+        const resolved = await resolveUnitOpInsert(ctx, args);
+        if ('error' in resolved) return resolved;
+        const { at } = resolved;
+        return {
+          kind: 'unitOpInsert',
+          documentPath: resolved.documentPath,
+          opId: resolved.op.id,
+          opName: resolved.op.name,
+          ...(resolved.alias ? { alias: resolved.alias } : {}),
+          opType: resolved.opType,
+          place: at.place,
+          ...(at.after ? { after: at.after } : {}),
+          ...(at.beforeConclusions ? { beforeConclusions: true } : {}),
           ...(resolved.sameAliasAs ? { sameAliasAs: resolved.sameAliasAs } : {}),
         };
       },
