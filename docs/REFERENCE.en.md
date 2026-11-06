@@ -712,7 +712,9 @@ Typing `@dna`, `@plasmid`, `@primer` (or `@sample`) puts **Search partbank** at 
 autocomplete menu, which opens a search window prefilled with whatever was typed after `;`. From
 two characters on it searches after a short pause (shorter, the list says `Type at least 2
 characters to search partbank.`; while waiting, `Searching partbank…`) and lists each hit with its name, KID, kind and
-whether it is yours or shared with you. **Only your own items and items shared with your groups**
+whether it is yours or shared with you. At most 10 hits of each kind are listed; when there are
+more, a line under the list gives the total (`Only the first 10 of each type are shown (plasmid
+23)`), so type more to narrow the search. **Only your own items and items shared with your groups**
 are searched, not public ones; a sample already linked to a public item still refreshes and opens,
 but its usages are not sent. Picking one reads the item and its storage location, registers it,
 and inserts `ID;alias`.

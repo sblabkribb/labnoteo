@@ -58,6 +58,16 @@ export interface PartbankSearchHit extends PartbankItem {
   sharingLevel: string | null;
 }
 
+/** {@link PartbankClient.searchGlobal} result. */
+export interface PartbankSearchResult {
+  hits: PartbankSearchHit[];
+  /** How many items of each type matched in all, when the server says. */
+  typeCounts?: Partial<Record<PartbankType, number>>;
+}
+
+/** How many rows of each type a search returns. */
+export const SEARCH_LIMIT = 10;
+
 /** How long one call may take. `requestUrl` has no timeout of its own. */
 const TIMEOUT_MS = 15_000;
 /**
@@ -123,23 +133,26 @@ export class PartbankClient {
    * narrowed to the key owner's own items and those shared with their groups:
    * a public item from another lab is not something they keep a tube of.
    * `limit` is per entity, so asking for three entities can return three times
-   * as many rows.
+   * as many rows. `typeCounts` is how many items of each type matched in all
+   * (#561), so a list cut at `limit` can say so; an older server sends none.
    */
   async searchGlobal(
     query: string,
     entities: readonly PartbankSearchEntity[],
-    limit = 10
-  ): Promise<PartbankSearchHit[]> {
-    if (!query.trim() || entities.length === 0) return [];
-    const res = await this.request<{ results?: unknown[] }>('/search/global', {
+    limit = SEARCH_LIMIT
+  ): Promise<PartbankSearchResult> {
+    if (!query.trim() || entities.length === 0) return { hits: [] };
+    const res = await this.request<{ results?: unknown[]; type_counts?: unknown }>('/search/global', {
       method: 'POST',
       body: { query: query.trim(), types: [...entities], limit, exclude_public: true },
     });
-    return (res.results ?? []).flatMap(row => {
+    const hits = (res.results ?? []).flatMap(row => {
       const hit = toSearchHit(row);
       // A server older than `exclude_public` ignores it and still sends public items.
       return hit && (hit.ownedByMe || hit.sharingLevel !== 'public') ? [hit] : [];
     });
+    const typeCounts = toTypeCounts(res.type_counts);
+    return typeCounts ? { hits, typeCounts } : { hits };
   }
 
   /** One item in full. Only a Mongo ObjectId works here; a KID gives a 404. */
@@ -286,6 +299,17 @@ function toItem(type: PartbankType, row: unknown): PartbankItem | undefined {
     description: str(r, 'description'),
     moleculeType: str(r, 'molecule_type'),
   };
+}
+
+/** The search's `type_counts`, keyed by the type a link stores, or undefined without one. */
+function toTypeCounts(value: unknown): Partial<Record<PartbankType, number>> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const out: Partial<Record<PartbankType, number>> = {};
+  for (const [entity, count] of Object.entries(value)) {
+    const type = typeFromSearchEntity(entity);
+    if (type && typeof count === 'number' && Number.isFinite(count)) out[type] = count;
+  }
+  return out;
 }
 
 function toSearchHit(row: unknown): PartbankSearchHit | undefined {

@@ -9,7 +9,7 @@
  */
 import { SuggestModal, type App } from 'obsidian';
 import type { PartbankSearchEntity, PartbankType } from '@labnoteo/core';
-import type { PartbankClient, PartbankSearchHit } from './client';
+import { SEARCH_LIMIT, type PartbankClient, type PartbankSearchHit } from './client';
 
 /** Characters before a search is worth making; below this everything matches. */
 export const MIN_QUERY_CHARS = 2;
@@ -124,6 +124,31 @@ export function describeHit(
   return { title: hit.name?.trim() || hit.kid || hit.id, detail };
 }
 
+/**
+ * The line under the list when a type was cut at `limit` (#561), or undefined.
+ * With the server's `typeCounts` it gives each cut type's total; without them
+ * (an older server) a type that filled `limit` may have more.
+ */
+export function truncationNotice(
+  hits: readonly PartbankSearchHit[],
+  typeCounts: Partial<Record<PartbankType, number>> | undefined,
+  limit: number,
+  t: (key: string, ...args: string[]) => string
+): string | undefined {
+  const shown = new Map<PartbankType, number>();
+  for (const hit of hits) shown.set(hit.type, (shown.get(hit.type) ?? 0) + 1);
+  const cut: string[] = [];
+  const types = new Set<PartbankType>([...shown.keys(), ...(Object.keys(typeCounts ?? {}) as PartbankType[])]);
+  for (const type of types) {
+    const total = typeCounts?.[type];
+    if (typeCounts ? total !== undefined && total > limit : shown.get(type) === limit) {
+      cut.push(`${partbankTypeLabel(type, t)} ${typeCounts ? String(total) : `${limit}+`}`);
+    }
+  }
+  if (cut.length === 0) return undefined;
+  return t('Only the first {0} of each type are shown ({1}). Type more to narrow the search.', String(limit), cut.join(', '));
+}
+
 /** Search partbank and return the chosen item, or undefined when dismissed. */
 export function searchPartbankModal(
   app: App,
@@ -167,16 +192,26 @@ class PartbankSearchModal extends SuggestModal<PartbankSearchHit> {
     super(app);
     this.setPlaceholder(opts.placeholder);
     this.emptyStateText = opts.emptyText;
+    // Per query, so the line of a stale answer is never shown.
+    const notices = new Map<string, string | undefined>();
     this.debouncer = new SearchDebouncer({
-      search: query => client.searchGlobal(query, entities),
-      onResults: (_query, results) => {
+      search: async query => {
+        const { hits, typeCounts } = await client.searchGlobal(query, entities);
+        notices.set(query, truncationNotice(hits, typeCounts, SEARCH_LIMIT, opts.t));
+        return hits;
+      },
+      onResults: (query, results) => {
         this.hits = results;
         this.pending = false;
+        const notice = notices.get(query);
+        notices.clear();
+        this.setInstructions(notice ? [{ command: '', purpose: notice }] : []);
         // Re-ask Obsidian for the list now that the answer is in.
         this.inputEl.dispatchEvent(new Event('input'));
       },
       onError: (_query, err) => {
         this.pending = false;
+        this.setInstructions([]);
         opts.onError(err);
         // Or the list would keep saying it is searching.
         this.inputEl.dispatchEvent(new Event('input'));

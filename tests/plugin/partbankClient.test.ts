@@ -93,7 +93,8 @@ describe('searchGlobal', () => {
         ],
       }),
     ]);
-    const hits = await desktopClient().searchGlobal('gfp', ['vector', 'part']);
+    const { hits, typeCounts } = await desktopClient().searchGlobal('gfp', ['vector', 'part']);
+    expect(typeCounts).toBeUndefined();
     expect(JSON.parse(seen[0].body as string)).toEqual({
       query: 'gfp',
       types: ['vector', 'part'],
@@ -126,13 +127,22 @@ describe('searchGlobal', () => {
         ],
       }),
     ]);
-    const hits = await desktopClient().searchGlobal('x', ['part']);
+    const { hits } = await desktopClient().searchGlobal('x', ['part']);
     expect(hits.map(h => h.id)).toEqual(['mine', 'group']);
   });
 
   it('skips rows without a usable id or type', async () => {
     stub([json({ results: [{ id: 'a' }, { type: 'part' }, 'junk', { id: 'b', type: 'storage' }] })]);
-    await expect(desktopClient().searchGlobal('x', ['part'])).resolves.toEqual([]);
+    await expect(desktopClient().searchGlobal('x', ['part'])).resolves.toEqual({ hits: [] });
+  });
+
+  // #561
+  it('reads the total of each type, under the type a link stores', async () => {
+    stub([json({ results: [], type_counts: { vector: 23, part: 4, storage: 9, primer: 'x' } })]);
+    await expect(desktopClient().searchGlobal('x', ['vector', 'part'])).resolves.toEqual({
+      hits: [],
+      typeCounts: { plasmid: 23, part: 4 },
+    });
   });
 
   it('makes no call for a blank query or an empty entity list', async () => {

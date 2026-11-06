@@ -920,6 +920,8 @@ const obsidianKo: Record<string, string> = {
   'labnote/ has no experiment, but {0} experiment folder(s) are elsewhere in the vault: {1}. If labnote/ was renamed or moved, rename it back to labnote first; otherwise the new experiment is numbered 001 again. Create a new experiment anyway?':
     'labnote/에는 실험이 없지만 보관함의 다른 곳에 실험 폴더 {0}개가 있습니다: {1}. labnote/의 이름을 바꿨거나 옮겼다면 먼저 labnote로 되돌리세요. 그러지 않으면 새 실험이 다시 001번이 됩니다. 그래도 새 실험을 만들까요?',
   'Create anyway': '그래도 만들기',
+  'Only the first {0} of each type are shown ({1}). Type more to narrow the search.':
+    '종류마다 처음 {0}개만 보여 줍니다({1}). 검색어를 더 적어 좁히세요.',
   'The endpoint cannot be empty, so it is back to {0}.': '엔드포인트는 비워 둘 수 없어 {0}(으)로 되돌렸습니다.',
   'The endpoint is empty. Enter the server address in {0}, e.g. {1}.':
     '엔드포인트가 비어 있습니다. {0}에 {1}처럼 서버 주소를 적으세요.',
