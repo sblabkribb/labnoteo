@@ -910,6 +910,11 @@ const obsidianKo: Record<string, string> = {
   '{0} was renamed to {1}, but Home.md, the Wiki publishing and AI agents look for it as {0}, and "Setup research automation" makes an empty {0} when it is missing.':
     '{0}의 이름이 {1}(으)로 바뀌었습니다. Home.md 목차, Wiki 발행, AI 에이전트는 {0}(이)라는 이름으로 찾고, "연구노트 자동화 설정"은 {0}이(가) 없으면 빈 파일을 새로 만듭니다.',
   'Rename back': '이름 되돌리기',
+  'labnote/ was renamed to {0}. Experiments are found only in a folder named labnote at the vault root, so its {1} experiment(s) no longer show, and a new experiment would be numbered 001 again.':
+    'labnote/의 이름이 {0}(으)로 바뀌었습니다. 실험은 보관함 최상위의 labnote 폴더에서만 찾으므로 그 안의 실험 {1}개가 보이지 않고, 새 실험은 다시 001부터 번호를 받습니다.',
+  'labnote/ has no experiment, but {0} experiment folder(s) are elsewhere in the vault: {1}. If labnote/ was renamed or moved, rename it back to labnote first; otherwise the new experiment is numbered 001 again. Create a new experiment anyway?':
+    'labnote/에는 실험이 없지만 보관함의 다른 곳에 실험 폴더 {0}개가 있습니다: {1}. labnote/의 이름을 바꿨거나 옮겼다면 먼저 labnote로 되돌리세요. 그러지 않으면 새 실험이 다시 001번이 됩니다. 그래도 새 실험을 만들까요?',
+  'Create anyway': '그래도 만들기',
   'Kept the name "{0}". If the title or the README checklist no longer match the file name later, run "{1}".':
     '이름 "{0}"을(를) 그대로 두었습니다. 나중에 제목이나 README 체크리스트가 파일 이름과 맞지 않으면 "{1}"을(를) 실행하세요.',
   'Renamed items keep their old names in the workflow notes and README checklists already made: {0} note(s) use them. Rename those by hand if needed.':

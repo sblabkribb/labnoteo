@@ -55,6 +55,7 @@ import { getObsidianLanguage } from './i18n';
 import {
   createLabnoteStructure,
   diagnoseExperimentPath,
+  experimentFoldersOutsideLabnote,
   experimentTitleBudget,
   experimentTitleLength,
   getExperimentDir,
@@ -448,6 +449,21 @@ export async function createExperimentCommand(
   opts: { title?: string; retryOf?: string; retryReadme?: string; readmes?: readonly ExperimentReadme[] } = {}
 ): Promise<void> {
   const readmes = opts.readmes ?? (await experimentReadmes(host));
+  // Before the title is typed: with labnote/ renamed, the new one would be 001 again (#559).
+  if (readmes.length === 0) {
+    const elsewhere = experimentFoldersOutsideLabnote(app.vault.getMarkdownFiles().map(f => f.path));
+    if (elsewhere.length > 0) {
+      const ok = await host.confirm(
+        host.t(
+          'labnote/ has no experiment, but {0} experiment folder(s) are elsewhere in the vault: {1}. If labnote/ was renamed or moved, rename it back to labnote first; otherwise the new experiment is numbered 001 again. Create a new experiment anyway?',
+          String(elsewhere.length),
+          elsewhere.slice(0, 3).join(', ') + (elsewhere.length > 3 ? ', …' : '')
+        ),
+        { confirmLabel: host.t('Create anyway') }
+      );
+      if (!ok) return;
+    }
+  }
   const title = await host.prompt({
     title: opts.retryOf
       ? host.t('Retry experiment {0}', posix.basename(opts.retryOf))

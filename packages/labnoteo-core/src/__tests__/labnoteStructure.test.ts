@@ -24,6 +24,8 @@ import {
   experimentTitleFromFolderName,
   experimentLosingLabsamples,
   experimentLosingReadme,
+  experimentFoldersOutsideLabnote,
+  experimentsLeavingLabnoteRoot,
   nextExperimentId,
   renamedExperimentCopyOrigin,
   resetCopiedExperimentReadme,
@@ -37,6 +39,38 @@ import {
   retryOfLinkpath,
   setRetryOf,
 } from '../lib/labnoteStructure';
+
+// #559: renaming labnote/ hid every experiment, and the next one was 001 again.
+describe('experimentsLeavingLabnoteRoot', () => {
+  it('counts the experiments of a renamed or moved top-level labnote/', () => {
+    const children = ['001_GFP', '002_RFP', 'images', 'Group'];
+    expect(experimentsLeavingLabnoteRoot('labnote', '실험노트', children)).toBe(2);
+    expect(experimentsLeavingLabnoteRoot('labnote', 'Labnote', children)).toBe(2);
+    expect(experimentsLeavingLabnoteRoot('labnote', 'archive/labnote', children)).toBe(2);
+  });
+
+  it('is undefined for other folders and for an empty labnote/', () => {
+    expect(experimentsLeavingLabnoteRoot('labnote', 'notes', ['images'])).toBeUndefined();
+    expect(experimentsLeavingLabnoteRoot('x/labnote', 'x/notes', ['001_A'])).toBeUndefined();
+    expect(experimentsLeavingLabnoteRoot('labnote/001_A', 'labnote/001_B', ['resources'])).toBeUndefined();
+  });
+});
+
+describe('experimentFoldersOutsideLabnote', () => {
+  it('lists ###_ folders with an experiment README that are not under labnote/', () => {
+    expect(
+      experimentFoldersOutsideLabnote([
+        '실험노트/002_B/README.labnote.md',
+        '실험노트/001_A/README.labnote.md',
+        '실험노트/001_A/001_WD010_X.labnote.md',
+        'labnote/003_C/README.labnote.md',
+        'labnote/Group/004_D/README.labnote.md',
+        'misc/README.labnote.md',
+        'other/Notes/README.md',
+      ])
+    ).toEqual(['실험노트/001_A', '실험노트/002_B']);
+  });
+});
 
 // #467
 describe('experimentTitleFromFolderName', () => {

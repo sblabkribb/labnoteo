@@ -1270,3 +1270,7 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
 - Experiment folders must sit directly under `labnote/`; moving one into a subfolder such as
   `labnote/group/020_GFP`, or out of `labnote/` altogether, warns and offers to move it back under
   `labnote/`. Running a workflow command from a note of such a folder says the same.
+- Do not rename the top-level `labnote/` folder either: experiments are looked for only in a folder
+  by that name. Renaming it, or moving it into another folder, warns and offers to rename it back to
+  `labnote`. When `labnote/` has no experiment but experiment folders exist elsewhere in the vault,
+  `Create experiment` asks before numbering the new one 001.

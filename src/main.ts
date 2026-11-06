@@ -125,6 +125,7 @@ import {
   getExperimentDir,
   getNextLabnoteNumber,
   isSampleTrackingOn,
+  experimentsLeavingLabnoteRoot,
   nextExperimentId,
   renamedExperimentCopyOrigin,
   resetCopiedExperimentReadme,
@@ -1152,6 +1153,12 @@ export default class LabnotePlugin extends Plugin {
     const after = diagnoseExperimentPath(newPath, { isFolder: true });
     // Ahead of the check below, which only lets experiment folders through.
     if (automationNameKind(oldPath) === 'root') this.run(() => this.offerAutomationNameBack(folder, oldPath));
+    const leaving = experimentsLeavingLabnoteRoot(
+      oldPath,
+      newPath,
+      folder.children.filter(c => c instanceof TFolder).map(c => c.name)
+    );
+    if (leaving !== undefined) this.run(() => this.offerLabnoteRootBack(folder, leaving));
     // `001_GFP 1` → `005_X` is renamed by hand, not by Make a copy (#393).
     const copyOrigin = this.copiedExperiments.has(oldPath) ? undefined : renamedExperimentCopyOrigin(oldPath, newPath);
     if (
@@ -1290,6 +1297,30 @@ export default class LabnotePlugin extends Plugin {
     });
     if (!ok || folder.path !== movedPath || this.app.vault.getAbstractFileByPath(target)) return;
     await this.app.fileManager.renameFile(folder, target);
+  }
+
+  /**
+   * The top-level `labnote/` was renamed or moved (#559): every experiment in
+   * it drops out of the experiment list, and the next one would be 001 again.
+   */
+  private async offerLabnoteRootBack(folder: TFolder, experiments: number): Promise<void> {
+    const movedPath = folder.path;
+    const warning = this.t(
+      'labnote/ was renamed to {0}. Experiments are found only in a folder named labnote at the vault root, so its {1} experiment(s) no longer show, and a new experiment would be numbered 001 again.',
+      movedPath,
+      String(experiments)
+    );
+    const settled = await this.waitForNoModal();
+    if (this.unloaded || folder.path !== movedPath) return;
+    if (!settled || this.app.vault.getAbstractFileByPath('labnote')) {
+      this.host.notify('warn', warning);
+      return;
+    }
+    const ok = await this.host.confirm(`${warning} ${this.t('Rename it back to "{0}"?', 'labnote')}`, {
+      confirmLabel: this.t('Rename back'),
+    });
+    if (!ok || folder.path !== movedPath || this.app.vault.getAbstractFileByPath('labnote')) return;
+    await this.app.fileManager.renameFile(folder, 'labnote');
   }
 
   /**
