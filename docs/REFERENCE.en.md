@@ -560,7 +560,8 @@ type.
   **Change type** names the samples of the new type that already have its alias.
 - Adding and editing both ask before a sample takes a storage slot another sample is in: a
   location whose last part is a cell coordinate (`A1`, `B12`, `7`), since one slot holds one tube.
-  Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
+  The question names the sample in the slot as `alias (ID, scope)`, or by its ID when it has no
+  alias. Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
   `Rack A`) is not asked about, and a slot a discarded sample was in counts as free.
 - **Delete** is refused while note text uses the sample: the notice names each note by its full
   vault path (a Local sample is checked in its experiment and in the notes outside experiments
@@ -732,12 +733,14 @@ and inserts `ID;alias`.
 
 In the sample view's context menu and in the definition window. It reads the location as
 `storage / box / position` and stores it after showing the change once. When partbank shows no
-stock, the current location is kept without asking (empty it in Edit sample to clear it).
+stock, the current location is kept without asking (empty it in Edit sample to clear it). With no
+location stored either, the notice says there is no stock to read a location from, rather than that
+the location is unchanged; register the stock in partbank and refresh again.
 **Refresh storage locations from partbank** (command palette) does every linked sample at once,
 in every experiment of the vault and the Global folder whichever note is open, listing only what
 changes as `old → new` with the experiment folder (or Global) it is in. A sample partbank shows no
 stock for is left out of the list and keeps its location, so a hand-written one is not wiped; the
-closing notice counts those and
+closing notice counts those (samples with no location stored included) and
 the samples that could not be read. Because the value is stored, it stays visible offline and
 in the sample list table and search.
 

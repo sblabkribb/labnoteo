@@ -1035,6 +1035,8 @@ export function isStorageSlot(location: string): boolean {
 /** A sample's storage location, as {@link samplesAtLocation} compares them. */
 export interface SampleLocation {
   location: string;
+  /** The name the researcher knows the sample by, when it has one (#553). */
+  alias?: string;
   /** Set when the sample was marked discarded (#330): its slot is free again. */
   discarded?: string;
 }
@@ -1057,10 +1059,14 @@ export async function loadSampleLocations(
     if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
     const found: Record<string, SampleLocation> = {};
     for (const [id, record] of Object.entries(data as Record<string, unknown>)) {
-      const r = record && typeof record === 'object' ? (record as { location?: unknown; discarded?: unknown }) : {};
+      const r =
+        record && typeof record === 'object'
+          ? (record as { location?: unknown; alias?: unknown; discarded?: unknown })
+          : {};
       if (typeof r.location !== 'string' || !r.location.trim()) continue;
       found[id] = {
         location: r.location,
+        ...(typeof r.alias === 'string' && r.alias.trim() ? { alias: r.alias } : {}),
         ...(typeof r.discarded === 'string' && r.discarded ? { discarded: r.discarded } : {}),
       };
     }

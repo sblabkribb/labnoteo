@@ -644,6 +644,7 @@ export async function createSampleInteractive(
     !(await confirmLocationClash(app, plugin, {
       folder: existing?.folder ?? folder,
       id,
+      alias: alias ?? existing?.record.alias,
       location,
       before: existing?.record.location,
     }))
@@ -779,7 +780,7 @@ async function confirmAliasClash(
 async function confirmLocationClash(
   app: App,
   plugin: LabnotePlugin,
-  opts: { folder: string; id: string; location: string | null; before?: string | null }
+  opts: { folder: string; id: string; alias?: string | null; location: string | null; before?: string | null }
 ): Promise<boolean> {
   const { folder, id, location } = opts;
   if (!location || !isStorageSlot(location)) return true;
@@ -798,7 +799,10 @@ async function confirmLocationClash(
       for (const other of samplesAtLocation(entries, location)) {
         if (other === id && scope.folder === folder) continue;
         const where = scope.global ? plugin.t('Global {0} sample', type) : plugin.t('Local {0} sample', type);
-        taken.push(`${other} (${where})`);
+        // The alias first, since that is what the tube is labelled with: an
+        // ID alone said nothing about which sample is in the slot (#553).
+        const alias = entries[other].alias;
+        taken.push(alias ? `${alias} (${other}, ${where})` : `${other} (${where})`);
       }
     }
   }
@@ -807,7 +811,8 @@ async function confirmLocationClash(
     taken.length === 1
       ? plugin.t('{0} is already stored at {1}.', taken[0], location)
       : plugin.t('{0} samples are already stored at {1}: {2}.', String(taken.length), location, taken.join(', '));
-  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', id)}`, plugin.t('Save anyway'));
+  const saving = opts.alias ? `${opts.alias} (${id})` : id;
+  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', saving)}`, plugin.t('Save anyway'));
 }
 
 /** A sample sharing an alias, as an alias question names it: its ID, marked when discarded (#419). */
@@ -953,7 +958,8 @@ export async function editSampleInteractive(
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
   const location = clean(locationRaw);
-  if (!(await confirmLocationClash(app, plugin, { folder, id, location, before: record.location }))) return false;
+  if (!(await confirmLocationClash(app, plugin, { folder, id, alias, location, before: record.location })))
+    return false;
   // An emptied field is easy to submit by accident and nothing brings it back (#471).
   const oldDescription = record.descriptions?.[0]?.trim();
   const clearing = [

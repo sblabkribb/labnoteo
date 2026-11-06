@@ -13,6 +13,7 @@ import {
   linkedSamplesIn,
   locationChangesOf,
   locationRefreshNotice,
+  noStockCount,
   refreshLocationsIn,
   refreshOneLocation,
   storableChanges,
@@ -187,10 +188,14 @@ describe('locationChangesOf / storableChanges', () => {
 
   // #294: partbank showing no stock is often a sharing boundary, not a move, and
   // the text may have been typed by hand; the single refresh keeps it (#269).
-  it('leaves out a change that would empty the location, and counts it', () => {
-    const { offer, noStock } = storableChanges([row('A', 'B'), row('A', null), row('A', '')]);
-    expect(offer).toEqual([row('A', 'B')]);
-    expect(noStock).toBe(2);
+  it('leaves out a change that would empty the location', () => {
+    expect(storableChanges([row('A', 'B'), row('A', null), row('A', '')]).offer).toEqual([row('A', 'B')]);
+  });
+
+  // #552: a sample with no location stored and none to read is no change, so
+  // counting over the changes missed it and the notice said nothing about it.
+  it('counts every sample with no stock, including one that was never located', () => {
+    expect(noStockCount([row('A', 'B'), row('A', null), row(null, null), row(null, 'C')])).toBe(2);
   });
 
   it('adds the kept and unread counts to every closing notice', () => {
@@ -258,6 +263,56 @@ describe('refreshOneLocation', () => {
     expect(Notice.shown.slice(shownBefore)).toEqual([
       'partbank shows no stock for {0}, so the current location is kept. To clear it, empty the location in Edit sample.',
     ]);
+  });
+
+  // #552: with no location stored either, "no stock" read as "unchanged",
+  // which sounded like partbank had confirmed an empty location.
+  it('says there is nothing to read for a sample that has no location stored', async () => {
+    const fs = new MemFileSystem();
+    const plugin = fakePlugin(fs);
+    (plugin as unknown as { partbank: PartbankFeature }).partbank = fakeFeature(plugin);
+    await upsertSampleRecord(fs, LOCAL, 'DNA', 'DNA-2', {
+      alias: 'rfp',
+      description: null,
+      source: source({ id: 'p2' }),
+    });
+    __setRequestUrlHandler(
+      () => ({ status: 200, text: JSON.stringify({ items: [] }), headers: {} }) as RequestUrlResponse
+    );
+    const record = (await loadSamplesByType(fs, LOCAL, 'DNA'))['DNA-2'];
+    const shownBefore = Notice.shown.length;
+
+    await expect(refreshOneLocation(plugin, { type: 'DNA', id: 'DNA-2', folder: LOCAL, record })).resolves.toBe(false);
+
+    expect(Notice.shown.slice(shownBefore)).toEqual([
+      'partbank has no stock for {0}, so there is no storage location to read. Register the stock in partbank, then refresh again.',
+    ]);
+  });
+
+  it('says the location is unchanged when partbank reads back the one stored', async () => {
+    const fs = new MemFileSystem();
+    const plugin = fakePlugin(fs);
+    (plugin as unknown as { partbank: PartbankFeature }).partbank = fakeFeature(plugin);
+    await upsertSampleRecord(fs, LOCAL, 'DNA', 'DNA-3', {
+      alias: 'cfp',
+      description: null,
+      location: 'Box-1 / A1',
+      source: source({ id: 'p3' }),
+    });
+    __setRequestUrlHandler(
+      () =>
+        ({
+          status: 200,
+          text: JSON.stringify({ items: [{ is_owner: true, stock_box: { name: 'Box-1' }, hole_position: 'A1' }] }),
+          headers: {},
+        }) as RequestUrlResponse
+    );
+    const record = (await loadSamplesByType(fs, LOCAL, 'DNA'))['DNA-3'];
+    const shownBefore = Notice.shown.length;
+
+    await expect(refreshOneLocation(plugin, { type: 'DNA', id: 'DNA-3', folder: LOCAL, record })).resolves.toBe(false);
+
+    expect(Notice.shown.slice(shownBefore)).toEqual(['The storage location is unchanged.']);
   });
 });
 

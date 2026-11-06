@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from 'obsidian';
 import { MarkdownView, Notice, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { upsertSampleRecord } from '../../packages/labnoteo-core/src/lib/sampleStorage';
+import { loadSamplesByType, upsertSampleRecord } from '../../packages/labnoteo-core/src/lib/sampleStorage';
 import {
   changeSampleTypeInteractive,
   createSampleInteractive,
@@ -114,8 +114,9 @@ describe('createSampleInteractive', () => {
 
       expect(await add()).toBeUndefined();
 
+      // #553: the alias first, since that is what the tube is labelled with.
       expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
-        'RNA-9 (Local RNA sample) is already stored at -80 / p1 / a1. Save RNA-'
+        'kept (RNA-9, Local RNA sample) is already stored at -80 / p1 / a1. Save R1 (RNA-'
       );
       expect(Object.keys(JSON.parse(await fs.read(REGISTRY)))).toEqual(['RNA-9']);
     });
@@ -155,9 +156,41 @@ describe('createSampleInteractive', () => {
 
       expect(await add()).toBeUndefined();
 
+      // No alias on DNA-3, so it stays `ID (scope)`.
       expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
-        'DNA-3 (Global DNA sample) is already stored at -80 / P1 / C3. Save RNA-'
+        'DNA-3 (Global DNA sample) is already stored at -80 / P1 / C3. Save R1 (RNA-'
       );
+    });
+
+    // #553
+    it('names every sample in the slot by its alias when more than one is there', async () => {
+      await fs.write(
+        `${GLOBAL}/DNA.json`,
+        JSON.stringify({ 'DNA-3': { type: 'DNA', alias: 'pET', descriptions: [], sources: [], location: '-80 / P1 / A1' } })
+      );
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('R1', '', '-80 / P1 / A1');
+
+      await add();
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toContain(
+        '2 samples are already stored at -80 / P1 / A1: kept (RNA-9, Local RNA sample), pET (DNA-3, Global DNA sample).'
+      );
+    });
+
+    // #553: Edit sample takes the same route, and named only IDs there too.
+    it('names the aliases when an edit moves a sample into a taken slot', async () => {
+      await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: 'moving', description: null, location: '4도' });
+      const record = (await loadSamplesByType(fs, FOLDER, 'RNA'))['RNA-1'];
+      vi.mocked(confirmModal).mockResolvedValue(false);
+      answer('moving', '', '-80 / P1 / A1');
+
+      await editSampleInteractive(new App(), plugin, { type: 'RNA', folder: FOLDER, id: 'RNA-1', record });
+
+      expect(vi.mocked(confirmModal).mock.calls[0][1]).toBe(
+        'kept (RNA-9, Local RNA sample) is already stored at -80 / P1 / A1. Save moving (RNA-1) anyway?'
+      );
+      expect(JSON.parse(await fs.read(REGISTRY))['RNA-1'].location).toBe('4도');
     });
   });
 

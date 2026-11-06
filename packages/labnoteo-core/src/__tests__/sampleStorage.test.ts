@@ -147,8 +147,9 @@ describe('loadSampleLocations and samplesAtLocation (#512)', () => {
     'DNA-1': { location: '-80 냉동고 / 박스 P1 / A1' },
     'DNA-2': { location: ' -80 냉동고 /박스 P1/ a1 ' },
     'DNA-3': { location: '-80 냉동고 / 박스 P1 / A1', discarded: '2026-10-25' },
-    'DNA-4': { location: '-80 냉동고 / 박스 P1 / A2' },
+    'DNA-4': { location: '-80 냉동고 / 박스 P1 / A2', alias: 'pET-28a' },
     'DNA-5': { alias: 'no location' },
+    'DNA-6': { location: '-80 냉동고 / 박스 P1 / A4', alias: '  ' },
   });
 
   it('reads the locations without ever rewriting the registry', async () => {
@@ -157,10 +158,19 @@ describe('loadSampleLocations and samplesAtLocation (#512)', () => {
 
     const entries = await loadSampleLocations(fs, FOLDER, 'DNA');
 
-    expect(Object.keys(entries)).toEqual(['DNA-1', 'DNA-2', 'DNA-3', 'DNA-4']);
+    expect(Object.keys(entries)).toEqual(['DNA-1', 'DNA-2', 'DNA-3', 'DNA-4', 'DNA-6']);
     expect(entries['DNA-3'].discarded).toBe('2026-10-25');
     expect(write).not.toHaveBeenCalled();
     expect(await fs.read(`${FOLDER}/DNA.json`)).toBe(raw);
+  });
+
+  // #553: a slot question named IDs only, which say nothing about the tube.
+  it('carries the alias, and leaves out a blank one', async () => {
+    const entries = await loadSampleLocations(new MemFileSystem({ [`${FOLDER}/DNA.json`]: raw }), FOLDER, 'DNA');
+
+    expect(entries['DNA-4'].alias).toBe('pET-28a');
+    expect(entries['DNA-1'].alias).toBeUndefined();
+    expect(entries['DNA-6'].alias).toBeUndefined();
   });
 
   it('finds the samples in a slot, spacing and case aside, and leaves discarded ones out', async () => {
