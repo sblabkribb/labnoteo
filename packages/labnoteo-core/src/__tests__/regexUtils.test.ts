@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { capPathSegment, fullPathLength, invalidVaultFolderReason, isPathTooLongError } from '../lib/regexUtils';
+import {
+  capPathSegment,
+  fullPathLength,
+  invalidVaultFolderReason,
+  isPathTooLongError,
+  isWindowsReservedName,
+} from '../lib/regexUtils';
+
+// #560
+describe('isWindowsReservedName', () => {
+  it('takes device names of any case, with or without an extension', () => {
+    for (const name of ['CON', 'con', 'Aux', 'NUL.json', 'COM1', 'lpt9', 'COM²']) expect(isWindowsReservedName(name)).toBe(true);
+    for (const name of ['Console', 'CONx', 'COM10', 'nullable', 'DNA']) expect(isWindowsReservedName(name)).toBe(false);
+  });
+});
 
 // #148
 describe('capPathSegment', () => {

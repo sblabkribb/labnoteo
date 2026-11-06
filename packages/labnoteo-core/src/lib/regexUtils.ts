@@ -165,6 +165,11 @@ export type InvalidFolderReason =
 const FOLDER_FORBIDDEN_RE = /[<>:"|?*\u0000-\u001f]/g;
 const RESERVED_NAME_RE = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\..*)?$/i;
 
+/** Whether Windows keeps `name` for a device (`CON`, `aux`, `COM1`), so no file or folder can have it (#560). */
+export function isWindowsReservedName(name: string): boolean {
+  return RESERVED_NAME_RE.test(name);
+}
+
 /**
  * Why `path` (vault-relative, `/`-separated) cannot be a folder on every OS
  * the vault is shared to (#328), or undefined when it can. Windows is the

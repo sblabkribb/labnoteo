@@ -501,6 +501,9 @@ explorer.
 - Changing only the letter case of a saved custom sample type (`Media` → `media`) is not saved:
   its samples and the IDs already written in notes keep the old spelling, so the name goes back
   and a notice says so.
+- A name Windows keeps for devices (`CON`, `AUX`, `NUL`, `COM1`) is not saved either: its
+  `{Type}.json` cannot exist on Windows. One saved by an older version stays with a warning; move
+  its samples to another type with `Change type`, then remove the name.
 - The **Global sample folder** setting refuses a folder inside an experiment (its
   `resources/labsamples/` is that experiment's Local registry) and puts the previous value back.
   When the old Global folder was such a folder, its samples are not moved to the new one; use
