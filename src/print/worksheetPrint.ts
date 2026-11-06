@@ -7,7 +7,9 @@ import { App, Modal, Notice, Setting, TFile } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import { getSeoulDateString } from '@labnoteo/core/lib/dateUtils';
 import { encodePagePayload, payloadLabel, unitOpFingerprint, type PagePayload } from '@labnoteo/core/lib/scanPayload';
+import type { SampleLocationLookup } from '@labnoteo/core/lib/sampleStorage';
 import {
+  annotateWorksheetSamples,
   listWorksheetUnitOps,
   paginateWorksheet,
   type WorksheetPage,
@@ -244,6 +246,8 @@ export interface WorksheetDeps {
   paper: () => WorksheetPaperSize;
   setPaper: (paper: WorksheetPaperSize) => Promise<void>;
   ensureNoteId: (file: TFile) => Promise<string | undefined>;
+  /** Sample types and where their samples are stored, for the note (#496); undefined when it does not track samples. */
+  sampleLookup?: (file: TFile) => Promise<{ types: string[]; lookup: SampleLocationLookup } | undefined>;
 }
 
 /**
@@ -269,9 +273,11 @@ export async function printWorksheetCommand(deps: WorksheetDeps, file: TFile): P
   const noteId = await deps.ensureNoteId(file);
   if (!noteId) return;
   // Re-read: assigning the ID rewrote the note, and it may have been edited meanwhile.
-  const fresh = listWorksheetUnitOps(await app.vault.read(file)).filter(op =>
+  const chosen = listWorksheetUnitOps(await app.vault.read(file)).filter(op =>
     choice.indices.includes(op.index)
   );
+  const samples = await deps.sampleLookup?.(file);
+  const fresh = samples ? annotateWorksheetSamples(chosen, samples.types, samples.lookup) : chosen;
   const html = buildWorksheetHtml(fresh, { noteTitle: noteTitleOf(app, file), noteId, printedOn: getSeoulDateString(), t }, choice.paper);
   if (choice.target === 'browser') {
     await openHtmlInBrowser(html, `${noteId}_worksheet.html`);

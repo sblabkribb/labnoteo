@@ -844,7 +844,15 @@ as the reading view shows it: struck-through text struck (not dropped), highligh
 footnote references and `<sup>` raised, `<sub>` lowered. A footnote definition (`[^1]: …`) prints
 where it was written, with its label raised, and math (`$…$`, `$$…$$`) prints as the symbols paper
 shows rather than as TeX (`$3\,\mathrm{mL}$` as 3 mL, `$\Delta G$` as ΔG, `$\frac{a}{b}$` as a/b,
-`$10^{-3}$` with a raised −3); a formula holding anything else prints as written, in italics. The
+`$10^{-3}$` with a raised −3); a formula holding anything else prints as written, in italics.
+A line with a sample reference gets the sample's storage location at its end
+(`DNA-1;pUC19 — -80 freezer / Box P1 / A3`; with several placed samples on the line,
+`— DNA-1: …; DNA-2: …`), so the sheet says where to fetch each tube. This covers Meta values, Method
+steps and the lines under them, list items, paragraphs and table cells, not code blocks or the unit
+operation's title and alias, so the QR code is unchanged. The note's Local ledger is looked up before
+Global, as references resolve; discarded samples, unknown IDs and samples without a location get
+nothing. Notes with sample tracking off and **Print whole note with barcodes** are not annotated, and
+neither the note nor the ledgers are written. The
 dialog opens with focus on **Print**, so Enter prints; tabbing to a toggle shows a focus ring. When
 printing from Obsidian does not work, it opens in the browser. See the
 [printout scan guide](./SCAN.md#2-기록지-출력) (Korean).

@@ -47,6 +47,8 @@ import {
   loadSampleMarks,
   isStorageSlot,
   loadSampleLocations,
+  loadSampleLedger,
+  loadSampleLocationLookup,
   samplesAtLocation,
   type SampleDatabase,
   type SampleRecord,
@@ -1670,5 +1672,48 @@ describe('listExperimentSampleFolders (#169)', () => {
       'labnote/002_B/resources/labsamples',
     ]);
     expect(await listExperimentSampleFolders(new MemFileSystem(), '')).toEqual([]);
+  });
+});
+
+// #496
+describe('loadSampleLedger and loadSampleLocationLookup', () => {
+  const LOCAL = 'labnote/001_A/resources/labsamples';
+  const GLOBAL = 'resources/labsamples';
+  // Old-format records a full load would rewrite.
+  const local = JSON.stringify({
+    'DNA-1': { alias: 'pUC19', location: '-80 / Box 1 / A3' },
+    'DNA-2': { alias: 'gone', location: '4도', discarded: '2026-10-01' },
+    'DNA-3': { alias: 'nowhere' },
+    'DNA-4': 'not a record',
+  });
+  const global = JSON.stringify({
+    'DNA-3': { location: 'Global shelf' },
+    'DNA-5': { location: 'Rack G' },
+  });
+
+  it('reads every record by lower-cased ID without writing', async () => {
+    const fs = new MemFileSystem({ [`${LOCAL}/DNA.json`]: local });
+    const write = vi.spyOn(fs, 'write');
+    const ledger = await loadSampleLedger(fs, LOCAL, 'DNA');
+    expect([...ledger.keys()]).toEqual(['dna-1', 'dna-2', 'dna-3', 'dna-4']);
+    expect(ledger.get('dna-2')).toEqual({ alias: 'gone', location: '4도', discarded: '2026-10-01' });
+    expect(ledger.get('dna-4')).toEqual({});
+    expect((await loadSampleLedger(fs, LOCAL, 'RNA')).size).toBe(0);
+    expect(write).not.toHaveBeenCalled();
+    expect(await fs.read(`${LOCAL}/DNA.json`)).toBe(local);
+  });
+
+  it('looks Local up before Global, and has nothing for discarded or unplaced samples', async () => {
+    const fs = new MemFileSystem({ [`${LOCAL}/DNA.json`]: local, [`${GLOBAL}/DNA.json`]: global });
+    const write = vi.spyOn(fs, 'write');
+    const lookup = await loadSampleLocationLookup(fs, [LOCAL, GLOBAL], ['DNA', 'RNA']);
+    expect(lookup('DNA', 'dna-1')).toBe('-80 / Box 1 / A3');
+    expect(lookup('DNA', 'DNA-2')).toBeUndefined();
+    // The Local DNA-3 is the one its reference means, and it has no location.
+    expect(lookup('DNA', 'DNA-3')).toBeUndefined();
+    expect(lookup('DNA', 'DNA-5')).toBe('Rack G');
+    expect(lookup('DNA', 'DNA-9')).toBeUndefined();
+    expect(lookup('RNA', 'DNA-1')).toBeUndefined();
+    expect(write).not.toHaveBeenCalled();
   });
 });

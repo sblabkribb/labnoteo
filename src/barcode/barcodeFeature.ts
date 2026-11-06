@@ -7,6 +7,8 @@ import { MarkdownView, Notice, Platform, TFile, TFolder, type App } from 'obsidi
 import { scanEntryLine, type LabnoteHost, type Translator } from '@labnoteo/core';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { readNoteId } from '@labnoteo/core/lib/noteId';
+import { isSameSampleFolder, loadSampleLocationLookup, noteLabsamplesFolder } from '@labnoteo/core/lib/sampleStorage';
+import { getSampleDisplayMeta } from '@labnoteo/core/lib/sampleUtils';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
 import * as posix from '@labnoteo/core/posix';
 import type LabnotePlugin from '../main';
@@ -218,6 +220,14 @@ export class BarcodeFeature {
         await this.plugin.saveSettings();
       },
       ensureNoteId: file => this.noteIds.ensureId(file),
+      sampleLookup: async file => {
+        if (!this.plugin.sampleTrackingFor(file.path)) return undefined;
+        const { globalSampleFolder, customSampleTypes } = this.plugin.settings;
+        const types = getSampleDisplayMeta(customSampleTypes).types;
+        const local = noteLabsamplesFolder(file.path, globalSampleFolder);
+        const folders = isSameSampleFolder(local, globalSampleFolder) ? [local] : [local, globalSampleFolder];
+        return { types, lookup: await loadSampleLocationLookup(this.plugin.fs, folders, types) };
+      },
     };
   }
 

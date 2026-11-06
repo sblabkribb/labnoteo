@@ -1,4 +1,11 @@
-import { classifyUnitOp, listWorksheetUnitOps, paginateWorksheet, sectionWeight } from '../lib/worksheet';
+import {
+  annotateWorksheetSamples,
+  classifyUnitOp,
+  listWorksheetUnitOps,
+  paginateWorksheet,
+  sectionWeight,
+  type WorksheetUnitOp,
+} from '../lib/worksheet';
 import { findUnitOpInsertOffset, rebuildUnitOpToc } from '../sections/workflowSectionParser';
 import { createWorkflowContent } from '../lib/workflowStructure';
 import { buildHwUnitOpMarkdown, buildSwUnitOpMarkdown } from '../lib/unitOpTemplate';
@@ -237,5 +244,86 @@ describe('paginateWorksheet', () => {
     const pages = paginateWorksheet([op]);
     expect(pages.map(p => `${p.page}/${p.pageCount}`)).toEqual(['1/1']);
     expect(pages.flatMap(p => p.sections)).toEqual(op.sections);
+  });
+});
+
+// #496
+describe('annotateWorksheetSamples', () => {
+  const where: Record<string, string> = { 'dna-1': '-80 / Box *1* / A3', 'dna-2': '4도 / B1', 'rna-1': 'Rack A' };
+  const lookup = (type: string, id: string) => (type === 'Plasmid' ? undefined : where[id.toLowerCase()]);
+  const op = (sections: WorksheetUnitOp['sections']): WorksheetUnitOp => ({
+    index: 1,
+    opId: 'UHW010',
+    opName: 'Thaw DNA-1',
+    alias: 'DNA-1 prep',
+    kind: 'hw',
+    description: 'Thaw DNA-1 on ice',
+    sections,
+  });
+
+  it('adds the location after the reference, by ID when there are several', () => {
+    const [out] = annotateWorksheetSamples(
+      [
+        op([
+          { type: 'meta', title: 'Meta', fields: [{ label: 'Input', value: 'DNA-1;pUC19' }] },
+          {
+            type: 'steps',
+            title: 'Method',
+            steps: [
+              { text: 'Mix DNA-1 and dna-2', sub: ['then DNA-1 again'], table: [['Sample'], ['RNA-1']], code: [['DNA-1']] },
+            ],
+          },
+          {
+            type: 'text',
+            title: 'Results',
+            blocks: [
+              { kind: 'item', level: 0, text: 'DNA-1;a, DNA-1;b' },
+              { kind: 'para', text: 'No sample here' },
+              { kind: 'table', rows: [['DNA-2', 'x']] },
+              { kind: 'code', lines: ['DNA-2'] },
+            ],
+          },
+        ]),
+      ],
+      ['DNA', 'RNA'],
+      lookup
+    );
+    expect(out.sections[0]).toMatchObject({ fields: [{ value: 'DNA-1;pUC19 — -80 / Box \\*1\\* / A3' }] });
+    expect(out.sections[1]).toMatchObject({
+      steps: [
+        {
+          text: 'Mix DNA-1 and dna-2 — DNA-1: -80 / Box \\*1\\* / A3; dna-2: 4도 / B1',
+          sub: ['then DNA-1 again — -80 / Box \\*1\\* / A3'],
+          table: [['Sample'], ['RNA-1 — Rack A']],
+          code: [['DNA-1']],
+        },
+      ],
+    });
+    expect(out.sections[2]).toMatchObject({
+      blocks: [
+        { text: 'DNA-1;a, DNA-1;b — -80 / Box \\*1\\* / A3' },
+        { text: 'No sample here' },
+        { rows: [['DNA-2 — 4도 / B1', 'x']] },
+        { lines: ['DNA-2'] },
+      ],
+    });
+    expect(out).toMatchObject({ opName: 'Thaw DNA-1', alias: 'DNA-1 prep', description: 'Thaw DNA-1 on ice' });
+  });
+
+  it('leaves out unknown, discarded and unplaced samples, naming the placed one among several', () => {
+    const [out] = annotateWorksheetSamples(
+      [op([{ type: 'text', title: 'Results', blocks: [{ kind: 'para', text: 'DNA-9 then DNA-2' }, { kind: 'para', text: 'DNA-9' }] }])],
+      ['DNA'],
+      lookup
+    );
+    expect(out.sections[0]).toMatchObject({ blocks: [{ text: 'DNA-9 then DNA-2 — DNA-2: 4도 / B1' }, { text: 'DNA-9' }] });
+  });
+
+  it('is counted when the pages are laid out', () => {
+    const long = 'x'.repeat(70);
+    const unitOps = [op([{ type: 'text', title: 'Results', blocks: Array.from({ length: 20 }, () => ({ kind: 'para' as const, text: `${long} DNA-1` })) }])];
+    const before = sectionWeight(unitOps[0].sections[0]);
+    const after = sectionWeight(annotateWorksheetSamples(unitOps, ['DNA'], lookup)[0].sections[0]);
+    expect(after).toBeGreaterThan(before);
   });
 });

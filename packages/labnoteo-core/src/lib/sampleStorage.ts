@@ -1076,6 +1076,72 @@ export async function loadSampleLocations(
   }
 }
 
+/** One ledger record as {@link loadSampleLedger} reads it. */
+export interface SampleLedgerEntry {
+  alias?: string;
+  location?: string;
+  discarded?: string;
+}
+
+/**
+ * Every record of the `type` ledger in `labsamplesFolder` by lower-cased ID,
+ * read only: unlike {@link loadSamplesByType} it never rewrites the file
+ * (#496). A missing or unreadable ledger reads as empty.
+ */
+export async function loadSampleLedger(
+  fs: LabnoteFs,
+  labsamplesFolder: string,
+  type: string
+): Promise<Map<string, SampleLedgerEntry>> {
+  assertSafeSampleType(type);
+  const found = new Map<string, SampleLedgerEntry>();
+  const filePath = path.join(labsamplesFolder, `${type}.json`);
+  if (!(await fs.exists(filePath))) return found;
+  try {
+    const data: unknown = JSON.parse(await fs.read(filePath));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return found;
+    for (const [id, record] of Object.entries(data as Record<string, unknown>)) {
+      const r = record && typeof record === 'object' ? (record as Record<string, unknown>) : {};
+      const text = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v : undefined);
+      found.set(id.toLowerCase(), {
+        ...(text(r.alias) ? { alias: text(r.alias) } : {}),
+        ...(text(r.location) ? { location: text(r.location) } : {}),
+        ...(text(r.discarded) ? { discarded: text(r.discarded) } : {}),
+      });
+    }
+  } catch {
+    // Unreadable: no records.
+  }
+  return found;
+}
+
+/** Where a referenced sample is stored; undefined when that is not to be shown. */
+export type SampleLocationLookup = (type: string, id: string) => string | undefined;
+
+/**
+ * The storage location of each sample a note can reference, read only (#496).
+ * `folders` are searched in order, the note's Local folder before Global, so
+ * an ID resolves to the same record its reference does. A discarded sample,
+ * or one without a location, has none to show.
+ */
+export async function loadSampleLocationLookup(
+  fs: LabnoteFs,
+  folders: readonly string[],
+  types: readonly string[]
+): Promise<SampleLocationLookup> {
+  const ledgers = new Map<string, Map<string, SampleLedgerEntry>[]>();
+  for (const type of types) {
+    const perFolder: Map<string, SampleLedgerEntry>[] = [];
+    for (const folder of folders) perFolder.push(await loadSampleLedger(fs, folder, type));
+    ledgers.set(type, perFolder);
+  }
+  return (type, id) => {
+    const key = id.toLowerCase();
+    const record = ledgers.get(type)?.find(l => l.has(key))?.get(key);
+    return record && !record.discarded ? record.location?.trim() || undefined : undefined;
+  };
+}
+
 /**
  * The IDs in `entries` stored at `location` (spacing tidied, case ignored),
  * discarded samples left out: their slot is free (#512).
