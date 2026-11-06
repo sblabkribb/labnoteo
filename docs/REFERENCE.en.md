@@ -403,7 +403,9 @@ or IDs, export again to bring the CSV up to date.
 - With ten tables or more the number has as many digits as the table count (`table01` … `table11`)
   so the files sort in table order. Existing CSVs such as `table1.csv` take the new name once the
   overwrite prompt passes, with a notice to update the paths in any analysis script. The names go
-  back to `table1` when the note drops to nine tables or fewer.
+  back to `table1` when the note drops to nine tables or fewer, but only once the CSVs of the removed
+  tables (`table10.csv`) are gone: while one is kept, the names keep its digits so they still sort
+  with it.
 
 **Cell contents**
 
