@@ -661,7 +661,9 @@ it faded as `(discarded)` in the sample view.
   longer find it, and partbank's bulk location refresh skips discarded samples. `Cancel`, or
   closing the question with Esc, leaves the sample unmarked.
   Unmarking puts the old location back when the location is empty, and keeps one written in the
-  meantime.
+  meantime. From 0.140.0 the registry (`{Type}.json`) keeps fields this version does not know,
+  but an earlier version that edits the registry can drop later fields such as the kept location.
+  Everyone sharing the vault should update to the same version.
 
 ## partbank
 

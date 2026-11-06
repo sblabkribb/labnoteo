@@ -108,6 +108,25 @@ function assertSafeSampleType(type: string): void {
   }
 }
 
+/** The {@link SampleRecord} fields this version reads and writes. */
+const KNOWN_RECORD_KEYS: ReadonlySet<string> = new Set([
+  'type',
+  'alias',
+  'descriptions',
+  'sources',
+  'location',
+  'discarded',
+  'discardedLocation',
+  'descriptionSources',
+  'aliasSources',
+  'source',
+]);
+
+/** The entries of `value` whose keys are not in `known`. */
+function unknownKeys(value: object, known: ReadonlySet<string>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !known.has(key)));
+}
+
 /**
  * Coerce an untrusted on-disk record into a well-formed {@link SampleRecord},
  * tolerating older/partial shapes: a missing/`null` value, missing
@@ -115,9 +134,12 @@ function assertSafeSampleType(type: string): void {
  * that prevents `record.sources.length`-style TypeErrors on legacy `{Type}.json`
  * data (previously each loader open-coded its own `?? []` defaults, and some
  * paths had none). `fallbackType` is used only when the record omits `type`.
+ *
+ * Keys this version does not know are kept as they are (#556): a newer version
+ * may have written them, and every rewrite of the registry passes through here.
  */
 function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord {
-  const r = (rec && typeof rec === 'object' ? rec : {}) as Partial<SampleRecord>;
+  const r = (rec && typeof rec === 'object' && !Array.isArray(rec) ? rec : {}) as Partial<SampleRecord>;
   const source = normalizeSampleSource(r.source);
   const stringMap = (v: unknown): Record<string, string> | undefined =>
     v && typeof v === 'object' && !Array.isArray(v)
@@ -125,6 +147,7 @@ function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord
       : undefined;
   const aliasSources = stringMap(r.aliasSources);
   return {
+    ...unknownKeys(r, KNOWN_RECORD_KEYS),
     type: typeof r.type === 'string' && r.type ? r.type : fallbackType,
     alias: typeof r.alias === 'string' ? r.alias : null,
     descriptions: Array.isArray(r.descriptions)
@@ -189,6 +212,9 @@ function mergeCaseCollidingIds(
     if (!target.location && rec.location) target.location = rec.location;
     if (!target.discardedLocation && rec.discardedLocation) target.discardedLocation = rec.discardedLocation;
     if (!target.source && rec.source) target.source = rec.source;
+    for (const [key, value] of Object.entries(unknownKeys(rec, KNOWN_RECORD_KEYS))) {
+      if (!(key in target)) (target as unknown as Record<string, unknown>)[key] = value;
+    }
   }
 
   return { records: out, changed };

@@ -1660,6 +1660,42 @@ describe('setSampleDiscarded (#158)', () => {
   });
 });
 
+// #556: a newer version's fields were dropped by every rewrite of the registry.
+describe('keys this version does not know', () => {
+  const FOLDER = 'labnote/001_Exp/resources/labsamples';
+  const DOC = 'labnote/001_Exp/note.labnote.md';
+  const link = { system: 'partbank', connection: 'web', origin: 'https://pb', type: 'plasmid', id: 'abc', kid: null };
+  const rec = (sources: string[]) => ({ type: 'DNA', alias: null, descriptions: [], sources });
+
+  it('keeps them through saves, edits, discard, case merges and moves', async () => {
+    const fs = new MemFileSystem();
+    await fs.write(
+      `${FOLDER}/DNA.json`,
+      JSON.stringify({
+        'DNA-1': { ...rec([DOC]), futureField: { a: 1 }, source: { ...link, futureLink: 'x' } },
+        'dna-1': { ...rec([]), otherField: 2 },
+      })
+    );
+    await saveSamplesFromDocument(fs, DOC, '@DNA;DNA-1;pUC19');
+    await upsertSampleRecord(fs, FOLDER, 'DNA', 'DNA-1', { alias: 'p', description: 'pUC19', location: 'Box-1' });
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', '2026-11-06', { clearLocation: true });
+    await setSampleDiscarded(fs, FOLDER, 'DNA', 'DNA-1', null);
+    await moveSampleFolder(fs, FOLDER, 'labsamples', ['DNA']);
+    const moved = (await loadSamplesByType(fs, 'labsamples', 'DNA'))['DNA-1'] as unknown as Record<string, unknown>;
+    expect(moved.futureField).toEqual({ a: 1 });
+    expect(moved.otherField).toBe(2);
+    expect(moved.source).toEqual({ ...link, futureLink: 'x' });
+    expect(moved.location).toBe('Box-1');
+    expect(moved).not.toHaveProperty('discardedLocation');
+  });
+
+  it('still drops a link it cannot read', async () => {
+    const fs = new MemFileSystem();
+    await fs.write(`${FOLDER}/DNA.json`, JSON.stringify({ 'DNA-1': { ...rec([]), source: { system: 'other', id: 'x' } } }));
+    expect((await loadSamplesByType(fs, FOLDER, 'DNA'))['DNA-1']).not.toHaveProperty('source');
+  });
+});
+
 describe('listExperimentSampleFolders (#169)', () => {
   it('lists the experiments that have a labsamples folder, in order', async () => {
     const fs = new MemFileSystem();
