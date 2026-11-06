@@ -1,6 +1,6 @@
 // Globals convention (no `import ... from 'vitest'`) — see sampleDefinition.test.ts.
 import { MemFileSystem } from '../fs/memFileSystem';
-import { createLabnoteTools, runTool, type ToolContext } from '../tools';
+import { createLabnoteTools, previewTool, runTool, type ToolContext } from '../tools';
 
 const README = [
   '---',
@@ -45,6 +45,7 @@ describe('labnote tools — registry', () => {
         'get_unit_operation',
         'insert_unit_operation',
         'list_samples',
+        'read_section',
         'search_samples',
         'update_section',
       ].sort()
@@ -457,17 +458,25 @@ describe('create_sample / get_sample / list_samples', () => {
 });
 
 describe('runTool — unsupported arguments', () => {
-  it('runs the tool and warns about arguments it ignored', async () => {
-    const res = await runTool(createLabnoteTools(), 'create_sample', ctx, {
-      type: 'RNA',
-      id: 'RNA-1',
-      freezer: 'F2',
-      documentPath: NOTE_PATH,
-    });
+  it('runs a read tool and warns about arguments it ignored', async () => {
+    const res = await runTool(createLabnoteTools(), 'list_samples', ctx, { type: 'RNA', freezer: 'F2' });
     expect(res.ok).toBe(true);
     expect(res.warnings).toHaveLength(1);
     expect(res.warnings![0]).toContain('freezer');
-    expect(res.warnings![0]).toContain('Supported: type, id, alias, description, location, documentPath');
+    expect(res.warnings![0]).toContain('Supported: type, documentPath');
+  });
+
+  // #554: an ignored `mode: "append"` was put to the user as a replace.
+  it('refuses a write with arguments it does not take, in the preview too, writing nothing', async () => {
+    const tools = createLabnoteTools();
+    const args = { type: 'RNA', id: 'RNA-1', freezer: 'F2', documentPath: NOTE_PATH };
+    const res = await runTool(tools, 'create_sample', ctx, args);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Unsupported argument(s): freezer; nothing was written');
+    expect(res.error).toContain('Supported: type, id, alias, description, location, documentPath');
+    expect(await fs.exists(`${NOTE_DIR}/resources/labsamples/RNA.json`)).toBe(false);
+    const preview = await previewTool(tools.find(t => t.name === 'create_sample')!, ctx, args);
+    expect(preview).toEqual({ error: res.error });
   });
 
   it('adds no warnings when every argument is declared', async () => {
@@ -601,6 +610,7 @@ describe('update_section', () => {
           parentHeading: '[UHW100 PCR] 첫 증폭',
           occurrence: 1,
           total: 1,
+          mode: 'replace',
           removedLines: 1,
           removedSubheadings: 0,
           previousBody: 'pcr',
@@ -711,6 +721,37 @@ describe('update_section', () => {
       await fs.write(NOTE_PATH, `#### Results\n\n${'a'.repeat(800)}\n`);
       const res = await call({ content: 'new' });
       expect((res.data as { previousBody: string }).previousBody).toHaveLength(500);
+    });
+
+    // #554: a reviewer's comment goes after what others wrote, nothing removed.
+    it('appends after the body and its nested headings with mode "append"', async () => {
+      await fs.write(NOTE_PATH, doc);
+      const res = await call({ content: '- [review] check padj', mode: 'append' });
+      expect(res.data).toMatchObject({ mode: 'append', removedLines: 0, removedSubheadings: 0, previousBody: '' });
+      expect(await fs.read(NOTE_PATH)).toBe(
+        doc.replace('band at 1 kb\n', 'band at 1 kb\n\n- [review] check padj\n')
+      );
+      const preview = await tool('update_section').describe!(ctx, {
+        documentPath: NOTE_PATH,
+        heading: 'Results',
+        content: 'second',
+        mode: 'append',
+      });
+      expect(preview).toMatchObject({ appending: true, removedText: [], addedText: ['second'], removedSubheadings: 0 });
+    });
+
+    it('appends to an empty section, and refuses empty content, clear or an unknown mode', async () => {
+      await fs.write(NOTE_PATH, '#### Results\n\n#### Notes\n\nn\n');
+      await call({ content: 'first', mode: 'append' });
+      expect(await fs.read(NOTE_PATH)).toBe('#### Results\n\nfirst\n\n#### Notes\n\nn\n');
+      for (const extra of [
+        { content: '', mode: 'append' },
+        { content: '', clear: true, mode: 'append' },
+        { content: 'x', mode: 'prepend' },
+      ]) {
+        expect((await call(extra)).ok).toBe(false);
+      }
+      expect(await fs.read(NOTE_PATH)).toBe('#### Results\n\nfirst\n\n#### Notes\n\nn\n');
     });
   });
 
@@ -1258,6 +1299,64 @@ describe('ctx.writeNote hook', () => {
     );
     expect(res.ok).toBe(true);
     expect(hook.calls).toEqual([]);
+  });
+});
+
+describe('read_section (#554)', () => {
+  const doc = [
+    '## [UHW100 PCR] 첫 증폭',
+    '',
+    '#### Method',
+    '',
+    'pcr',
+    '',
+    '## [USW230 Sequence Embedding]',
+    '',
+    '#### Method',
+    '',
+    'embed',
+    '',
+    '##### Detail',
+    '',
+    'd',
+    '',
+  ].join('\n');
+
+  it('reads one section, picked like update_section picks it', async () => {
+    await fs.write(NOTE_PATH, doc);
+    const read = tool('read_section').handler;
+    expect((await read(ctx, { documentPath: NOTE_PATH, heading: 'Method' })).error).toContain('matches 2 sections');
+    const res = await read(ctx, { documentPath: NOTE_PATH, heading: 'Method', parentHeading: 'USW230' });
+    expect(res.data).toEqual({
+      documentPath: NOTE_PATH,
+      heading: 'Method',
+      parentHeading: '[USW230 Sequence Embedding]',
+      occurrence: 1,
+      total: 1,
+      line: 9,
+      lines: 3,
+      subheadings: 1,
+      content: 'embed\n\n##### Detail\n\nd',
+      truncated: false,
+    });
+  });
+
+  it('reads the whole note with its headings when no heading is given', async () => {
+    await fs.write(NOTE_PATH, doc);
+    const res = await tool('read_section').handler(ctx, { documentPath: NOTE_PATH });
+    expect(res.data).toMatchObject({ content: doc, truncated: false });
+    expect((res.data as { headings: string[] }).headings[0]).toBe('## [UHW100 PCR] 첫 증폭');
+  });
+
+  it('reads only Markdown notes inside the vault, outside dot folders', async () => {
+    await fs.write('.obsidian/plugins/labnoteo/data.json', '{"mcpToken":"secret"}');
+    await fs.write('.obsidian/notes.md', 'x');
+    const read = tool('read_section').handler;
+    for (const documentPath of ['.obsidian/plugins/labnoteo/data.json', '.obsidian/notes.md', '../outside.md']) {
+      const res = await read(ctx, { documentPath });
+      expect(res.ok).toBe(false);
+      expect(JSON.stringify(res)).not.toContain('secret');
+    }
   });
 });
 

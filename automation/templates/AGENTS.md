@@ -100,7 +100,9 @@ Claude Code, Codex, Cursor 등)는 아래 규칙을 따라 작업합니다.
   `sectionsToFill`의 절(HW는 `Method`·`Results & Discussions`, SW는 `Method`·`Discussion`)을 채우세요.
   `alias` 규칙은 `create_workflow`와 같고, 같은 ID·별칭의 블록이 이미 있으면 `warnings`가 알려 줍니다.
 - MCP `update_section`은 절 본문 **전체를 바꿉니다**(하위 제목 포함). 바꾸지 않을 절은
-  호출하지 마세요. 빈 `content`는 거부되며, 절을 일부러 비울 때만 `content: ""`와
+  호출하지 마세요. 고치기 전에 MCP `read_section`으로 지금 내용을 읽고, 남이 쓴 절에 의견을 남길 때는
+  `mode: "append"`로 끝에 덧붙이세요(아무것도 지우지 않음). 쓰기 도구에 모르는 인자를 넣으면 아무것도
+  쓰지 않고 거부되니 오류의 지원 인자 목록대로 다시 부르세요. 빈 `content`는 거부되며, 절을 일부러 비울 때만 `content: ""`와
   `clear: true`를 함께 보냅니다. 결과의 `removedLines`·`removedSubheadings`·`previousBody`로
   무엇이 지워졌는지 확인하세요.
   `heading`은 이모지·대괄호·대소문자를 빼고 적어도 찾습니다(`## 🧪 Related Workflows`는

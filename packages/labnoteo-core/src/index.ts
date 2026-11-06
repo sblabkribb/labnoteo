@@ -174,6 +174,7 @@ export {
 export {
   createLabnoteTools,
   runTool,
+  previewTool,
   type ToolDef,
   type ToolContext,
   type ToolResult,

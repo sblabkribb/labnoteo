@@ -26,6 +26,7 @@
 import { Notice, Platform } from 'obsidian';
 import {
   createLabnoteTools,
+  previewTool,
   runTool,
   type ToolContext,
   type ToolDef,
@@ -180,7 +181,7 @@ export class LabnoteMcpServer {
     let destructive = false;
     const compose = async (): Promise<{ message: string } | { error: string }> => {
       // A call the tool would reject anyway is not put to the user (#69).
-      const preview = tool.describe ? await tool.describe(this.context(), args) : undefined;
+      const preview = await previewTool(tool, this.context(), args);
       if (preview && 'error' in preview) return { error: preview.error };
       destructive = erasesRecordedLines(preview);
       return {

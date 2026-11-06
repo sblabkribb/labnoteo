@@ -12,6 +12,7 @@
  */
 import {
   createLabnoteTools,
+  previewTool,
   runTool,
   type ToolContext,
   type ToolPreview,
@@ -148,7 +149,7 @@ export async function runAgent(
       if (tool.mutates) {
         // A call the tool would reject anyway is not put to the user; the
         // model gets the real reason instead of "denied" (#69).
-        const preview = tool.describe ? await tool.describe(deps.ctx, call.arguments) : undefined;
+        const preview = await previewTool(tool, deps.ctx, call.arguments);
         if (preview && 'error' in preview) {
           history.push(resultMessage(call, { error: preview.error }));
           executed.push({ call, outcome: 'rejected', mutates: true, ...preview });

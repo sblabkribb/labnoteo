@@ -205,6 +205,8 @@ export interface SectionEditPreview {
   removedSubheadings: number;
   /** True when the call empties the section (`clear: true`). */
   clearing: boolean;
+  /** True for `mode: "append"`: the body stays and the new text goes after it (#554). */
+  appending?: boolean;
   /** The first non-blank lines the edit erases, so the user sees what goes (#187). */
   removedText: string[];
   /** Erased lines beyond {@link removedText}. */
@@ -339,6 +341,9 @@ function describeSections(matches: SectionMatch[]): string {
 /** How much of a replaced section body `update_section` returns. */
 const PREVIOUS_BODY_LIMIT = 500;
 
+/** How much of a note or section `read_section` returns; the rest is reported as `truncated`. */
+const READ_SECTION_LIMIT = 20000;
+
 interface ResolvedSectionTarget {
   documentPath: string;
   heading: string;
@@ -349,6 +354,8 @@ interface ResolvedSectionTarget {
   /** 0-based index among `total` candidates. */
   index: number;
   total: number;
+  /** `mode: "append"`: {@link content} is the current body with the new text after it (#554). */
+  append: boolean;
 }
 
 /**
@@ -371,8 +378,17 @@ async function resolveSectionTarget(
   if (!documentPath || !heading || rawContent === undefined) {
     return { error: 'documentPath, heading and content are required' };
   }
+  const mode = args.mode;
+  if (mode !== undefined && mode !== 'replace' && mode !== 'append') {
+    return { error: 'mode must be "replace" or "append"; nothing was written.' };
+  }
+  const append = mode === 'append';
   const clear = args.clear === true;
+  if (append && clear) {
+    return { error: 'clear: true empties the section, which mode "append" never does. Send one or the other.' };
+  }
   const blank = rawContent.trim() === '';
+  if (blank && append) return { error: 'content is empty, so there is nothing to append; nothing was written.' };
   if (blank && !clear) {
     return {
       error:
@@ -383,15 +399,59 @@ async function resolveSectionTarget(
     return { error: 'clear: true empties the section, so content must be "". Send one or the other.' };
   }
   const content = blank ? '' : rawContent;
+  if (!(await ctx.fs.exists(documentPath))) {
+    return { error: `File not found: ${documentPath}` };
+  }
+  const md = await ctx.fs.read(documentPath);
+  const found = pickSection(md, heading, args);
+  if ('error' in found) return found;
+  const { target, index, total } = found;
+  if (content === '') return { documentPath, heading, content, md, target, index, total, append };
+  // Content that starts with the section's own heading would repeat it (#162).
+  const targetText = md.split(/\r?\n/)[target.line].replace(/^#{1,6}\s+/, '');
+  const body = stripRepeatedHeading(content, targetText);
+  if (body.trim() === '') {
+    return { error: 'content only repeats the section heading; nothing was written. Send the body without the heading.' };
+  }
+  // A heading as high as the target's would end the section there and start a new one (#334).
+  const sibling = listHeadings(body).find(h => h.level <= target.level);
+  if (sibling) {
+    return {
+      error:
+        `content has the heading "${'#'.repeat(sibling.level)} ${sibling.text}", which would start a new section after "${heading}"; nothing was written. ` +
+        `Send only the body, or use deeper headings (${'#'.repeat(Math.min(target.level + 1, 6))} or more) inside it.`,
+    };
+  }
+  if (!append) return { documentPath, heading, content: body, md, target, index, total, append };
+  const existing = sectionBodyAt(md, target.line)?.text ?? '';
+  const added = body.replace(/^\s*\n/, '').trimEnd();
+  return {
+    documentPath,
+    heading,
+    content: existing ? `${existing}\n\n${added}` : added,
+    md,
+    target,
+    index,
+    total,
+    append,
+  };
+}
+
+/**
+ * The one section of `md` named `heading` that `args.parentHeading` and
+ * `args.occurrence` pick, or an error listing the candidates. Shared by
+ * `update_section` and `read_section` so both resolve a heading the same way.
+ */
+function pickSection(
+  md: string,
+  heading: string,
+  args: Record<string, unknown>
+): { target: SectionMatch; index: number; total: number } | ToolError {
   const parentHeading = str(args, 'parentHeading');
   const occurrence = args.occurrence;
   if (occurrence !== undefined && (!Number.isInteger(occurrence) || (occurrence as number) < 1)) {
     return { error: 'occurrence must be a positive integer (1-based)' };
   }
-  if (!(await ctx.fs.exists(documentPath))) {
-    return { error: `File not found: ${documentPath}` };
-  }
-  const md = await ctx.fs.read(documentPath);
   const all = findSectionMatches(md, heading);
   if (all.length === 0) return { error: sectionNotFound(md, heading), code: 'section_not_found', params: [heading] };
 
@@ -417,24 +477,7 @@ async function resolveSectionTarget(
         `Candidates: ${describeSections(candidates)}.`,
     };
   }
-  const target = candidates[index];
-  if (content === '') return { documentPath, heading, content, md, target, index, total: candidates.length };
-  // Content that starts with the section's own heading would repeat it (#162).
-  const targetText = md.split(/\r?\n/)[target.line].replace(/^#{1,6}\s+/, '');
-  const body = stripRepeatedHeading(content, targetText);
-  if (body.trim() === '') {
-    return { error: 'content only repeats the section heading; nothing was written. Send the body without the heading.' };
-  }
-  // A heading as high as the target's would end the section there and start a new one (#334).
-  const sibling = listHeadings(body).find(h => h.level <= target.level);
-  if (sibling) {
-    return {
-      error:
-        `content has the heading "${'#'.repeat(sibling.level)} ${sibling.text}", which would start a new section after "${heading}"; nothing was written. ` +
-        `Send only the body, or use deeper headings (${'#'.repeat(Math.min(target.level + 1, 6))} or more) inside it.`,
-    };
-  }
-  return { documentPath, heading, content: body, md, target, index, total: candidates.length };
+  return { target: candidates[index], index, total: candidates.length };
 }
 
 /** Levenshtein distance of `a` and `b`, giving up past `max` (returns `max + 1`). */
@@ -1136,6 +1179,75 @@ export function createLabnoteTools(): ToolDef[] {
     },
 
     {
+      name: 'read_section',
+      mutates: false,
+      description:
+        'Read a Markdown note in the vault: with heading, the body of that section (nested headings included), found as update_section finds it; without heading, the whole note and its headings. ' +
+        'Use it before update_section to see what a section holds, e.g. to add a comment with mode "append" instead of replacing what others wrote.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          documentPath: { type: 'string', description: 'Vault-relative path of a .md note.' },
+          heading: { type: 'string', description: 'Heading text without the leading #s, e.g. "Method". Omit to read the whole note.' },
+          parentHeading: {
+            type: 'string',
+            description: 'Enclosing heading of the section, as for update_section, when the heading repeats.',
+          },
+          occurrence: {
+            type: 'integer',
+            minimum: 1,
+            description: '1-based position among the matching sections, counted after the parentHeading filter.',
+          },
+        },
+        required: ['documentPath'],
+      },
+      async handler(ctx, args) {
+        const documentPath = safePath(ctx, args, 'documentPath');
+        if (!documentPath) return outsideVaultError(args, 'documentPath') ?? { ok: false, error: 'documentPath is required' };
+        // Plugin settings (with tokens and keys) live in dot folders; notes do not.
+        if (!documentPath.toLowerCase().endsWith('.md') || documentPath.split('/').some(s => s.startsWith('.'))) {
+          return { ok: false, error: `Only Markdown notes can be read, not ${documentPath}` };
+        }
+        if (!(await ctx.fs.exists(documentPath))) return { ok: false, error: `File not found: ${documentPath}` };
+        const md = await ctx.fs.read(documentPath);
+        const clip = (text: string) =>
+          text.length > READ_SECTION_LIMIT ? { text: text.slice(0, READ_SECTION_LIMIT), truncated: true } : { text, truncated: false };
+        const heading = str(args, 'heading');
+        if (!heading) {
+          const { text, truncated } = clip(md);
+          return {
+            ok: true,
+            data: {
+              documentPath,
+              headings: listHeadings(md).map(h => `${'#'.repeat(h.level)} ${h.text}`),
+              content: text,
+              truncated,
+            },
+          };
+        }
+        const found = pickSection(md, heading, args);
+        if ('error' in found) return { ok: false, ...found };
+        const body = sectionBodyAt(md, found.target.line);
+        const { text, truncated } = clip(body?.text ?? '');
+        return {
+          ok: true,
+          data: {
+            documentPath,
+            heading,
+            parentHeading: found.target.parentHeading,
+            occurrence: found.index + 1,
+            total: found.total,
+            line: found.target.line + 1,
+            lines: body?.lines ?? 0,
+            subheadings: body?.subheadings ?? 0,
+            content: text,
+            truncated,
+          },
+        };
+      },
+    },
+
+    {
       name: 'update_section',
       mutates: true,
       description:
@@ -1144,7 +1256,8 @@ export function createLabnoteTools(): ToolDef[] {
         'Send only the body: a first or last line repeating the section heading is dropped, and a heading as high as the section\'s own is refused, since it would start a new section (use deeper headings inside the body). ' +
         'Workflow notes repeat headings such as "Method" under every unit operation: when the heading occurs more than once, pass parentHeading and/or occurrence, ' +
         'otherwise nothing is written and the error lists the candidates. ' +
-        'The whole body is replaced, nested headings included; the result reports what was removed (removedLines, removedSubheadings, previousBody).',
+        'By default the whole body is replaced, nested headings included; the result reports what was removed (removedLines, removedSubheadings, previousBody). ' +
+        'With mode "append", content is added after the current body (after any nested headings) and nothing is removed. Read the section first with read_section.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1153,7 +1266,12 @@ export function createLabnoteTools(): ToolDef[] {
           content: {
             type: 'string',
             description:
-              'New Markdown body for the section. Empty or whitespace-only content is rejected unless clear is true.',
+              'New Markdown body for the section, or with mode "append" the text to add at its end. Empty or whitespace-only content is rejected unless clear is true.',
+          },
+          mode: {
+            type: 'string',
+            enum: ['replace', 'append'],
+            description: '"replace" (default) swaps the whole body; "append" keeps it and adds content after it.',
           },
           clear: {
             type: 'boolean',
@@ -1177,7 +1295,7 @@ export function createLabnoteTools(): ToolDef[] {
       async handler(ctx, args) {
         const resolved = await resolveSectionTarget(ctx, args);
         if ('error' in resolved) return { ok: false, ...resolved };
-        const { documentPath, heading, content, md, target, index, total } = resolved;
+        const { documentPath, heading, content, md, target, index, total, append } = resolved;
 
         const { ok, md: next, removed } = replaceSectionBodyAt(md, target.line, content);
         if (!ok) return { ok: false, error: `Section not found: ${heading}` };
@@ -1190,9 +1308,10 @@ export function createLabnoteTools(): ToolDef[] {
             parentHeading: target.parentHeading,
             occurrence: index + 1,
             total,
-            removedLines: removed?.lines ?? 0,
-            removedSubheadings: removed?.subheadings ?? 0,
-            previousBody: (removed?.text ?? '').slice(0, PREVIOUS_BODY_LIMIT),
+            mode: append ? 'append' : 'replace',
+            removedLines: append ? 0 : (removed?.lines ?? 0),
+            removedSubheadings: append ? 0 : (removed?.subheadings ?? 0),
+            previousBody: append ? '' : (removed?.text ?? '').slice(0, PREVIOUS_BODY_LIMIT),
           },
         };
       },
@@ -1212,7 +1331,8 @@ export function createLabnoteTools(): ToolDef[] {
           total: resolved.total,
           line: resolved.target.line + 1,
           removedLines: body?.lines ?? 0,
-          removedSubheadings: body?.subheadings ?? 0,
+          removedSubheadings: resolved.append ? 0 : (body?.subheadings ?? 0),
+          ...(resolved.append ? { appending: true } : {}),
           clearing: resolved.content === '',
           removedText: removed.text,
           removedMore: removed.more,
@@ -1395,20 +1515,51 @@ export function createLabnoteTools(): ToolDef[] {
  * MCP passes `arguments` through unvalidated, and an array's indices are not
  * argument names.
  */
-function unsupportedArgsWarning(tool: ToolDef, args: unknown): string | undefined {
+function unsupportedArgs(tool: ToolDef, args: unknown): { unsupported: string[]; supported: string } | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined;
-  const supported = Object.keys(tool.inputSchema.properties);
-  const unsupported = Object.keys(args).filter(k => !supported.includes(k));
-  if (unsupported.length === 0) return undefined;
-  return (
-    `Ignored unsupported argument(s): ${unsupported.join(', ')}. ` +
-    `Supported: ${supported.join(', ') || '(none)'}.`
-  );
+  const keys = Object.keys(tool.inputSchema.properties);
+  const unsupported = Object.keys(args).filter(k => !keys.includes(k));
+  return unsupported.length === 0 ? undefined : { unsupported, supported: keys.join(', ') || '(none)' };
+}
+
+function unsupportedArgsWarning(tool: ToolDef, args: unknown): string | undefined {
+  const found = unsupportedArgs(tool, args);
+  if (!found) return undefined;
+  return `Ignored unsupported argument(s): ${found.unsupported.join(', ')}. Supported: ${found.supported}.`;
 }
 
 /**
- * Invoke a tool by name; returns a structured {@link ToolResult}. Unsupported
- * arguments never fail the call — they are reported in `warnings`.
+ * A mutating call with arguments its schema does not declare is refused
+ * before it is put to the user (#554): an ignored `mode: "append"` turned an
+ * append into a replace the user was asked to allow.
+ */
+function unsupportedWriteArgsError(tool: ToolDef, args: unknown): ToolError | undefined {
+  const found = tool.mutates ? unsupportedArgs(tool, args) : undefined;
+  if (!found) return undefined;
+  return {
+    error: `Unsupported argument(s): ${found.unsupported.join(', ')}; nothing was written. Supported: ${found.supported}.`,
+  };
+}
+
+/**
+ * What a mutating call would change ({@link ToolDef.describe}), or the error
+ * it would fail with, unsupported arguments included. Hosts call this before
+ * asking the user.
+ */
+export async function previewTool(
+  tool: ToolDef,
+  ctx: ToolContext,
+  args: Record<string, unknown>
+): Promise<ToolPreview | undefined> {
+  const refused = unsupportedWriteArgsError(tool, args);
+  if (refused) return refused;
+  return tool.describe ? await tool.describe(ctx, args) : undefined;
+}
+
+/**
+ * Invoke a tool by name; returns a structured {@link ToolResult}. A read
+ * tool's unsupported arguments are reported in `warnings`; a mutating tool
+ * refuses them without writing (see {@link unsupportedWriteArgsError}).
  */
 export async function runTool(
   tools: ToolDef[],
@@ -1418,6 +1569,8 @@ export async function runTool(
 ): Promise<ToolResult> {
   const tool = tools.find(t => t.name === name);
   if (!tool) return { ok: false, error: `Unknown tool: ${name}` };
+  const refused = unsupportedWriteArgsError(tool, args);
+  if (refused) return { ok: false, ...refused };
   let result: ToolResult;
   try {
     result = await tool.handler(ctx, args);

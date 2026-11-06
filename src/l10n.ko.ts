@@ -1039,6 +1039,8 @@ const obsidianKo: Record<string, string> = {
   'Target: {0}': '대상: {0}',
   'This replaces section "{0}", which now has {1} line(s).':
     '절 "{0}"의 내용을 바꿉니다. 지금 {1}줄이 있습니다.',
+  'This adds to the end of section "{0}", which now has {1} line(s).':
+    '절 "{0}"의 끝에 덧붙입니다. 지금 {1}줄이 있습니다.',
   'This empties section "{0}", which now has {1} line(s).':
     '절 "{0}"의 내용을 모두 지웁니다. 지금 {1}줄이 있습니다.',
   'Its {0} nested heading(s) are replaced too.': '그 안의 하위 제목 {0}개도 함께 바뀝니다.',
