@@ -92,6 +92,7 @@ export {
   removeScanEntry,
   removeAllScanEntries,
   listScanHashes,
+  scanEntryLine,
   listFiledScans,
   renderScanEntry,
   type FiledScan,

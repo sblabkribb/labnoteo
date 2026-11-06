@@ -1110,6 +1110,7 @@ const obsidianKo: Record<string, string> = {
     '이 페이지를 언제 출력했나요(YYYY-MM-DD)? 모르거나 출력한 적 없는 종이면 비워 두세요.',
   'Enter a date like 2026-10-15, or leave it empty.': '2026-10-15처럼 날짜를 쓰거나 비워 두세요.',
   'Scan results': '스캔 결과',
+  'Show results': '결과 다시 보기',
   '{0} page(s): {1}': '{0}쪽: {1}',
   '{0} filed': '{0}쪽 붙임',
   '{0} already filed': '{0}쪽 이미 있음',

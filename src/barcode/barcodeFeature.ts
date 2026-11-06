@@ -4,7 +4,7 @@
  * queue, and taking a note's scans along when it moves to another experiment.
  */
 import { MarkdownView, Notice, Platform, TFile, TFolder, type App } from 'obsidian';
-import type { LabnoteHost, Translator } from '@labnoteo/core';
+import { scanEntryLine, type LabnoteHost, type Translator } from '@labnoteo/core';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { readNoteId } from '@labnoteo/core/lib/noteId';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
@@ -303,9 +303,12 @@ export class BarcodeFeature {
       if (manual && results.length > 0) new Notice(this.t('No worksheet pages were found.'));
       return;
     }
-    const open = () =>
+    const open = (): void =>
       new ScanResultModal(this.app, this.t, this.pipeline, results, {
-        openNote: path => void this.host.openFile(path),
+        openNote: (path, hash) => {
+          void this.openScanInNote(path, hash);
+          this.offerResultsAgain(open);
+        },
         openUnmatched: () => this.openUnmatched(),
       }).open();
     if (manual) {
@@ -315,6 +318,25 @@ export class BarcodeFeature {
     const frag = document.createDocumentFragment();
     frag.createSpan({ text: `${this.t('Scans')}: ${summarizeResults(this.t, results)} ` });
     const link = frag.createEl('a', { text: this.t('Details'), href: '#' });
+    const notice = new Notice(frag, 15000);
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      notice.hide();
+      open();
+    });
+  }
+
+  /** Open the note on the scan with this hash, or at the top when it is not there. */
+  private async openScanInNote(path: string, hash?: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    const line = hash && file instanceof TFile ? scanEntryLine(await this.app.vault.cachedRead(file), hash) : undefined;
+    await this.host.openFile(path, line === undefined ? undefined : { line });
+  }
+
+  /** The result window closed to show a note; keep it one click away for undo. */
+  private offerResultsAgain(open: () => void): void {
+    const frag = document.createDocumentFragment();
+    const link = frag.createEl('a', { text: this.t('Show results'), href: '#' });
     const notice = new Notice(frag, 15000);
     link.addEventListener('click', e => {
       e.preventDefault();

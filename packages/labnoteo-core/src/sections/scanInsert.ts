@@ -290,6 +290,26 @@ export function listScanHashes(md: string): Set<string> {
   return out;
 }
 
+/**
+ * The line (0-based) of the comment that opens the filed scan with content
+ * hash `hash`, so "Open note" can land on it instead of the top (#549).
+ * Undefined when the note has no such scan outside code blocks.
+ */
+export function scanEntryLine(md: string, hash: string): number | undefined {
+  let fence: OpenFence | null = null;
+  const lines = md.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const next = stepFence(lines[i], fence);
+    if (next !== fence) {
+      fence = next;
+      continue;
+    }
+    if (fence) continue;
+    if (ENTRY_RE.exec(lines[i])?.[3] === hash) return i;
+  }
+  return undefined;
+}
+
 /** A scan already filed in the note. */
 export interface FiledScan {
   hash: string;

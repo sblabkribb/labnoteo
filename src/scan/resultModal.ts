@@ -84,7 +84,7 @@ export class ScanResultModal extends Modal {
     private readonly t: Translator,
     private readonly pipeline: ScanPipeline,
     private readonly results: ScanResult[],
-    private readonly actions: { openNote(path: string): void; openUnmatched(): void }
+    private readonly actions: { openNote(path: string, hash?: string): void; openUnmatched(): void }
   ) {
     super(app);
   }
@@ -99,7 +99,12 @@ export class ScanResultModal extends Modal {
       const row = new Setting(contentEl).setName(name + label).setDesc(describeResult(t, r));
       if (r.notePath && (r.status === 'filed' || r.status === 'duplicate')) {
         const path = r.notePath;
-        row.addButton(b => b.setButtonText(t('Open note')).onClick(() => this.actions.openNote(path)));
+        row.addButton(b =>
+          b.setButtonText(t('Open note')).onClick(() => {
+            this.close();
+            this.actions.openNote(path, r.hash);
+          })
+        );
       }
       if (r.status === 'filed' && r.previous?.length && r.payload && isPagePayload(r.payload)) {
         row.addButton(b =>

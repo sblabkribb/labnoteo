@@ -857,6 +857,10 @@ starts on a new page, so the sheets can be filed by unit operation.
 Drop photos, PDFs or zips to file them in their notes by QR code, then show the results (open note,
 undo, delete earlier scan). Also the scan icon in the left ribbon.
 
+**Open note** closes the results and opens the note at the scan it filed (at the top when the scan
+is no longer there). A notice then offers **Show results** to bring the same results back, so undo
+is still one click away; pages already undone are left out.
+
 Each result names the block it went to (`note › [UHW290 Name] alias`). From 0.123.0 the QR code
 also carries a fingerprint of the block's name and alias, so a page still finds its block after
 blocks above it were removed or reordered, instead of sliding into the next block of the same ID.
