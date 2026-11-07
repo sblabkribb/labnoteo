@@ -232,162 +232,79 @@ describe('a CSV path Excel cannot open (#348)', () => {
   });
 });
 
-// #470: in source mode, writing a new CSV left the caret above the front matter.
+// #470: closing the palette or a prompt can leave the caret above the front matter.
 describe('the caret of the note being exported', () => {
-  type Sel = { anchor: { line: number; ch: number }; head: { line: number; ch: number } };
-  const at = (line: number, ch: number): Sel => ({ anchor: { line, ch }, head: { line, ch } });
-
-  function viewWith(text: () => string) {
-    let selections = [at(4, 3)];
-    const editor = {
-      getValue: text,
-      listSelections: () => selections,
-      setSelections: (s: Sel[]) => (selections = s),
-      getScrollInfo: () => ({ left: 0, top: 120 }),
-      scrollTo: vi.fn(),
-    };
-    const view = Object.assign(new MarkdownView(), { file: new TFile(WF1), editor });
+  function armedView() {
+    const view = Object.assign(new MarkdownView(), { file: new TFile(WF1) });
+    const arm = vi.fn();
     (app.workspace as unknown) = { getActiveViewOfType: () => view };
-    return { editor, jump: () => (selections = [at(0, 0)]), selections: () => selections };
+    const p = () => ({ ...plugin(), caretGuard: { arm } }) as unknown as LabnotePlugin;
+    return { view, arm, plugin: p };
   }
 
-  it('puts back a caret that jumped to the top while the CSV was written', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(WF1, table('a', '1'));
-      const v = viewWith(() => 'note');
-      const write = fs.write.bind(fs);
-      vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
-        await write(path, content);
-        if (path.endsWith('.csv')) setTimeout(v.jump, 300);
-      });
+  it('is guarded before the first prompt opens and for a while after the export', async () => {
+    await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
+    await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
+    const { view, arm, plugin: p } = armedView();
+    let duringPrompt: unknown[][] = [];
+    vi.mocked(confirmModal).mockImplementation(async () => {
+      duringPrompt = [...arm.mock.calls];
+      return true;
+    });
 
-      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
-      await vi.advanceTimersByTimeAsync(600);
+    await exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile);
 
-      expect(v.selections()).toEqual([at(4, 3)]);
-      expect(v.editor.scrollTo).toHaveBeenCalledWith(0, 120);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(duringPrompt).toEqual([[view, Infinity]]);
+    expect(arm.mock.calls.at(-1)).toEqual([view, 2000]);
   });
 
-  it('leaves the caret alone once the note is being typed in', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(WF1, table('a', '1'));
-      let text = 'note';
-      const v = viewWith(() => text);
-      const write = fs.write.bind(fs);
-      vi.spyOn(fs, 'write').mockImplementation(async (path, content) => {
-        await write(path, content);
-        if (path.endsWith('.csv')) {
-          text = 'typed';
-          v.jump();
-        }
-      });
+  // The cleanup prompt comes after the CSVs are written, and may stay open long.
+  it('stays guarded after the CSVs are written while the cleanup prompt is open', async () => {
+    await fs.write(README, 'no tables');
+    await fs.write(WF1, table('a', '1'));
+    await fs.write(`${DIR}/README.labnote_table1.csv`, '\uFEFFold\n');
+    const { view, arm, plugin: p } = armedView();
+    let duringPrompt: unknown[][] = [];
+    vi.mocked(confirmModal).mockImplementation(async () => {
+      duringPrompt = [...arm.mock.calls];
+      return false;
+    });
 
-      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
-      await vi.advanceTimersByTimeAsync(600);
+    await exportExperimentTablesToCsv(p(), DIR);
 
-      expect(v.selections()).toEqual([at(0, 0)]);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(confirmModal).toHaveBeenCalledTimes(1);
+    expect(duringPrompt).toEqual([[view, Infinity]]);
+    expect(arm.mock.calls.at(-1)).toEqual([view, 2000]);
   });
 
-  // The caret reads 0:0 while a prompt is open, so it is read before the first one.
-  it('puts back a caret that jumped while the overwrite prompt was open', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
-      await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
-      const v = viewWith(() => 'note');
-      vi.mocked(confirmModal).mockImplementation(async () => {
-        v.jump();
-        return true;
-      });
+  it('is guarded for a while after a declined prompt or a failed export', async () => {
+    await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
+    await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
+    const { view, arm, plugin: p } = armedView();
+    vi.mocked(confirmModal).mockResolvedValue(false);
 
-      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
-      await vi.advanceTimersByTimeAsync(600);
+    await exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile);
+    expect(Notice.shown.at(-1)).toBe('No changes made.');
+    expect(arm.mock.calls.at(-1)).toEqual([view, 2000]);
 
-      expect(confirmModal).toHaveBeenCalled();
-      expect(v.selections()).toEqual([at(4, 3)]);
-    } finally {
-      vi.useRealTimers();
-    }
+    arm.mockClear();
+    vi.mocked(confirmModal).mockResolvedValue(true);
+    vi.spyOn(fs, 'write').mockRejectedValue(new Error('disk full'));
+    await expect(exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile)).rejects.toThrow('disk full');
+    expect(arm.mock.calls).toEqual([
+      [view, Infinity],
+      [view, 2000],
+    ]);
   });
 
-  it('puts back the caret when the overwrite prompt is declined', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
-      await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
-      const v = viewWith(() => 'note');
-      vi.mocked(confirmModal).mockImplementation(async () => {
-        v.jump();
-        return false;
-      });
+  it('guards nothing without an open note', async () => {
+    await fs.write(WF1, table('a', '1'));
+    const { arm, plugin: p } = armedView();
+    (app.workspace as unknown) = { getActiveViewOfType: () => null };
 
-      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
-      await vi.advanceTimersByTimeAsync(600);
+    await exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile);
 
-      expect(Notice.shown.at(-1)).toBe('No changes made.');
-      expect(v.selections()).toEqual([at(4, 3)]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  // Putting the caret back once while the cleanup prompt was open, and then
-  // stopping, left it at 0:0 when the prompt closed.
-  it('keeps putting back the caret while the cleanup prompt is open and after it closes', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(README, 'no tables');
-      await fs.write(WF1, table('a', '1'));
-      await fs.write(`${DIR}/README.labnote_table1.csv`, '\uFEFFold\n');
-      const v = viewWith(() => 'note');
-      vi.mocked(confirmModal).mockImplementation(async () => {
-        v.jump();
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setTimeout(v.jump, 200);
-        return false;
-      });
-
-      const done = exportExperimentTablesToCsv(plugin(), DIR);
-      await vi.advanceTimersByTimeAsync(1000);
-      await done;
-      await vi.advanceTimersByTimeAsync(600);
-
-      expect(confirmModal).toHaveBeenCalledTimes(1);
-      expect(v.selections()).toEqual([at(4, 3)]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('leaves the caret where the user moved it', async () => {
-    vi.useFakeTimers();
-    try {
-      await fs.write(README, 'no tables');
-      await fs.write(WF1, table('a', '1'));
-      await fs.write(`${DIR}/README.labnote_table1.csv`, '\uFEFFold\n');
-      const v = viewWith(() => 'note');
-      vi.mocked(confirmModal).mockImplementation(async () => {
-        v.editor.setSelections([at(2, 1)]);
-        return false;
-      });
-
-      await exportExperimentTablesToCsv(plugin(), DIR);
-      await vi.advanceTimersByTimeAsync(200);
-      v.jump();
-      await vi.advanceTimersByTimeAsync(600);
-
-      expect(v.selections()).toEqual([at(0, 0)]);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(arm).not.toHaveBeenCalled();
   });
 });
 
