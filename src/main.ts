@@ -162,6 +162,7 @@ import {
 } from './sampleHighlight';
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
+import { CaretGuard } from './caretGuard';
 import { LastUpdatedTracker } from './lastUpdatedTracker';
 import { IssueMarkerIndex, markerExperimentDir } from './issueMarkerIndex';
 import { SampleIdIndex } from './sampleIdIndex';
@@ -280,6 +281,7 @@ export default class LabnotePlugin extends Plugin {
   // Pending `last_updated_date` stamps after editor edits, per lab-note path.
   private readonly lastUpdatedTimers = new Map<string, number>();
   private readonly lastUpdatedTracker = new LastUpdatedTracker();
+  readonly caretGuard = new CaretGuard({ editorOf: s => s.field(editorInfoField, false) });
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -332,6 +334,7 @@ export default class LabnotePlugin extends Plugin {
         },
       })
     );
+    this.registerEditorExtension(this.caretGuard.extension());
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
 
     this.app.workspace.onLayoutReady(() =>
