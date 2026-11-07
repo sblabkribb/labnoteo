@@ -295,6 +295,100 @@ describe('the caret of the note being exported', () => {
       vi.useRealTimers();
     }
   });
+
+  // The caret reads 0:0 while a prompt is open, so it is read before the first one.
+  it('puts back a caret that jumped while the overwrite prompt was open', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
+      await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
+      const v = viewWith(() => 'note');
+      vi.mocked(confirmModal).mockImplementation(async () => {
+        v.jump();
+        return true;
+      });
+
+      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(confirmModal).toHaveBeenCalled();
+      expect(v.selections()).toEqual([at(4, 3)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('puts back the caret when the overwrite prompt is declined', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(WF1, `${table('a', '1')}\n${table('b', '2')}`);
+      await fs.write(`${DIR}/001_WT020_A.labnote_table1.csv`, '\uFEFFb\n2\n');
+      const v = viewWith(() => 'note');
+      vi.mocked(confirmModal).mockImplementation(async () => {
+        v.jump();
+        return false;
+      });
+
+      await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(Notice.shown.at(-1)).toBe('No changes made.');
+      expect(v.selections()).toEqual([at(4, 3)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Putting the caret back once while the cleanup prompt was open, and then
+  // stopping, left it at 0:0 when the prompt closed.
+  it('keeps putting back the caret while the cleanup prompt is open and after it closes', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(README, 'no tables');
+      await fs.write(WF1, table('a', '1'));
+      await fs.write(`${DIR}/README.labnote_table1.csv`, '\uFEFFold\n');
+      const v = viewWith(() => 'note');
+      vi.mocked(confirmModal).mockImplementation(async () => {
+        v.jump();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setTimeout(v.jump, 200);
+        return false;
+      });
+
+      const done = exportExperimentTablesToCsv(plugin(), DIR);
+      await vi.advanceTimersByTimeAsync(1000);
+      await done;
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(confirmModal).toHaveBeenCalledTimes(1);
+      expect(v.selections()).toEqual([at(4, 3)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves the caret where the user moved it', async () => {
+    vi.useFakeTimers();
+    try {
+      await fs.write(README, 'no tables');
+      await fs.write(WF1, table('a', '1'));
+      await fs.write(`${DIR}/README.labnote_table1.csv`, '\uFEFFold\n');
+      const v = viewWith(() => 'note');
+      vi.mocked(confirmModal).mockImplementation(async () => {
+        v.editor.setSelections([at(2, 1)]);
+        return false;
+      });
+
+      await exportExperimentTablesToCsv(plugin(), DIR);
+      await vi.advanceTimersByTimeAsync(200);
+      v.jump();
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(v.selections()).toEqual([at(0, 0)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // #476: one CSV open in Excel stopped the whole export with an EBUSY error.
