@@ -4,7 +4,7 @@
  * Reuses the pure core helpers ({@link scanMarkdownTables},
  * {@link tableToCsv}); this module only handles vault I/O and user feedback.
  */
-import { MarkdownView, Notice, TFile } from 'obsidian';
+import { MarkdownView, Notice, TFile, type EditorPosition } from 'obsidian';
 import * as posix from '@labnoteo/core/posix';
 import {
   classifyCsvOverwrites,
@@ -218,42 +218,69 @@ async function writeNoteCsvExport(plugin: LabnotePlugin, plan: NoteCsvPlan): Pro
   return { written, locked, renamed, notRenamed: notRenamed.size };
 }
 
-/** How long after writing a moved caret is still put back, and how often it is checked. */
+/** How long after a write or a prompt a moved caret is still put back, and how often it is checked. */
 const CARET_WATCH_MS = 1500;
 const CARET_POLL_MS = 100;
 
+interface CaretGuard {
+  /** Put the caret back whenever it is at the top of the note in the next {@link CARET_WATCH_MS}. */
+  watch(): void;
+}
+
 /**
- * Run `write` and put the active editor's caret back if it jumped to the top
- * of the note while nothing was typed (#470): in source mode, writing a new
- * CSV left the caret at 0:0, so the next table typed went above the front
- * matter. The note itself is unchanged by an export, so a changed text means
- * the user is typing and is left alone.
+ * Keep the active editor's caret where it was when the export began (#470):
+ * in source mode, writing a new CSV or closing a prompt left the caret at 0:0,
+ * so the next table typed went above the front matter. Read before the first
+ * prompt, since the caret reads 0:0 while one is open. The note itself is
+ * unchanged by an export, so a changed text, another note, or a caret moved
+ * elsewhere means the user has taken over and is left alone.
  */
-async function keepingCaret<T>(plugin: LabnotePlugin, write: () => Promise<T>): Promise<T> {
+function guardCaret(plugin: LabnotePlugin): CaretGuard {
+  const idle: CaretGuard = { watch: () => {} };
   const view = plugin.app.workspace?.getActiveViewOfType(MarkdownView);
   const editor = view && view.getMode() === 'source' ? view.editor : undefined;
-  if (!view || !editor) return write();
+  if (!view || !editor) return idle;
   const atTop = (): boolean =>
     editor.listSelections().every(s => s.anchor.line === 0 && s.anchor.ch === 0 && s.head.line === 0 && s.head.ch === 0);
-  if (atTop()) return write();
+  if (atTop()) return idle;
   const file = view.file;
   const text = editor.getValue();
   const selections = editor.listSelections();
   const scroll = editor.getScrollInfo();
-  const result = await write();
-  // Watched in the background, so the export notice is not held up.
-  void (async () => {
-    for (let waited = 0; waited <= CARET_WATCH_MS; waited += CARET_POLL_MS) {
-      if (view.file !== file || editor.getValue() !== text) return;
-      if (atTop()) {
-        editor.setSelections(selections);
-        editor.scrollTo(scroll.left, scroll.top);
-        return;
-      }
-      await new Promise(resolve => setTimeout(resolve, CARET_POLL_MS));
-    }
-  })();
-  return result;
+  const samePos = (a: EditorPosition, b: EditorPosition): boolean => a.line === b.line && a.ch === b.ch;
+  const atSaved = (): boolean => {
+    const now = editor.listSelections();
+    return (
+      now.length === selections.length &&
+      now.every((s, i) => samePos(s.anchor, selections[i].anchor) && samePos(s.head, selections[i].head))
+    );
+  };
+  let released = false;
+  let run = 0;
+  return {
+    watch() {
+      if (released) return;
+      const id = ++run;
+      // Watched in the background, so the export notice is not held up.
+      void (async () => {
+        for (let waited = 0; waited <= CARET_WATCH_MS; waited += CARET_POLL_MS) {
+          if (id !== run || released) return;
+          if (view.file !== file || editor.getValue() !== text) {
+            released = true;
+            return;
+          }
+          if (atTop()) {
+            editor.setSelections(selections);
+            editor.scrollTo(scroll.left, scroll.top);
+          } else if (!atSaved()) {
+            released = true;
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, CARET_POLL_MS));
+        }
+      })();
+    },
+  };
 }
 
 /** CSVs named after `file` that no longer match one of its `tableCount` tables (#74). */
@@ -392,6 +419,7 @@ function renameText(plugin: LabnotePlugin, result: CsvWriteResult): string {
 }
 
 export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Promise<void> {
+  const caret = guardCaret(plugin);
   const plan = await planNoteCsvExport(plugin, file);
   const skipped = skippedText(plugin, [plan]);
   if (plan.outputs.length === 0) {
@@ -401,20 +429,24 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
       await staleCsvsOf(plugin, file, 0),
       await orphanCsvsIn(plugin, plan.dir)
     );
+    caret.watch();
     new Notice([plugin.t('No tables found in this note.'), skipped, cleanup].filter(Boolean).join(' '));
     return;
   }
   if (!(await confirmOverwrites(plugin, [plan]))) {
+    caret.watch();
     new Notice(plugin.t('No changes made.'));
     return;
   }
-  const result = await keepingCaret(plugin, () => writeNoteCsvExport(plugin, plan));
+  const result = await writeNoteCsvExport(plugin, plan);
+  caret.watch();
   const cleanup = await offerStaleCsvCleanup(
     plugin,
     plan.dir,
     await staleCsvsOf(plugin, file, plan.outputs.length),
     await orphanCsvsIn(plugin, plan.dir)
   );
+  caret.watch();
   const paths = plan.outputs.map(o => o.path);
   showExportNotice(
     [
@@ -440,6 +472,7 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
  * prompts are asked once for all of them.
  */
 export async function exportExperimentTablesToCsv(plugin: LabnotePlugin, dir: string): Promise<void> {
+  const caret = guardCaret(plugin);
   const names = (await plugin.fs.list(dir)).filter(n => /\.md$/i.test(n));
   const ordered = [
     ...names.filter(n => n === 'README.labnote.md'),
@@ -458,26 +491,28 @@ export async function exportExperimentTablesToCsv(plugin: LabnotePlugin, dir: st
   const withTables = plans.filter(p => p.outputs.length > 0);
   if (withTables.length === 0) {
     const cleanup = await cleanupAll();
+    caret.watch();
     new Notice(
       [plugin.t('No tables found in the notes of {0}.', posix.basename(dir)), skipped, cleanup].filter(Boolean).join(' ')
     );
     return;
   }
   if (!(await confirmOverwrites(plugin, withTables))) {
+    caret.watch();
     new Notice(plugin.t('No changes made.'));
     return;
   }
   const result: CsvWriteResult = { written: [], locked: [], renamed: [], notRenamed: 0 };
-  await keepingCaret(plugin, async () => {
-    for (const plan of withTables) {
-      const r = await writeNoteCsvExport(plugin, plan);
-      result.written.push(...r.written);
-      result.locked.push(...r.locked);
-      result.renamed.push(...r.renamed);
-      result.notRenamed += r.notRenamed;
-    }
-  });
+  for (const plan of withTables) {
+    const r = await writeNoteCsvExport(plugin, plan);
+    result.written.push(...r.written);
+    result.locked.push(...r.locked);
+    result.renamed.push(...r.renamed);
+    result.notRenamed += r.notRenamed;
+  }
+  caret.watch();
   const cleanup = await cleanupAll();
+  caret.watch();
   const paths = withTables.flatMap(p => p.outputs.map(o => o.path));
   const perNote = withTables.map(p => `${noteLabel(p.file)} ${p.outputs.length}`);
   const withoutTables = plans.length - withTables.length;
