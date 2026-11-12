@@ -22,7 +22,9 @@ export interface PagePayload extends NotePayload {
   unitOpIndex: number;
   /** The unit operation's ID (`UHW010`), or '' with `unitOpIndex` 0. */
   opId: string;
+  /** 1-based; {@link NO_PAGE} for a photo filed by hand that is no printed page (#576). */
   page: number;
+  /** {@link NO_PAGE} together with `page`. */
   pageCount: number;
   /** `YYYY-MM-DD`. */
   printedOn: string;
@@ -61,6 +63,19 @@ export function unitOpFingerprint(opName: string, alias: string): string {
   let out = '';
   for (let i = 0; i < 4; i++) out += BASE32[(hash >>> (i * 5)) & 31];
   return out;
+}
+
+/**
+ * The page number of a photo filed by hand that is not a printed page, such as
+ * a bench photo of tube labels (#576). Written `page=0/0`, which older
+ * releases still read, so a lab with mixed versions loses no entry. No QR code
+ * carries it: {@link decodeScanPayload} refuses page 0.
+ */
+export const NO_PAGE = 0;
+
+/** Whether a page or filed scan stands for a printed page, not a photo filed without one (#576). */
+export function hasPage(p: { page: number }): boolean {
+  return p.page >= 1;
 }
 
 export function isPagePayload(p: ScanPayload): p is PagePayload {
@@ -105,6 +120,6 @@ export function payloadLabel(p: ScanPayload): string {
   if (!isPagePayload(p)) return p.noteId;
   const parts = [p.noteId];
   if (p.opId) parts.push(p.opId);
-  parts.push(`${p.page}/${p.pageCount}`);
+  if (hasPage(p)) parts.push(`${p.page}/${p.pageCount}`);
   return parts.join(' · ');
 }

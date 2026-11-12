@@ -58,6 +58,8 @@ const obsidianKo: Record<string, string> = {
   '"{0}" is not a date the picker can read, so it starts at another time. Pick a date to replace it.':
     "'{0}'은(는) 날짜 선택기가 읽을 수 없는 값이라 다른 시각에서 시작합니다. 날짜를 고르면 그 값으로 바뀝니다.",
   'Pick date and time': '날짜 및 시간 선택',
+  Now: '지금',
+  'Fill in the current date and time': '현재 날짜와 시각으로 채웁니다',
   'Export tables to CSV': '표를 CSV로 내보내기',
   'Export all tables of this experiment to CSV': '이 실험의 표를 모두 CSV로 내보내기',
   'Open workflow view': '워크플로 뷰 열기',
@@ -522,6 +524,10 @@ const obsidianKo: Record<string, string> = {
   '(after the last unit operation)': '(마지막 유닛 오퍼레이션 다음)',
   'Save {0} anyway?': '그래도 {0}을(를) 저장할까요?',
   'Save anyway': '그래도 저장',
+  'Change location': '위치 고치기',
+  '{0} was not created.': '{0}을(를) 만들지 않았습니다.',
+  '{0} was not created. You had entered: {1}': '{0}을(를) 만들지 않았습니다. 입력했던 내용: {1}',
+  '{0} was not changed.': '{0}은(는) 바꾸지 않았습니다.',
   '{0} samples already have the alias {1} ({2}).': '{0} 시료 중에 이미 별칭 {1}이(가) 있습니다({2}).',
   '{0} is only listed in the sample list tables of notes ({1}). Its rows are removed with it.':
     '{0}은(는) 노트({1})의 시료 목록 표에만 있습니다. 표의 그 줄도 함께 지웁니다.',
@@ -779,16 +785,16 @@ const obsidianKo: Record<string, string> = {
     '{0}은(는) 공백이나 -가 있어 노트에서 자동완성되지 않습니다. 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
   '{0} is shown in italics in the reading view because of its _. It keeps working; rename it, e.g. {1}, if you have no samples of it yet.':
     '{0}은(는) _ 때문에 읽기 화면에서 기울임으로 보입니다. 계속 쓸 수는 있으며, 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
-  '{0}: differs from {1} only in letter case, so on Windows both would share one {Type}.json and their samples would mix. It was not saved.':
-    '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
+  '{0}: differs from {1} only in letter case, so on Windows both would share {2} and their samples would mix. It was not saved.':
+    '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 대장 파일 {2}을(를) 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
   '{0}: only the letter case of {1} changed. Its samples and the IDs already written in notes keep {1}, so the change was not saved.':
     '{0}: {1}의 대소문자만 바꿨습니다. 이 타입의 시료와 노트에 이미 쓴 ID는 {1} 철자를 쓰므로 바꾸지 않고 저장된 이름을 유지했습니다.',
-  '{0} differs from {1} only in letter case: on Windows both share one {Type}.json, so their samples mix. Keep one of them.':
-    '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞이니 하나만 남기세요.',
-  '{0}: Windows keeps this name for a device, so its {Type}.json cannot be made there. It was not saved. Use another name, such as {1}.':
-    '{0}: Windows가 장치 이름으로 쓰는 이름이라 그 {Type}.json을 만들 수 없어 저장하지 않았습니다. {1}처럼 다른 이름을 쓰세요.',
-  '{0} is a name Windows keeps for devices: its {Type}.json cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.':
-    '{0}은(는) Windows가 장치 이름으로 쓰는 이름입니다. 그 {Type}.json은 Windows에서 만들거나 받아 올 수 없어 git이 멈춥니다. 타입 변경으로 시료를 다른 타입으로 옮긴 뒤 이 이름을 지우세요.',
+  '{0} differs from {1} only in letter case: on Windows both share {2}, so their samples mix. Keep one of them.':
+    '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 대장 파일 {2}을(를) 함께 써 시료가 섞이니 하나만 남기세요.',
+  '{0}: Windows keeps this name for a device, so {2} cannot be made there. It was not saved. Use another name, such as {1}.':
+    '{0}: Windows가 장치 이름으로 쓰는 이름이라 대장 파일 {2}을(를) 만들 수 없어 저장하지 않았습니다. {1}처럼 다른 이름을 쓰세요.',
+  '{0} is a name Windows keeps for devices: {1} cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.':
+    '{0}은(는) Windows가 장치 이름으로 쓰는 이름입니다. 대장 파일 {1}은(는) Windows에서 만들거나 받아 올 수 없어 git이 멈춥니다. 타입 변경으로 시료를 다른 타입으로 옮긴 뒤 이 이름을 지우세요.',
   '{0}: {1} sample(s)': '{0}: 샘플 {1}개',
   'Samples of the removed sample type(s) will no longer show:\n\n{0}\n\nPut the type(s) back in the list?':
     '빠진 타입의 샘플이 더 이상 보이지 않게 됩니다:\n\n{0}\n\n그 타입을 목록에 다시 넣을까요?',
@@ -999,6 +1005,12 @@ const obsidianKo: Record<string, string> = {
   "These notes' title and heading do not match their file names. Update them?":
     '아래 노트의 title과 제목이 파일 이름과 맞지 않습니다. 노트를 고칠까요?',
   'Update notes': '노트 고치기',
+  'Fill in the experimenter': '실험자 채우기',
+  'front matter experimenter': '머리말 experimenter',
+  'Lines before the first unit operation': '첫 유닛 오퍼레이션 앞의 줄',
+  'no Start_date': 'Start_date 없음',
+  'Untick the unit operations the README author did not run, such as ones started before a person joined.':
+    'README의 author가 하지 않은 유닛 오퍼레이션(새 사람이 합류하기 전에 시작한 것 등)은 체크를 끄세요.',
   'These notes name no experimenter. Fill in the README author?':
     '아래 노트에 실험자(experimenter)가 비어 있습니다. README의 author로 채울까요?',
   'Experimenter: {0}, from the note front matter; the README author is {1}.':
@@ -1134,6 +1146,8 @@ const obsidianKo: Record<string, string> = {
     '스캔 이미지 {0}개는 {1}에 남았습니다: {2}에 같은 이름의 파일이 있거나 옮기지 못했습니다.',
   'Printout {0}/{1} · printed {2} · imported {3} · {4}': '출력본 {0}/{1} · {2} 출력 · {3} 가져옴 · {4}',
   'Printout {0}/{1} · imported {2} · {3}': '출력본 {0}/{1} · {2} 가져옴 · {3}',
+  'No page · imported {0} · {1}': '쪽 없음 · {0} 가져옴 · {1}',
+  'No page · printed {0} · imported {1} · {2}': '쪽 없음 · {0} 출력 · {1} 가져옴 · {2}',
   'Print date': '출력일',
   'When was this page printed (YYYY-MM-DD)? Leave it empty if you do not know or it was never printed.':
     '이 페이지를 언제 출력했나요(YYYY-MM-DD)? 모르거나 출력한 적 없는 종이면 비워 두세요.',
@@ -1172,6 +1186,8 @@ const obsidianKo: Record<string, string> = {
   'Assign it with "{0}".': '"{0}"(으)로 할당하세요.',
   'Open note': '노트 열기',
   'Delete earlier scan': '이전 스캔 삭제',
+  'Delete the earlier scan of this page? Its entry leaves the note and its image goes to the trash.':
+    '이 페이지의 이전 스캔을 지울까요? 노트에서 항목이 빠지고 이미지는 휴지통으로 갑니다.',
   'This page was filed before; remove the earlier scan and its image.': '이 페이지는 전에도 붙였습니다. 이전 스캔과 이미지를 지웁니다.',
   'Removed {0} earlier scan(s).': '이전 스캔 {0}개를 지웠습니다.',
   Undo: '되돌리기',
@@ -1190,8 +1206,9 @@ const obsidianKo: Record<string, string> = {
   'The whole note (no unit operation)': '노트 전체(유닛 오퍼레이션 없음)',
   'Assign to which unit operation?': '어느 유닛 오퍼레이션에 할당할까요?',
   Page: '페이지',
-  'Page number on the printout, e.g. 2/3': '출력본의 페이지 번호(예: 2/3)',
-  'Enter a page like 2/3.': '2/3처럼 입력하세요.',
+  'Page number on the printout, e.g. 2/3. Leave it empty for a photo that is not a printed page.':
+    '출력본의 페이지 번호(예: 2/3). 기록지가 아닌 사진이면 비워 두세요.',
+  'Enter a page like 2/3, or leave it empty.': '2/3처럼 입력하거나 비워 두세요.',
   'Drop photos or scans of printed worksheets here: JPEG, PNG, PDF (several pages are fine) or a zip of them. Each page is filed in its note by its QR code.':
     '출력한 기록지의 사진이나 스캔을 여기에 끌어다 놓으세요. JPEG, PNG, PDF(여러 쪽 가능), 또는 이들을 묶은 zip을 받습니다. 페이지마다 QR 코드를 읽어 해당 노트에 붙입니다.',
   'Drop files here, or click to choose': '여기에 파일을 끌어다 놓거나 클릭해서 고르세요',

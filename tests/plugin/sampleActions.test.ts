@@ -178,6 +178,57 @@ describe('createSampleInteractive', () => {
       );
     });
 
+    // #572: declining dropped the alias and description along with the slot.
+    it('goes back to the location with what was typed when the slot is declined', async () => {
+      vi.mocked(confirmModal).mockResolvedValueOnce(false);
+      answer('R1', 'first run', '-80 / P1 / A1', '-80 / P1 / A2');
+
+      const created = await add();
+
+      expect(vi.mocked(promptModal).mock.calls[3][1]).toMatchObject({ value: '-80 / P1 / A1' });
+      expect(vi.mocked(confirmModal).mock.calls[0][3]).toMatchObject({ cancelLabel: 'Change location', focusCancel: true });
+      expect(JSON.parse(await fs.read(REGISTRY))[created!.id]).toMatchObject({
+        alias: 'R1',
+        descriptions: ['first run'],
+        location: '-80 / P1 / A2',
+      });
+    });
+
+    it('says what was not saved when the location is closed after declining the slot', async () => {
+      Notice.reset();
+      vi.mocked(confirmModal).mockResolvedValueOnce(false);
+      answer('R1', 'first run', '-80 / P1 / A1', undefined);
+
+      expect(await add()).toBeUndefined();
+
+      expect(Object.keys(JSON.parse(await fs.read(REGISTRY)))).toEqual(['RNA-9']);
+      expect(Notice.shown).toContainEqual(
+        expect.stringMatching(/^R1 \(RNA-[\d-]+\) was not created\. You had entered: R1 · first run$/)
+      );
+    });
+
+    it('stays quiet when the location is closed without a slot being declined', async () => {
+      Notice.reset();
+      answer('R1', 'first run', undefined);
+
+      expect(await add()).toBeUndefined();
+      expect(Notice.shown.filter(m => m.includes('was not created'))).toEqual([]);
+    });
+
+    it('goes back to the location on an edit too, keeping the stored one when closed', async () => {
+      Notice.reset();
+      await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: 'moving', description: null, location: '4도' });
+      const record = (await loadSamplesByType(fs, FOLDER, 'RNA'))['RNA-1'];
+      vi.mocked(confirmModal).mockResolvedValueOnce(false);
+      answer('moving', '', '-80 / P1 / A1', undefined);
+
+      expect(await editSampleInteractive(new App(), plugin, { type: 'RNA', folder: FOLDER, id: 'RNA-1', record })).toBe(false);
+
+      expect(vi.mocked(promptModal).mock.calls[3][1]).toMatchObject({ value: '-80 / P1 / A1' });
+      expect(JSON.parse(await fs.read(REGISTRY))['RNA-1'].location).toBe('4도');
+      expect(Notice.shown).toContain('moving (RNA-1) was not changed.');
+    });
+
     // #553: Edit sample takes the same route, and named only IDs there too.
     it('names the aliases when an edit moves a sample into a taken slot', async () => {
       await upsertSampleRecord(fs, FOLDER, 'RNA', 'RNA-1', { alias: 'moving', description: null, location: '4도' });

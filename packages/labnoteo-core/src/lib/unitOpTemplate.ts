@@ -68,16 +68,20 @@ function buildHwEquipmentContent(meta: UnitOpMeta): string {
 /**
  * Build the section array for a Software Unit Operation, used by the
  * Section Editor when appending a new unit op object to the document model.
+ *
+ * Ordered like a hardware unit op (#575): what goes in, what it runs with,
+ * how, then what comes out and how it went. {@link buildSwUnitOpMarkdown}
+ * writes the same order.
  */
 export function buildSwUnitOpSections(meta: UnitOpMeta): UnitOpSection[] {
   return [
     { heading: 'Meta', content: buildSwMetaContent(meta) },
     { heading: 'Input', content: SW_PLACEHOLDERS.Input },
-    { heading: 'Output', content: SW_PLACEHOLDERS.Output },
     { heading: 'Parameters', content: SW_PLACEHOLDERS.Parameters },
-    { heading: 'QC Metrics', content: SW_PLACEHOLDERS['QC Metrics'] },
-    { heading: 'Method', content: SW_PLACEHOLDERS.Method },
     { heading: 'Environment', content: SW_PLACEHOLDERS.Environment },
+    { heading: 'Method', content: SW_PLACEHOLDERS.Method },
+    { heading: 'Output', content: SW_PLACEHOLDERS.Output },
+    { heading: 'QC Metrics', content: SW_PLACEHOLDERS['QC Metrics'] },
     { heading: 'Discussion', content: SW_PLACEHOLDERS.Discussion },
   ];
 }
@@ -131,20 +135,20 @@ ${softwareLine}
 #### Input
 ${SW_PLACEHOLDERS.Input}
 
-#### Output
-${SW_PLACEHOLDERS.Output}
-
 #### Parameters
 ${SW_PLACEHOLDERS.Parameters}
 
-#### QC Metrics
-${SW_PLACEHOLDERS['QC Metrics']}
+#### Environment
+${SW_PLACEHOLDERS.Environment}
 
 #### Method
 ${SW_PLACEHOLDERS.Method}
 
-#### Environment
-${SW_PLACEHOLDERS.Environment}
+#### Output
+${SW_PLACEHOLDERS.Output}
+
+#### QC Metrics
+${SW_PLACEHOLDERS['QC Metrics']}
 
 #### Discussion
 ${SW_PLACEHOLDERS.Discussion}

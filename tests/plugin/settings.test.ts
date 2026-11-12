@@ -5,11 +5,13 @@
  * and the pre-schema `llmEndpoint` split lands on the right provider field.
  */
 import { describe, it, expect } from 'vitest';
+import { createObsidianTranslator } from '../../src/i18n';
 import {
   countSampleRecords,
   migrateSettings,
   parseRangedNumber,
   partitionCustomSampleTypes,
+  registryFileNames,
   removedCustomSampleTypes,
   DEFAULT_SETTINGS,
   CURRENT_SCHEMA_VERSION,
@@ -44,6 +46,20 @@ describe('partitionCustomSampleTypes', () => {
     expect(kept.save).toEqual(['CON', 'Strain']);
     expect(kept.legacyReserved).toEqual(['CON']);
     expect(kept.reserved).toEqual([]);
+  });
+
+  // #573: the notice named the pattern `{Type}.json` instead of the file.
+  it('names the registry files a refused type would need', () => {
+    expect(registryFileNames(['NUL', 'prn', 'NUL'])).toBe('NUL.json, prn.json');
+    const t = createObsidianTranslator('ko');
+    const notice = t(
+      '{0}: Windows keeps this name for a device, so {2} cannot be made there. It was not saved. Use another name, such as {1}.',
+      'NUL',
+      'NULSample',
+      registryFileNames(['NUL'])
+    );
+    expect(notice).toContain('NUL.json');
+    expect(notice).not.toMatch(/{[A-Za-z0-9]+}/);
   });
 
   // #252: `무세포_용해물` reads as italics in the reading view, so the type no longer matches.

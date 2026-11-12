@@ -320,6 +320,8 @@ export class BarcodeFeature {
           this.offerResultsAgain(open);
         },
         openUnmatched: () => this.openUnmatched(),
+        confirmDelete: message =>
+          this.host.confirm(message, { confirmLabel: this.t('Delete earlier scan'), destructive: true }),
       }).open();
     if (manual) {
       open();

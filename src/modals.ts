@@ -6,7 +6,7 @@
  * ordinary `await` control flow, exactly as it does with the VS Code host.
  */
 import { App, Component, MarkdownRenderer, Modal, Notice, SuggestModal, Setting } from 'obsidian';
-import type { PickItem, PromptHint, PromptOpts } from '@labnoteo/core';
+import type { PickItem, PickManyOpts, PromptHint, PromptOpts } from '@labnoteo/core';
 import { createObsidianTranslator } from './i18n';
 
 // Module-level translator for the generic button labels ('OK'/'Cancel') these
@@ -192,7 +192,7 @@ class PickManyModal<T> extends Modal {
     app: App,
     private readonly items: PickItem<T>[],
     private readonly resolve: (values: T[]) => void,
-    private readonly opts?: { title?: string; placeholder?: string }
+    private readonly opts?: PickManyOpts
   ) {
     super(app);
   }
@@ -200,6 +200,7 @@ class PickManyModal<T> extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     if (this.opts?.title) this.setTitle(this.opts.title);
+    if (this.opts?.message) contentEl.createEl('p', { text: this.opts.message, cls: 'labnote-confirm-message' });
 
     this.items.forEach((item, idx) => {
       if (item.checked) this.selected.add(idx);
@@ -216,11 +217,11 @@ class PickManyModal<T> extends Modal {
 
     new Setting(contentEl).addButton(b =>
       b
-        .setButtonText(t('OK'))
+        .setButtonText(this.opts?.confirmLabel ?? t('OK'))
         .setCta()
         .onClick(() => {
           this.resolved = true;
-          this.resolve([...this.selected].map(i => this.items[i].value));
+          this.resolve([...this.selected].sort((a, b) => a - b).map(i => this.items[i].value));
           this.close();
         })
     );
@@ -232,11 +233,7 @@ class PickManyModal<T> extends Modal {
   }
 }
 
-export function pickManyModal<T>(
-  app: App,
-  items: PickItem<T>[],
-  opts?: { title?: string; placeholder?: string }
-): Promise<T[]> {
+export function pickManyModal<T>(app: App, items: PickItem<T>[], opts?: PickManyOpts): Promise<T[]> {
   return new Promise(resolve => new PickManyModal(app, items, resolve, opts).open());
 }
 
@@ -341,7 +338,9 @@ class ConfirmModal extends Modal {
     private readonly message: string,
     private readonly confirmLabel: string,
     private readonly resolve: (ok: boolean) => void,
-    private readonly destructive = false
+    private readonly destructive = false,
+    private readonly cancelLabel?: string,
+    private readonly focusCancel = false
   ) {
     super(app);
   }
@@ -360,14 +359,14 @@ class ConfirmModal extends Modal {
         else b.setCta();
       })
       .addButton(b => {
-        b.setButtonText(t('Cancel')).onClick(() => {
+        b.setButtonText(this.cancelLabel ?? t('Cancel')).onClick(() => {
           this.resolved = true;
           this.resolve(false);
           this.close();
         });
         // Obsidian focuses the first button, so Enter would run a deletion or
         // a move that breaks references before the warning is read (#198).
-        if (this.destructive) window.setTimeout(() => b.buttonEl.focus(), 0);
+        if (this.destructive || this.focusCancel) window.setTimeout(() => b.buttonEl.focus(), 0);
       });
   }
 
@@ -380,15 +379,17 @@ class ConfirmModal extends Modal {
 /**
  * Aborting `signal` closes the dialog, which then resolves false.
  * `destructive` focuses Cancel, so Enter does not confirm something that
- * cannot be undone.
+ * cannot be undone. `cancelLabel` names the second button when declining
+ * leads somewhere (#572), and `focusCancel` makes it the default without the
+ * warning colour of `destructive`.
  */
 export function confirmModal(
   app: App,
   message: string,
   confirmLabel = 'Yes',
-  opts: { signal?: AbortSignal; destructive?: boolean } = {}
+  opts: { signal?: AbortSignal; destructive?: boolean; cancelLabel?: string; focusCancel?: boolean } = {}
 ): Promise<boolean> {
-  const { signal, destructive } = opts;
+  const { signal, destructive, cancelLabel, focusCancel } = opts;
   if (signal?.aborted) return Promise.resolve(false);
   return new Promise(resolve => {
     const modal = new ConfirmModal(
@@ -399,7 +400,9 @@ export function confirmModal(
         signal?.removeEventListener('abort', onAbort);
         resolve(ok);
       },
-      destructive
+      destructive,
+      cancelLabel,
+      focusCancel
     );
     const onAbort = (): void => modal.close();
     signal?.addEventListener('abort', onAbort);

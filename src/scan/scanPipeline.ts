@@ -18,7 +18,7 @@ import {
 } from '@labnoteo/core';
 import { getSeoulDateString } from '@labnoteo/core/lib/dateUtils';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
-import { isPagePayload, unitOpFingerprint, type PagePayload, type ScanPayload } from '@labnoteo/core/lib/scanPayload';
+import { hasPage, isPagePayload, unitOpFingerprint, type PagePayload, type ScanPayload } from '@labnoteo/core/lib/scanPayload';
 import * as posix from '@labnoteo/core/posix';
 import { processNoteThroughVault } from '../commands';
 import type { NoteIdService } from '../barcode/noteIdService';
@@ -247,8 +247,17 @@ export class ScanPipeline {
     batchHashes.add(page.hash);
 
     const unitOpIndex = target.kind === 'block' ? target.block.index : 0;
+    // A photo filed without a page is no page of the printout: it is never
+    // taken for an earlier scan of one, nor one for it (#576).
     const previous = filed
-      .filter(s => s.unitOpIndex === unitOpIndex && s.page === payload.page && s.hash !== page.hash)
+      .filter(
+        s =>
+          s.unitOpIndex === unitOpIndex &&
+          hasPage(s) &&
+          hasPage(payload) &&
+          s.page === payload.page &&
+          s.hash !== page.hash
+      )
       .map(s => ({ hash: s.hash, embed: s.embed }));
     // A deleted image's name stays taken while an entry still links it (#433).
     const linked = new Set(
@@ -317,6 +326,12 @@ export class ScanPipeline {
 
   private caption(payload: PagePayload, page: Pick<DecodedPage, 'source' | 'sourcePage'>): string {
     const source = page.sourcePage ? `${page.source} p.${page.sourcePage}` : page.source;
+    // A photo filed without a page says so instead of claiming page 1/1 (#576).
+    if (!hasPage(payload)) {
+      return payload.printedOn
+        ? this.deps.t('No page · printed {0} · imported {1} · {2}', payload.printedOn, getSeoulDateString(), source)
+        : this.deps.t('No page · imported {0} · {1}', getSeoulDateString(), source);
+    }
     if (!payload.printedOn) {
       return this.deps.t(
         'Printout {0}/{1} · imported {2} · {3}',
@@ -469,16 +484,29 @@ export class ScanPipeline {
     return removed;
   }
 
+  /**
+   * The images of the earlier scans of the page `result` filed, which
+   * {@link removePrevious} trashes; named in the question before (#576).
+   */
+  previousImages(result: ScanResult): TFile[] {
+    const { app } = this.deps;
+    const notePath = result.notePath;
+    if (!notePath || !result.previous?.length) return [];
+    return (
+      result.previous
+        .map(p => embedLinkPath(p.embed))
+        .map(link => (link ? app.metadataCache.getFirstLinkpathDest(link, notePath) : null))
+        // An earlier entry may link the name this scan's image took (#433).
+        .filter((f): f is TFile => f instanceof TFile && f.path !== result.imagePath)
+    );
+  }
+
   /** Remove the earlier scans of the page `result` filed (and trash their images). */
   async removePrevious(result: ScanResult): Promise<number> {
     const { app, host } = this.deps;
     if (!result.notePath || !result.previous?.length) return 0;
     const notePath = result.notePath;
-    const images = result.previous
-      .map(p => embedLinkPath(p.embed))
-      .map(link => (link ? app.metadataCache.getFirstLinkpathDest(link, notePath) : null))
-      // An earlier entry may link the name this scan's image took (#433).
-      .filter((f): f is TFile => f instanceof TFile && f.path !== result.imagePath);
+    const images = this.previousImages(result);
     let count = 0;
     await processNoteThroughVault(app, host, notePath, content => {
       count = 0;

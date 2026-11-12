@@ -9,7 +9,7 @@ import { buildHwUnitOpMarkdown } from '../../packages/labnoteo-core/src/lib/unit
 import { readNoteId } from '../../packages/labnoteo-core/src/lib/noteId';
 import { findUnitOpInsertOffset, rebuildUnitOpToc } from '../../packages/labnoteo-core/src/sections/workflowSectionParser';
 import { listFiledScans } from '../../packages/labnoteo-core/src/sections/scanInsert';
-import { unitOpFingerprint, type PagePayload, type ScanPayload } from '../../packages/labnoteo-core/src/lib/scanPayload';
+import { NO_PAGE, unitOpFingerprint, type PagePayload, type ScanPayload } from '../../packages/labnoteo-core/src/lib/scanPayload';
 import { NoteIdService } from '../../src/barcode/noteIdService';
 import {
   ScanPipeline,
@@ -19,7 +19,7 @@ import {
   type PageDecoder,
   type ScanInput,
 } from '../../src/scan/scanPipeline';
-import { isDateInput, listUnmatched } from '../../src/scan/unmatchedModal';
+import { isDateInput, listUnmatched, parsePageInput } from '../../src/scan/unmatchedModal';
 
 const EXP = 'labnote/001_Assay';
 const NOTE = `${EXP}/001_WD010_Design.labnote.md`;
@@ -499,6 +499,60 @@ describe('ScanPipeline.fileManually', () => {
     expect(again.map(r => r.status)).toEqual(['duplicate']);
   });
 
+  // #576: a bench photo had to be page 1/1, and the real page 1/1 then offered to delete it.
+  describe('a photo filed without a page', () => {
+    const NO_PAGE_AT = { page: NO_PAGE, pageCount: NO_PAGE };
+
+    function photoSetup() {
+      const s = setup(
+        { [NOTE]: buildNote(ID, ['UHW010', 'UHW020']) },
+        { 'sheet.jpg': [page(pagePayload({ pageCount: 1 }), 'cccccccccccc')] }
+      );
+      s.binary.set(QUEUED, new Uint8Array([9, 9, 9]).buffer);
+      return s;
+    }
+
+    it('is written as no page, after the printed pages, and says so in its caption', async () => {
+      const s = photoSetup();
+      const photo = await s.pipeline.fileManually(file(QUEUED), file(NOTE), 2, NO_PAGE_AT);
+      expect(photo.status).toBe('filed');
+      const text = s.text.get(NOTE)!;
+      expect(text).toMatch(/<!-- labnoteo-scan page=0\/0 sha=[0-9a-f]+ -->/);
+      expect(text).toMatch(/\*No page · imported \d{4}-\d{2}-\d{2} · photo1\.jpg\*/);
+      expect(text).not.toContain('Printout');
+
+      const [sheet] = await s.pipeline.run([input('sheet.jpg')]);
+      expect(sheet).toMatchObject({ status: 'filed', previous: [] });
+      expect(listFiledScans(s.text.get(NOTE)!).map(f => [f.page, f.pageCount])).toEqual([
+        [1, 1],
+        [0, 0],
+      ]);
+    });
+
+    it('is not offered for deletion as the earlier scan of page 1, nor offers page 1 itself', async () => {
+      const s = photoSetup();
+      await s.pipeline.run([input('sheet.jpg')]);
+      const photo = await s.pipeline.fileManually(file(QUEUED), file(NOTE), 2, NO_PAGE_AT);
+      expect(photo).toMatchObject({ status: 'filed', previous: [] });
+    });
+
+    it('keeps its print date when one was given', async () => {
+      const s = photoSetup();
+      await s.pipeline.fileManually(file(QUEUED), file(NOTE), 2, NO_PAGE_AT, '2026-09-30');
+      expect(s.text.get(NOTE)!).toContain('*No page · printed 2026-09-30 · imported ');
+    });
+  });
+
+  it('names the images Delete earlier scan would trash', async () => {
+    const s = setup(
+      { [NOTE]: buildNote(ID, ['UHW010', 'UHW020']) },
+      { 'old.jpg': [page(pagePayload(), 'aaaaaaaaaaaa')], 'new.jpg': [page(pagePayload(), 'bbbbbbbbbbbb')] }
+    );
+    const [old] = await s.pipeline.run([input('old.jpg')]);
+    const [next] = await s.pipeline.run([input('new.jpg')]);
+    expect(s.pipeline.previousImages(next).map(f => f.path)).toEqual([old.imagePath]);
+  });
+
   it('writes the print date the user gave', async () => {
     const s = manualSetup();
     await s.pipeline.fileManually(file(QUEUED), file(NOTE), 1, { page: 1, pageCount: 1 }, '2026-09-30');
@@ -521,6 +575,22 @@ describe('ScanPipeline.fileManually', () => {
     expect(result).toEqual({ source: '20261021-021800_unknown_photo2.jpg', status: 'skipped', reason: 'cancelled' });
     expect(s.text.get(NOTE)).toBe(lost);
     expect(s.binary.has(SECOND)).toBe(true);
+  });
+});
+
+describe('parsePageInput', () => {
+  it('reads a page of a count, or a lone page as the last one', () => {
+    expect(parsePageInput('2/3')).toEqual({ page: 2, pageCount: 3 });
+    expect(parsePageInput(' 2 / 3 ')).toEqual({ page: 2, pageCount: 3 });
+    expect(parsePageInput('2')).toEqual({ page: 2, pageCount: 2 });
+  });
+
+  // #576: an empty page is a photo without one, which the prompt handles, not a page here.
+  it('refuses an empty value, page 0, and a page past the count', () => {
+    expect(parsePageInput('')).toBeUndefined();
+    expect(parsePageInput('0/0')).toBeUndefined();
+    expect(parsePageInput('4/3')).toBeUndefined();
+    expect(parsePageInput('a/b')).toBeUndefined();
   });
 });
 

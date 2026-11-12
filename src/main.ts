@@ -311,6 +311,8 @@ export default class LabnotePlugin extends Plugin {
     this.registerEditorExtension(
       createMetaDatePickerExtension({
         pick: this.t('Pick date and time'),
+        now: this.t('Now'),
+        nowTooltip: this.t('Fill in the current date and time'),
         endBeforeStart: (end, start) => this.t('End_date {0} is earlier than Start_date {1}.', end, start),
         implausibleYear: this.t('Only years 1900–2100 are written; the date in the note was kept.'),
         unreadable: value =>

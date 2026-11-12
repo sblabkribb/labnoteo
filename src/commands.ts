@@ -115,6 +115,7 @@ import {
   parseWorkflowFileName,
   planWorkflowRetitle,
   planWorkflowExperimenterSync,
+  type ExperimenterSyncBlock,
   unitOpsAllEnded,
   workflowLabelFor,
   type WorkflowRename,
@@ -2257,20 +2258,51 @@ export async function syncWorkflowChecklistCommand(
         return `- ${e.name}: ${e.from || host.t('(empty)')} → ${e.to} (${counts})`;
       })
       .join('\n');
-    const ok = await host.confirm(
-      `${host.t('These notes name no experimenter. Fill in the README author?')}\n\n${list}`,
-      { confirmLabel: host.t('Update notes') }
-    );
-    if (ok) {
-      for (const { name } of experimenters) {
-        const changed = await processNoteThroughVault(
-          app,
-          host,
-          posix.join(labnoteDir, name),
-          content => planWorkflowExperimenterSync(content, author, now)?.content ?? content
-        );
-        if (changed) updatedNotes.add(name);
-      }
+    // Each part is chosen apart (#574): a person added to the author later did
+    // not run the unit operations started before they joined.
+    type Part = { note: string; frontMatter: true } | { note: string; block: ExperimenterSyncBlock };
+    const items: PickItem<Part>[] = experimenters.flatMap(e => [
+      {
+        label: `${e.name} · ${host.t('front matter experimenter')}`,
+        description: `${e.from || host.t('(empty)')} → ${e.to}`,
+        checked: true,
+        value: { note: e.name, frontMatter: true } as Part,
+      },
+      ...e.blocks.map(block => ({
+        label: block.ordinal === 0 ? host.t('Lines before the first unit operation') : block.name,
+        description: [
+          e.name,
+          block.startDate ? `Start_date ${block.startDate}` : host.t('no Start_date'),
+          host.t('{0} unit operation line(s)', String(block.lines)),
+        ].join(' · '),
+        checked: true,
+        value: { note: e.name, block } as Part,
+      })),
+    ]);
+    const picked = await host.pickMany(items, {
+      title: host.t('Fill in the experimenter'),
+      message: [
+        host.t('These notes name no experimenter. Fill in the README author?'),
+        host.t('Untick the unit operations the README author did not run, such as ones started before a person joined.'),
+        '',
+        list,
+      ].join('\n'),
+      confirmLabel: host.t('Update notes'),
+    });
+    for (const { name } of experimenters) {
+      const mine = picked.filter(p => p.note === name);
+      if (mine.length === 0) continue;
+      const only = {
+        frontMatter: mine.some(p => 'frontMatter' in p),
+        blocks: mine.flatMap(p => ('block' in p ? [p.block] : [])),
+      };
+      const changed = await processNoteThroughVault(
+        app,
+        host,
+        posix.join(labnoteDir, name),
+        content => planWorkflowExperimenterSync(content, author, now, only)?.content ?? content
+      );
+      if (changed) updatedNotes.add(name);
     }
   }
   const notesUpdated = updatedNotes.size;

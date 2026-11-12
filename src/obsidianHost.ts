@@ -17,6 +17,7 @@ import type {
   LabnoteHost,
   EditTarget,
   PickItem,
+  PickManyOpts,
   PromptOpts,
   NotifyKind,
   LabnoteFs,
@@ -143,7 +144,7 @@ export function createObsidianHost(
       return pickModal(app, items, opts);
     },
 
-    pickMany<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string }) {
+    pickMany<T>(items: PickItem<T>[], opts?: PickManyOpts) {
       return pickManyModal(app, items, opts);
     },
 

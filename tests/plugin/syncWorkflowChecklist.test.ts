@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import type { App } from 'obsidian';
 import { TFile } from '../stubs/obsidian';
-import type { LabnoteHost } from '@labnoteo/core';
+import type { LabnoteHost, PickItem, PickManyOpts } from '@labnoteo/core';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
 import { parseWorkflowChecklistFromReadme } from '../../packages/labnoteo-core/src/lib/workflowStructure';
 import {
@@ -25,7 +25,11 @@ const MOVED_IN = '001_WT030_Seq_moved.labnote.md';
 const readme = (entries: string[]) =>
   ['# Target', '', '## 🗂️ Related Workflows', '', ...entries, '', '## Summary', '', '요약.', ''].join('\n');
 
-function harness(files: Record<string, string>, answer: boolean) {
+/**
+ * `answer` is the reply to every confirmation; a multi-select keeps its ticked
+ * items on true and returns none on false, unless `untick` drops some (#574).
+ */
+function harness(files: Record<string, string>, answer: boolean, untick: (label: string) => boolean = () => false) {
   const fs = new MemFileSystem(files);
   const calls: string[] = [];
   const prompts: string[] = [];
@@ -55,6 +59,12 @@ function harness(files: Record<string, string>, answer: boolean) {
     confirm: async (message: string) => {
       prompts.push(message);
       return answer;
+    },
+    pickMany: async <T,>(items: PickItem<T>[], opts?: PickManyOpts) => {
+      prompts.push(
+        [opts?.title, opts?.message, ...items.map(i => `[${i.checked ? 'x' : ' '}] ${i.label} — ${i.description}`)].join('\n')
+      );
+      return answer ? items.filter(i => i.checked && !untick(i.label)).map(i => i.value) : [];
     },
     notify: (_level: string, msg: string) => calls.push(`notify ${msg}`),
   } as unknown as LabnoteHost;
@@ -330,6 +340,56 @@ describe('syncWorkflowChecklistCommand', () => {
       await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
       expect(await h.fs.read(`${DIR}/${REGISTERED}`)).toBe(NOTE);
       expect(h.calls.at(-1)).toBe('notify No changes made.');
+    });
+
+    // #574: a person added to the author later did not run the unit ops started before.
+    describe('each unit operation chosen apart', () => {
+      const LONG = [
+        '---',
+        'title: WD030 Design',
+        "experimenter: ''",
+        '---',
+        '',
+        '## [WD030 Design]',
+        '',
+        '### [UHW380 Microplate Reading]',
+        '#### Meta',
+        '- Experimenter: ',
+        "- Start_date: '2026-10-18 20:21'",
+        "- End_date: ''",
+        '',
+        '### [UHW390 Gel]',
+        '#### Meta',
+        '- Experimenter: ',
+        "- Start_date: '2026-11-07 09:00'",
+        "- End_date: ''",
+        '',
+      ].join('\n');
+      const longFiles = {
+        [README]: `---\nauthor: [김테크, 이포닥]\n---\n\n${readme([`- [ ] [WD030 Design](./${REGISTERED})`])}`,
+        [`${DIR}/${REGISTERED}`]: LONG,
+      };
+
+      it('lists each unit operation with its Start_date, all ticked', async () => {
+        const h = harness(longFiles, false);
+        await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+        expect(h.prompts[0]).toContain(`[x] ${REGISTERED} · front matter experimenter — (empty) → 김테크, 이포닥`);
+        expect(h.prompts[0]).toContain(
+          `[x] [UHW380 Microplate Reading] — ${REGISTERED} · Start_date 2026-10-18 20:21 · 1 unit operation line(s)`
+        );
+        expect(h.prompts[0]).toContain(
+          `[x] [UHW390 Gel] — ${REGISTERED} · Start_date 2026-11-07 09:00 · 1 unit operation line(s)`
+        );
+      });
+
+      it('leaves an unticked unit operation empty and fills the rest', async () => {
+        const h = harness(longFiles, true, label => label === '[UHW380 Microplate Reading]');
+        await syncWorkflowChecklistCommand(h.app, h.host, h.sync, DIR);
+        const out = await h.fs.read(`${DIR}/${REGISTERED}`);
+        expect(out).toContain('experimenter: 김테크, 이포닥');
+        expect(out).toContain("### [UHW380 Microplate Reading]\n#### Meta\n- Experimenter: \n- Start_date: '2026-10-18 20:21'");
+        expect(out).toContain('### [UHW390 Gel]\n#### Meta\n- Experimenter: 김테크, 이포닥\n');
+      });
     });
   });
 

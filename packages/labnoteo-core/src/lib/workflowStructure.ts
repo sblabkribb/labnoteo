@@ -1953,6 +1953,35 @@ export interface WorkflowExperimenterSync {
    * not ended, so their lines are filled, and named so they can be found (#501).
    */
   unreadableEndDates: { unitOp: string; value: string }[];
+  /**
+   * The parts of the note that get the author's name, so each can be chosen
+   * apart (#574): a person who joined later did not run the unit ops started
+   * before. Ended unit ops, which are never filled, are not listed.
+   */
+  blocks: ExperimenterSyncBlock[];
+}
+
+/** A unit operation (or the lines before the first one) whose empty experimenter lines get filled. */
+export interface ExperimenterSyncBlock {
+  /** 0 for the lines before the first `### [` heading, then 1, 2, … in note order. */
+  ordinal: number;
+  /** The heading without `### ` (`[UHW380 Microplate Reading] 2차`); '' for ordinal 0. */
+  name: string;
+  /** Its Meta `Start_date`, '' when it has none. */
+  startDate: string;
+  /** Empty `- Experimenter:` lines it has. */
+  lines: number;
+}
+
+/**
+ * What to fill of a note planned by {@link planWorkflowExperimenterSync}
+ * (#574). A block is filled only while both its ordinal and name still match,
+ * so a note edited after the choice does not get a name in a block nobody
+ * chose.
+ */
+export interface ExperimenterSyncChoice {
+  frontMatter: boolean;
+  blocks: ReadonlyArray<Pick<ExperimenterSyncBlock, 'ordinal' | 'name'>>;
 }
 
 /**
@@ -1997,10 +2026,15 @@ export function unitOpsAllEnded(content: string, now: string = getSeoulDateTimeS
   return ended.length > 0 && ended.every(Boolean);
 }
 
+/**
+ * {@link planWorkflowExperimenterSync} fills the front matter and every block
+ * it lists; with `only`, just the ones chosen there (#574).
+ */
 export function planWorkflowExperimenterSync(
   content: string,
   author: string,
-  now: string = getSeoulDateTimeString()
+  now: string = getSeoulDateTimeString(),
+  only?: ExperimenterSyncChoice
 ): WorkflowExperimenterSync | undefined {
   const to = author.trim();
   if (!to) return undefined;
@@ -2014,6 +2048,7 @@ export function planWorkflowExperimenterSync(
   let fmEnd = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
   if (lines[0]?.trim() !== '---' || fmEnd === -1) return undefined;
   for (let i = 1; i < fmEnd; i++) {
+    if (only && !only.frontMatter) break;
     if (!/^experimenter\s*:/.test(lines[i])) continue;
     lines[i] = serializeFrontMatterEntry('experimenter', to);
     let end = i + 1;
@@ -2022,8 +2057,16 @@ export function planWorkflowExperimenterSync(
     fmEnd -= end - i - 1;
   }
   // Experimenter lines to rewrite, grouped by unit op, and which unit ops ended.
-  type Block = { name: string; lines: number[]; empty: number; ended: boolean; future?: string; unreadable?: string };
-  const blocks: Block[] = [{ name: '', lines: [], empty: 0, ended: false }];
+  type Block = {
+    name: string;
+    startDate: string;
+    lines: number[];
+    empty: number;
+    ended: boolean;
+    future?: string;
+    unreadable?: string;
+  };
+  const blocks: Block[] = [{ name: '', startDate: '', lines: [], empty: 0, ended: false }];
   let fence: OpenFence | null = null;
   for (let i = fmEnd + 1; i < lines.length; i++) {
     const next = stepFence(lines[i], fence);
@@ -2032,11 +2075,12 @@ export function planWorkflowExperimenterSync(
       continue;
     }
     if (/^###\s+\[/.test(lines[i])) {
-      blocks.push({ name: lines[i].replace(/^###\s+/, '').trim(), lines: [], empty: 0, ended: false });
+      blocks.push({ name: lines[i].replace(/^###\s+/, '').trim(), startDate: '', lines: [], empty: 0, ended: false });
       continue;
     }
     const block = blocks[blocks.length - 1];
     const date = findMetaDateFieldInLine(lines[i]);
+    if (date?.field === 'Start_date' && !block.startDate) block.startDate = date.value.trim();
     const end = date?.field === 'End_date' ? date.value.trim() : '';
     const state = end ? classifyMetaEndDate(end, now) : undefined;
     if (state === 'future') block.future = end;
@@ -2054,12 +2098,17 @@ export function planWorkflowExperimenterSync(
   let futureLines = 0;
   const futureEndDates: string[] = [];
   const unreadableEndDates: { unitOp: string; value: string }[] = [];
-  for (const block of blocks) {
+  const fillable: ExperimenterSyncBlock[] = [];
+  for (const [ordinal, block] of blocks.entries()) {
     if (block.ended) {
       skippedLines += block.lines.length;
       skippedEmptyLines += block.empty;
       continue;
     }
+    if (block.lines.length > 0) {
+      fillable.push({ ordinal, name: block.name, startDate: block.startDate, lines: block.lines.length });
+    }
+    if (only && !only.blocks.some(b => b.ordinal === ordinal && b.name === block.name)) continue;
     for (const i of block.lines) {
       lines[i] = `${/^(\s*-\s*Experimenter:)/.exec(lines[i])![1]} ${to}`;
       unitOpLines++;
@@ -2083,6 +2132,7 @@ export function planWorkflowExperimenterSync(
         futureLines,
         futureEndDates,
         unreadableEndDates,
+        blocks: fillable,
       };
 }
 

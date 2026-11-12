@@ -54,6 +54,9 @@ everything changed while it was open.
   slashes, or with single digits, such as `2026.10.23 14:00`, `2026/10/23` or `2026-1-5 9:30`, are
   read and shown; a value the field cannot read is left as it is too, and the field says it starts
   at another time. An empty value shows the current time, and Enter writes it.
+- The **Now** button beside the field writes the current date and time, whether the line had a
+  value or not, and closes the field: the quickest way to fill in `End_date` when a step is
+  done. One Ctrl+Z undoes it, and an end earlier than the start is said as above.
 - With a `Start_date` in the same block, the `End_date` calendar does not offer a day before it,
   and closing with an end that is still earlier than the start says so (the value is still
   written).
@@ -308,7 +311,11 @@ file is gone. Also on the README and experiment-folder right-click menus.
   experiment uses the same file name (or one already broken into `./labnote/<experiment>/…`) is
   set back to `./<file name>` with its checkmark kept. Renaming the file fixes it too.
 - Notes with an empty `experimenter` get the README `author` after asking; a note that names
-  someone keeps that name, since each note may be another person's. A finished unit operation, one
+  someone keeps that name, since each note may be another person's. The question is a checklist:
+  each note's front matter `experimenter` and each unit operation it would fill, shown with its
+  `Start_date` and the number of lines, all ticked. Untick the ones the author did not run, such
+  as unit operations started before a person was added to the author; their lines stay empty for
+  you to fill in. Closing it changes nothing. A finished unit operation, one
   with an `End_date`, keeps its experimenter, and the dialog lists its empty lines apart for you to
   fill in. An `End_date` still ahead (an end planned in advance) does not count as finished: those
   lines are filled, and the dialog says so with the date. A value with a time is compared to the
@@ -579,6 +586,10 @@ type.
   The question names the sample in the slot as `alias (ID, scope)`, or by its ID when it has no
   alias. Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
   `Rack A`) is not asked about, and a slot a discarded sample was in counts as free.
+  The question's default button is **Change location** (Enter and Escape do the same). It goes
+  back to the storage location prompt with the location just typed, so only the slot needs
+  fixing and the alias and description stay. Closing that prompt gives up, and a notice says
+  what was entered so it is not lost unseen.
 - **Delete** is refused while note text uses the sample: the notice names each note by its full
   vault path (a Local sample is checked in its experiment and in the notes outside experiments
   above, a Global one in the whole vault). Remove the references first, or use **Mark as
@@ -902,7 +913,9 @@ before scanning new printouts.
 
 A page the note already has, but whose image was deleted, is filed again in place of the entry left
 behind, and the result says so. A new scan never takes the name of a missing image a note still
-links, so **delete earlier scan** removes the earlier image, not the new one.
+links, so **delete earlier scan** removes the earlier image, not the new one. It names the image
+files it would trash and asks first. A photo filed without a page (see below) is never offered as
+the earlier scan of a page.
 
 Taking an entry out with Ctrl+Z in the editor leaves its image in `images/scans/`. Importing the
 same photo again on the same day uses that file again, instead of writing `name_2.jpg`, as long as
@@ -927,6 +940,10 @@ with the reason for each, and file each by choosing the note, unit operation, an
   QR code names.
 - A page filed into a block you chose is not reported as an old printout, and if that block's
   heading changes before it is filed, the page stays unmatched instead of going to its neighbour.
+- The page prompt is empty for a page whose QR code was not read. Leave it empty for a photo that
+  is not a printed page, such as a bench photo of tube labels: it is filed as `No page · imported …`
+  (`page=0/0` in the note, `_p0` in the file name), after the printed pages, and the real
+  printed page filed later does not offer to delete it.
 - Pages sent to unmatched scans before 0.126.0 kept only the note ID, so only the note is offered.
 - A page filed from here is captioned with its original file name, not the name it was kept under
   in `unmatched/`.
