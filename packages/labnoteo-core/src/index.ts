@@ -191,6 +191,7 @@ export type {
   LabnoteHost,
   EditTarget,
   PickItem,
+  PickManyOpts,
   PromptOpts,
   PromptHint,
   NotifyKind,

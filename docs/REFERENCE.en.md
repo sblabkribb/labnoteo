@@ -311,7 +311,11 @@ file is gone. Also on the README and experiment-folder right-click menus.
   experiment uses the same file name (or one already broken into `./labnote/<experiment>/…`) is
   set back to `./<file name>` with its checkmark kept. Renaming the file fixes it too.
 - Notes with an empty `experimenter` get the README `author` after asking; a note that names
-  someone keeps that name, since each note may be another person's. A finished unit operation, one
+  someone keeps that name, since each note may be another person's. The question is a checklist:
+  each note's front matter `experimenter` and each unit operation it would fill, shown with its
+  `Start_date` and the number of lines, all ticked. Untick the ones the author did not run, such
+  as unit operations started before a person was added to the author; their lines stay empty for
+  you to fill in. Closing it changes nothing. A finished unit operation, one
   with an `End_date`, keeps its experimenter, and the dialog lists its empty lines apart for you to
   fill in. An `End_date` still ahead (an end planned in advance) does not count as finished: those
   lines are filled, and the dialog says so with the date. A value with a time is compared to the

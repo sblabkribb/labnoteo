@@ -6,7 +6,7 @@
  * ordinary `await` control flow, exactly as it does with the VS Code host.
  */
 import { App, Component, MarkdownRenderer, Modal, Notice, SuggestModal, Setting } from 'obsidian';
-import type { PickItem, PromptHint, PromptOpts } from '@labnoteo/core';
+import type { PickItem, PickManyOpts, PromptHint, PromptOpts } from '@labnoteo/core';
 import { createObsidianTranslator } from './i18n';
 
 // Module-level translator for the generic button labels ('OK'/'Cancel') these
@@ -192,7 +192,7 @@ class PickManyModal<T> extends Modal {
     app: App,
     private readonly items: PickItem<T>[],
     private readonly resolve: (values: T[]) => void,
-    private readonly opts?: { title?: string; placeholder?: string }
+    private readonly opts?: PickManyOpts
   ) {
     super(app);
   }
@@ -200,6 +200,7 @@ class PickManyModal<T> extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     if (this.opts?.title) this.setTitle(this.opts.title);
+    if (this.opts?.message) contentEl.createEl('p', { text: this.opts.message, cls: 'labnote-confirm-message' });
 
     this.items.forEach((item, idx) => {
       if (item.checked) this.selected.add(idx);
@@ -216,11 +217,11 @@ class PickManyModal<T> extends Modal {
 
     new Setting(contentEl).addButton(b =>
       b
-        .setButtonText(t('OK'))
+        .setButtonText(this.opts?.confirmLabel ?? t('OK'))
         .setCta()
         .onClick(() => {
           this.resolved = true;
-          this.resolve([...this.selected].map(i => this.items[i].value));
+          this.resolve([...this.selected].sort((a, b) => a - b).map(i => this.items[i].value));
           this.close();
         })
     );
@@ -232,11 +233,7 @@ class PickManyModal<T> extends Modal {
   }
 }
 
-export function pickManyModal<T>(
-  app: App,
-  items: PickItem<T>[],
-  opts?: { title?: string; placeholder?: string }
-): Promise<T[]> {
+export function pickManyModal<T>(app: App, items: PickItem<T>[], opts?: PickManyOpts): Promise<T[]> {
   return new Promise(resolve => new PickManyModal(app, items, resolve, opts).open());
 }
 

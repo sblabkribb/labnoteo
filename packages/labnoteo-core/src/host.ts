@@ -33,6 +33,16 @@ export interface PickItem<T> {
   value: T;
 }
 
+/** Options for {@link LabnoteHost.pickMany}. */
+export interface PickManyOpts {
+  title?: string;
+  placeholder?: string;
+  /** Text above the list, e.g. what the choice is about (#574). */
+  message?: string;
+  /** The OK button's label. */
+  confirmLabel?: string;
+}
+
 /** Options for a single-line text prompt. */
 export interface PromptOpts {
   /** Prompt/question text. */
@@ -120,8 +130,11 @@ export interface LabnoteHost {
     opts?: { title?: string; placeholder?: string; selected?: T }
   ): Promise<T | undefined>;
 
-  /** Multi-select quick pick. Resolves [] if dismissed. */
-  pickMany<T>(items: PickItem<T>[], opts?: { title?: string; placeholder?: string }): Promise<T[]>;
+  /**
+   * Multi-select quick pick. Resolves [] if dismissed. `message` is shown
+   * under the title, line breaks kept; `confirmLabel` names the OK button.
+   */
+  pickMany<T>(items: PickItem<T>[], opts?: PickManyOpts): Promise<T[]>;
 
   /** Single-line text input. Resolves undefined if dismissed. */
   prompt(opts: PromptOpts): Promise<string | undefined>;

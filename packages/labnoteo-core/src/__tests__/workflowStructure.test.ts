@@ -218,6 +218,38 @@ describe('planWorkflowExperimenterSync', () => {
       futureLines: 0,
       futureEndDates: [],
       unreadableEndDates: [],
+      blocks: [{ ordinal: 0, name: '', startDate: '', lines: 1 }],
+    });
+  });
+
+  // #574: a person added to the author later did not run the unit ops started before.
+  describe('chosen apart', () => {
+    const op = (who: string, start: string) => `\n#### Meta\n- Experimenter: ${who}\n- Start_date: '${start}'\n- End_date: ''\n`;
+    const body = `### [UHW380 Reading]${op('', '2026-10-18 20:21')}### [UHW390 Gel]${op('', '2026-11-07 09:00')}`;
+    const content = note("experimenter: ''", body);
+
+    it('lists the unit ops it would fill with their Start_date', () => {
+      expect(planWorkflowExperimenterSync(content, '김테크, 이포닥', '2026-11-13 10:00')?.blocks).toEqual([
+        { ordinal: 1, name: '[UHW380 Reading]', startDate: '2026-10-18 20:21', lines: 1 },
+        { ordinal: 2, name: '[UHW390 Gel]', startDate: '2026-11-07 09:00', lines: 1 },
+      ]);
+    });
+
+    it('fills only the chosen unit ops, and the front matter only when chosen', () => {
+      const only = { frontMatter: false, blocks: [{ ordinal: 2, name: '[UHW390 Gel]' }] };
+      expect(planWorkflowExperimenterSync(content, '김테크', '2026-11-13 10:00', only)?.content).toBe(
+        note("experimenter: ''", `### [UHW380 Reading]${op('', '2026-10-18 20:21')}### [UHW390 Gel]${op('김테크', '2026-11-07 09:00')}`)
+      );
+    });
+
+    it('fills no block that moved or was renamed since the choice', () => {
+      const only = { frontMatter: true, blocks: [{ ordinal: 1, name: '[UHW390 Gel]' }] };
+      expect(planWorkflowExperimenterSync(content, '김테크', '2026-11-13 10:00', only)?.content).toBe(
+        note('experimenter: 김테크', body)
+      );
+      expect(
+        planWorkflowExperimenterSync(content, '김테크', '2026-11-13 10:00', { frontMatter: false, blocks: [] })
+      ).toBeUndefined();
     });
   });
 

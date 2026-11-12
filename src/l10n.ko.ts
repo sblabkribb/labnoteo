@@ -1005,6 +1005,12 @@ const obsidianKo: Record<string, string> = {
   "These notes' title and heading do not match their file names. Update them?":
     '아래 노트의 title과 제목이 파일 이름과 맞지 않습니다. 노트를 고칠까요?',
   'Update notes': '노트 고치기',
+  'Fill in the experimenter': '실험자 채우기',
+  'front matter experimenter': '머리말 experimenter',
+  'Lines before the first unit operation': '첫 유닛 오퍼레이션 앞의 줄',
+  'no Start_date': 'Start_date 없음',
+  'Untick the unit operations the README author did not run, such as ones started before a person joined.':
+    'README의 author가 하지 않은 유닛 오퍼레이션(새 사람이 합류하기 전에 시작한 것 등)은 체크를 끄세요.',
   'These notes name no experimenter. Fill in the README author?':
     '아래 노트에 실험자(experimenter)가 비어 있습니다. README의 author로 채울까요?',
   'Experimenter: {0}, from the note front matter; the README author is {1}.':
