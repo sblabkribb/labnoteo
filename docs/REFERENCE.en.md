@@ -54,6 +54,9 @@ everything changed while it was open.
   slashes, or with single digits, such as `2026.10.23 14:00`, `2026/10/23` or `2026-1-5 9:30`, are
   read and shown; a value the field cannot read is left as it is too, and the field says it starts
   at another time. An empty value shows the current time, and Enter writes it.
+- The **Now** button beside the field writes the current date and time, whether the line had a
+  value or not, and closes the field: the quickest way to fill in `End_date` when a step is
+  done. One Ctrl+Z undoes it, and an end earlier than the start is said as above.
 - With a `Start_date` in the same block, the `End_date` calendar does not offer a day before it,
   and closing with an end that is still earlier than the start says so (the value is still
   written).

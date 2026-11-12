@@ -58,6 +58,8 @@ const obsidianKo: Record<string, string> = {
   '"{0}" is not a date the picker can read, so it starts at another time. Pick a date to replace it.':
     "'{0}'은(는) 날짜 선택기가 읽을 수 없는 값이라 다른 시각에서 시작합니다. 날짜를 고르면 그 값으로 바뀝니다.",
   'Pick date and time': '날짜 및 시간 선택',
+  Now: '지금',
+  'Fill in the current date and time': '현재 날짜와 시각으로 채웁니다',
   'Export tables to CSV': '표를 CSV로 내보내기',
   'Export all tables of this experiment to CSV': '이 실험의 표를 모두 CSV로 내보내기',
   'Open workflow view': '워크플로 뷰 열기',

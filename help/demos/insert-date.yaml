@@ -40,5 +40,7 @@ steps:
     args: { selector: .labnote-date-pick, nth: 0 }
   - highlight: { selector: .labnote-datetime-picker }
     hold: 1500
-  - tool: ui_press
-    args: { keys: Escape }
+  - caption: { ko: 지금 버튼은 현재 날짜와 시각을 바로 넣습니다, en: Now writes the current date and time at once }
+    tool: ui_click
+    args: { selector: .labnote-datetime-picker-wrap button }
+    hold: 1500

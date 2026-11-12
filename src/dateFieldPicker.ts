@@ -41,6 +41,10 @@ import {
 export interface MetaDatePickerLabels {
   /** Tooltip of the calendar affordance. */
   pick: string;
+  /** Button beside the field that writes the current time (#575). */
+  now: string;
+  /** Its tooltip. */
+  nowTooltip: string;
   /** Notice for an End_date earlier than its Start_date (#192). */
   endBeforeStart: (end: string, start: string) => string;
   /** Notice for a picked year outside 1900–2100, which was not written (#308). */
@@ -52,6 +56,8 @@ export interface MetaDatePickerLabels {
 const VALUE_CLASS = 'labnote-date-value';
 const ICON_CLASS = 'labnote-date-pick';
 const PICKER_CLASS = 'labnote-datetime-picker';
+/** Holds the field and its Now button, so a click on either stays inside (#575). */
+const PICKER_WRAP_CLASS = 'labnote-datetime-picker-wrap';
 
 /** The field that is open, if any; at most one exists at a time. */
 let openPicker: { commit: () => void; cancel: () => void; close: () => void } | null = null;
@@ -237,6 +243,8 @@ function openPickerOnLine(
     x,
     y,
     initial,
+    nowLabel: labels.now,
+    nowTooltip: labels.nowTooltip,
     ...range,
     keepUnchanged: !shouldWriteOnCommit(match.value, initial, initial),
     onPick: picked => {
@@ -290,6 +298,9 @@ interface DateTimePickerOptions {
   max?: string;
   /** Enter leaves the note alone while the field still shows `initial` (#309). */
   keepUnchanged?: boolean;
+  /** Label and tooltip of the button that writes the current time (#575). */
+  nowLabel: string;
+  nowTooltip: string;
   /** Write a chosen value into the note. May run more than once per field. */
   onPick: (value: string) => void;
   onClose: (reason: PickerCloseReason) => void;
@@ -312,23 +323,36 @@ interface DateTimePickerOptions {
  * Each `change` is written into the note straight away but leaves the field
  * open: Chromium can fire `change` for every segment typed into a
  * `datetime-local` field, and closing on it ended typing after one digit.
+ *
+ * A Now button beside the field writes the current time and closes it (#575):
+ * the field only opens at the current time while the value is empty, and a
+ * researcher finishing a step wants that time whatever was written before.
+ * The field and the button share one wrapper, so clicking the button is not a
+ * click elsewhere.
  */
 function openDateTimePicker(opts: DateTimePickerOptions): void {
   // Never leave a second field behind if one is somehow still open.
   openPicker?.close();
   const { doc } = opts;
   const win = doc.defaultView ?? window;
-  doc.querySelectorAll(`.${PICKER_CLASS}`).forEach(el => el.remove());
+  doc.querySelectorAll(`.${PICKER_WRAP_CLASS}, body > .${PICKER_CLASS}`).forEach(el => el.remove());
 
+  const wrap = doc.createElement('div');
+  wrap.className = PICKER_WRAP_CLASS;
+  wrap.style.left = `${opts.x}px`;
+  wrap.style.top = `${opts.y + 12}px`;
   const input = doc.createElement('input');
   input.type = 'datetime-local';
   input.className = PICKER_CLASS;
   if (opts.min) input.min = opts.min;
   if (opts.max) input.max = opts.max;
   input.value = opts.initial;
-  input.style.left = `${opts.x}px`;
-  input.style.top = `${opts.y + 12}px`;
-  doc.body.appendChild(input);
+  const nowButton = doc.createElement('button');
+  nowButton.type = 'button';
+  nowButton.textContent = opts.nowLabel;
+  nowButton.setAttribute('aria-label', opts.nowTooltip);
+  wrap.append(input, nowButton);
+  doc.body.appendChild(wrap);
 
   let closed = false;
   const finish = (reason: PickerCloseReason): void => {
@@ -336,7 +360,7 @@ function openDateTimePicker(opts: DateTimePickerOptions): void {
     closed = true;
     if (openPicker === handle) openPicker = null;
     doc.removeEventListener('pointerdown', onOutsidePointerDown, true);
-    input.remove();
+    wrap.remove();
     opts.onClose(reason);
   };
   const pick = (): void => {
@@ -352,8 +376,24 @@ function openDateTimePicker(opts: DateTimePickerOptions): void {
   };
   openPicker = handle;
   function onOutsidePointerDown(event: PointerEvent): void {
-    if (event.target !== input) handle.close();
+    if (!(event.target instanceof Node) || !wrap.contains(event.target)) handle.close();
   }
+
+  // The current time as the field shows it; no min/max, as the time is what
+  // it is. An End_date before its Start_date is still said on closing.
+  nowButton.addEventListener('click', () => {
+    const now = toDateTimeLocalValue(getSeoulDateTimeString());
+    if (!now) return;
+    input.value = now;
+    opts.onPick(now);
+    finish('commit');
+  });
+  nowButton.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    handle.cancel();
+  });
 
   input.addEventListener('change', pick);
   input.addEventListener('keydown', event => {
