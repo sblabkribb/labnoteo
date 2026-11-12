@@ -198,6 +198,15 @@ export interface CustomSampleTypesInput {
 }
 
 /**
+ * The registry files of sample types, as a notice names them (`CON.json, aux.json`).
+ * A notice is plain text, so the file pattern `{Type}.json` read as a slot
+ * nobody filled in (#573).
+ */
+export function registryFileNames(types: readonly string[]): string {
+  return [...new Set(types)].map(type => `${type}.json`).join(', ');
+}
+
+/**
  * Split the comma-separated "Custom sample types" field (#81). A name that
  * autocompletion cannot read is not stored when newly typed; one stored by an
  * older release is kept, because renaming it would orphan its `{Type}.json`

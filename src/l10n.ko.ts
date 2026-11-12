@@ -779,16 +779,16 @@ const obsidianKo: Record<string, string> = {
     '{0}은(는) 공백이나 -가 있어 노트에서 자동완성되지 않습니다. 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
   '{0} is shown in italics in the reading view because of its _. It keeps working; rename it, e.g. {1}, if you have no samples of it yet.':
     '{0}은(는) _ 때문에 읽기 화면에서 기울임으로 보입니다. 계속 쓸 수는 있으며, 아직 그 타입의 샘플이 없다면 {1}처럼 이름을 바꾸세요.',
-  '{0}: differs from {1} only in letter case, so on Windows both would share one {Type}.json and their samples would mix. It was not saved.':
-    '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
+  '{0}: differs from {1} only in letter case, so on Windows both would share {2} and their samples would mix. It was not saved.':
+    '{0}: {1}와(과) 대소문자만 다른 이름이라 Windows에서 두 타입이 같은 대장 파일 {2}을(를) 함께 써 시료가 섞입니다. 저장하지 않았습니다.',
   '{0}: only the letter case of {1} changed. Its samples and the IDs already written in notes keep {1}, so the change was not saved.':
     '{0}: {1}의 대소문자만 바꿨습니다. 이 타입의 시료와 노트에 이미 쓴 ID는 {1} 철자를 쓰므로 바꾸지 않고 저장된 이름을 유지했습니다.',
-  '{0} differs from {1} only in letter case: on Windows both share one {Type}.json, so their samples mix. Keep one of them.':
-    '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 {Type}.json을 함께 써 시료가 섞이니 하나만 남기세요.',
-  '{0}: Windows keeps this name for a device, so its {Type}.json cannot be made there. It was not saved. Use another name, such as {1}.':
-    '{0}: Windows가 장치 이름으로 쓰는 이름이라 그 {Type}.json을 만들 수 없어 저장하지 않았습니다. {1}처럼 다른 이름을 쓰세요.',
-  '{0} is a name Windows keeps for devices: its {Type}.json cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.':
-    '{0}은(는) Windows가 장치 이름으로 쓰는 이름입니다. 그 {Type}.json은 Windows에서 만들거나 받아 올 수 없어 git이 멈춥니다. 타입 변경으로 시료를 다른 타입으로 옮긴 뒤 이 이름을 지우세요.',
+  '{0} differs from {1} only in letter case: on Windows both share {2}, so their samples mix. Keep one of them.':
+    '{0}은(는) {1}와(과) 대소문자만 다릅니다. Windows에서 두 타입이 같은 대장 파일 {2}을(를) 함께 써 시료가 섞이니 하나만 남기세요.',
+  '{0}: Windows keeps this name for a device, so {2} cannot be made there. It was not saved. Use another name, such as {1}.':
+    '{0}: Windows가 장치 이름으로 쓰는 이름이라 대장 파일 {2}을(를) 만들 수 없어 저장하지 않았습니다. {1}처럼 다른 이름을 쓰세요.',
+  '{0} is a name Windows keeps for devices: {1} cannot be made or checked out on Windows, and git stops there. Move its samples to another type with Change type, then remove the name.':
+    '{0}은(는) Windows가 장치 이름으로 쓰는 이름입니다. 대장 파일 {1}은(는) Windows에서 만들거나 받아 올 수 없어 git이 멈춥니다. 타입 변경으로 시료를 다른 타입으로 옮긴 뒤 이 이름을 지우세요.',
   '{0}: {1} sample(s)': '{0}: 샘플 {1}개',
   'Samples of the removed sample type(s) will no longer show:\n\n{0}\n\nPut the type(s) back in the list?':
     '빠진 타입의 샘플이 더 이상 보이지 않게 됩니다:\n\n{0}\n\n그 타입을 목록에 다시 넣을까요?',

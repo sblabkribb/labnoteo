@@ -123,6 +123,17 @@ describe('Korean catalog', () => {
     expect(mismatched).toEqual([]);
   });
 
+  // A notice is plain text: `{Type}.json` there reads as a slot left unfilled
+  // (#573). Only descriptions of a file-name pattern may spell one out.
+  it('fills every named slot, except in descriptions of a file-name pattern', () => {
+    const describesPattern = new Set([
+      'Samples in a product catalog file ({Type}_name.json) are read-only here. To change one, edit that file, or rename it back to {0} if it was the sample registry.',
+      'Autocomplete, highlighting and {Type}.json sync. Reload to apply.',
+    ]);
+    const named = Object.keys(obsidianKo).filter(key => /{[A-Za-z]w*}/.test(key) && !describesPattern.has(key));
+    expect(named).toEqual([]);
+  });
+
   // Notices, confirmations and setting descriptions are plain text, so a
   // backtick shows as itself instead of marking code (#273).
   it('has no Markdown backticks, which plain-text notices show as they are', () => {
