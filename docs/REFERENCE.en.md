@@ -909,7 +909,9 @@ before scanning new printouts.
 
 A page the note already has, but whose image was deleted, is filed again in place of the entry left
 behind, and the result says so. A new scan never takes the name of a missing image a note still
-links, so **delete earlier scan** removes the earlier image, not the new one.
+links, so **delete earlier scan** removes the earlier image, not the new one. It names the image
+files it would trash and asks first. A photo filed without a page (see below) is never offered as
+the earlier scan of a page.
 
 Taking an entry out with Ctrl+Z in the editor leaves its image in `images/scans/`. Importing the
 same photo again on the same day uses that file again, instead of writing `name_2.jpg`, as long as
@@ -934,6 +936,10 @@ with the reason for each, and file each by choosing the note, unit operation, an
   QR code names.
 - A page filed into a block you chose is not reported as an old printout, and if that block's
   heading changes before it is filed, the page stays unmatched instead of going to its neighbour.
+- The page prompt is empty for a page whose QR code was not read. Leave it empty for a photo that
+  is not a printed page, such as a bench photo of tube labels: it is filed as `No page · imported …`
+  (`page=0/0` in the note, `_p0` in the file name), after the printed pages, and the real
+  printed page filed later does not offer to delete it.
 - Pages sent to unmatched scans before 0.126.0 kept only the note ID, so only the note is offered.
 - A page filed from here is captioned with its original file name, not the name it was kept under
   in `unmatched/`.

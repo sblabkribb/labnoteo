@@ -84,7 +84,12 @@ export class ScanResultModal extends Modal {
     private readonly t: Translator,
     private readonly pipeline: ScanPipeline,
     private readonly results: ScanResult[],
-    private readonly actions: { openNote(path: string, hash?: string): void; openUnmatched(): void }
+    private readonly actions: {
+      openNote(path: string, hash?: string): void;
+      openUnmatched(): void;
+      /** Ask before something is trashed; true to go ahead. */
+      confirmDelete(message: string): Promise<boolean>;
+    }
   ) {
     super(app);
   }
@@ -112,6 +117,15 @@ export class ScanResultModal extends Modal {
             .setButtonText(t('Delete earlier scan'))
             .setTooltip(t('This page was filed before; remove the earlier scan and its image.'))
             .onClick(async () => {
+              // Say what goes before it goes: a photo filed as this page by
+              // an older release was trashed without a word (#576).
+              const names = this.pipeline.previousImages(r).map(f => `- ${f.name}`);
+              const question = t(
+                'Delete the earlier scan of this page? Its entry leaves the note and its image goes to the trash.'
+              );
+              if (!(await this.actions.confirmDelete(names.length ? `${question}\n\n${names.join('\n')}` : question))) {
+                return;
+              }
               const n = await this.pipeline.removePrevious(r);
               new Notice(t('Removed {0} earlier scan(s).', String(n)));
               b.setDisabled(true);

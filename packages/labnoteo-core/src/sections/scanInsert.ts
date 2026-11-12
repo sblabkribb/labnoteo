@@ -14,7 +14,7 @@
  */
 import { stepFence, type OpenFence } from './sectionEdit';
 import { UNIT_OP_HEADING_PATTERN } from './workflowSectionParser';
-import { unitOpFingerprint } from '../lib/scanPayload';
+import { hasPage, unitOpFingerprint } from '../lib/scanPayload';
 
 export const WORKSHEET_SCANS_HEADING = 'Worksheet scans';
 
@@ -35,6 +35,7 @@ export interface UnitOpBlock {
 
 /** A scanned page to file. */
 export interface ScanEntry {
+  /** 1-based; `NO_PAGE` (0) for a photo filed without a page, which sorts last (#576). */
   page: number;
   pageCount: number;
   /** Short hex content hash of the stored image, used to spot the same photo twice. */
@@ -50,6 +51,9 @@ export interface ScanEntry {
 const ANY_HEADING_RE = /^(#{1,6})\s/;
 const RULE_RE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const ENTRY_RE = /^<!-- labnoteo-scan page=(\d+)\/(\d+) sha=([0-9a-f]+) -->\s*$/;
+
+/** Sort key of a page: photos filed without one go after every printed page (#576). */
+const pageOrder = (e: { page: number }): number => (hasPage(e) ? e.page : Number.MAX_SAFE_INTEGER);
 
 interface Heading {
   line: number;
@@ -239,7 +243,8 @@ function renderSection(level: number, section: Pick<Section, 'preface' | 'entrie
 /**
  * Add `entries` to the Worksheet scans section of `block` (or of the note,
  * for `null`), creating it at the end of the block when missing. Entries are
- * kept in page order; an earlier scan of the same page stays first.
+ * kept in page order; an earlier scan of the same page stays first, and photos
+ * filed without a page come last (#576).
  */
 export function insertScanEntries(md: string, block: UnitOpBlock | null, entries: readonly ScanEntry[]): string {
   if (entries.length === 0) return md;
@@ -255,14 +260,14 @@ export function insertScanEntries(md: string, block: UnitOpBlock | null, entries
   if (existing) {
     const merged = [...existing.entries, ...added]
       .map((e, order) => ({ e, order }))
-      .sort((a, b) => a.e.page - b.e.page || a.order - b.order)
+      .sort((a, b) => pageOrder(a.e) - pageOrder(b.e) || a.order - b.order)
       .map(x => x.e);
     const body = renderSection(level, { preface: existing.preface, entries: merged });
     lines.splice(existing.headingLine, existing.end - existing.headingLine, ...body);
     return lines.join(newline);
   }
 
-  const sorted = [...added].sort((a, b) => a.page - b.page);
+  const sorted = [...added].sort((a, b) => pageOrder(a) - pageOrder(b));
   const section = renderSection(level, { preface: [], entries: sorted });
   let at = block ? block.contentEndLine : lines.length;
   if (!block) while (at > 0 && isBlank(lines[at - 1])) at--;

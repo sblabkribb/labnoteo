@@ -1140,6 +1140,8 @@ const obsidianKo: Record<string, string> = {
     '스캔 이미지 {0}개는 {1}에 남았습니다: {2}에 같은 이름의 파일이 있거나 옮기지 못했습니다.',
   'Printout {0}/{1} · printed {2} · imported {3} · {4}': '출력본 {0}/{1} · {2} 출력 · {3} 가져옴 · {4}',
   'Printout {0}/{1} · imported {2} · {3}': '출력본 {0}/{1} · {2} 가져옴 · {3}',
+  'No page · imported {0} · {1}': '쪽 없음 · {0} 가져옴 · {1}',
+  'No page · printed {0} · imported {1} · {2}': '쪽 없음 · {0} 출력 · {1} 가져옴 · {2}',
   'Print date': '출력일',
   'When was this page printed (YYYY-MM-DD)? Leave it empty if you do not know or it was never printed.':
     '이 페이지를 언제 출력했나요(YYYY-MM-DD)? 모르거나 출력한 적 없는 종이면 비워 두세요.',
@@ -1178,6 +1180,8 @@ const obsidianKo: Record<string, string> = {
   'Assign it with "{0}".': '"{0}"(으)로 할당하세요.',
   'Open note': '노트 열기',
   'Delete earlier scan': '이전 스캔 삭제',
+  'Delete the earlier scan of this page? Its entry leaves the note and its image goes to the trash.':
+    '이 페이지의 이전 스캔을 지울까요? 노트에서 항목이 빠지고 이미지는 휴지통으로 갑니다.',
   'This page was filed before; remove the earlier scan and its image.': '이 페이지는 전에도 붙였습니다. 이전 스캔과 이미지를 지웁니다.',
   'Removed {0} earlier scan(s).': '이전 스캔 {0}개를 지웠습니다.',
   Undo: '되돌리기',
@@ -1196,8 +1200,9 @@ const obsidianKo: Record<string, string> = {
   'The whole note (no unit operation)': '노트 전체(유닛 오퍼레이션 없음)',
   'Assign to which unit operation?': '어느 유닛 오퍼레이션에 할당할까요?',
   Page: '페이지',
-  'Page number on the printout, e.g. 2/3': '출력본의 페이지 번호(예: 2/3)',
-  'Enter a page like 2/3.': '2/3처럼 입력하세요.',
+  'Page number on the printout, e.g. 2/3. Leave it empty for a photo that is not a printed page.':
+    '출력본의 페이지 번호(예: 2/3). 기록지가 아닌 사진이면 비워 두세요.',
+  'Enter a page like 2/3, or leave it empty.': '2/3처럼 입력하거나 비워 두세요.',
   'Drop photos or scans of printed worksheets here: JPEG, PNG, PDF (several pages are fine) or a zip of them. Each page is filed in its note by its QR code.':
     '출력한 기록지의 사진이나 스캔을 여기에 끌어다 놓으세요. JPEG, PNG, PDF(여러 쪽 가능), 또는 이들을 묶은 zip을 받습니다. 페이지마다 QR 코드를 읽어 해당 노트에 붙입니다.',
   'Drop files here, or click to choose': '여기에 파일을 끌어다 놓거나 클릭해서 고르세요',

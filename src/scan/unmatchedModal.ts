@@ -6,6 +6,7 @@ import { App, Modal, Notice, Setting, TFile, TFolder } from 'obsidian';
 import type { LabnoteHost, PickItem, Translator } from '@labnoteo/core';
 import { listUnitOpBlocks } from '@labnoteo/core';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
+import { NO_PAGE } from '@labnoteo/core/lib/scanPayload';
 import type { NoteIdService } from '../barcode/noteIdService';
 import { unmatchedInfoFromName, UNMATCHED_FOLDER } from './imageStore';
 import type { ScanPipeline } from './scanPipeline';
@@ -127,13 +128,17 @@ export class UnmatchedModal extends Modal {
     }
     const unitOp = await host.pick(items, { title: pickTitle });
     if (unitOp === undefined) return;
+    // A bench photo is no page of a printout: empty is allowed, as for the
+    // print date, and not prefilled 1/1, which made it page 1/1 (#576).
     const pageText = await host.prompt({
       title: t('Page'),
-      prompt: t('Page number on the printout, e.g. 2/3'),
-      value: qr ? `${qr.page}/${qr.pageCount}` : '1/1',
-      validate: v => (parsePageInput(v) ? null : t('Enter a page like 2/3.')),
+      prompt: t('Page number on the printout, e.g. 2/3. Leave it empty for a photo that is not a printed page.'),
+      value: qr ? `${qr.page}/${qr.pageCount}` : '',
+      placeholder: '2/3',
+      validate: v => (v.trim() === '' || parsePageInput(v) ? null : t('Enter a page like 2/3, or leave it empty.')),
     });
-    const page = pageText ? parsePageInput(pageText) : undefined;
+    if (pageText === undefined) return;
+    const page = pageText.trim() === '' ? { page: NO_PAGE, pageCount: NO_PAGE } : parsePageInput(pageText);
     if (!page) return;
     const printedText = await host.prompt({
       title: t('Print date'),

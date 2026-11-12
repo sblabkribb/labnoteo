@@ -1,5 +1,6 @@
 import {
   insertScanEntries,
+  listFiledScans,
   listScanHashes,
   listUnitOpBlocks,
   removeAllScanEntries,
@@ -148,6 +149,17 @@ describe('insertScanEntries / removeScanEntry', () => {
     out = insertScanEntries(out, listUnitOpBlocks(out)[0], [entry(2, 'bbbb'), entry(1, 'dddd')]);
     expect([...listScanHashes(out)]).toEqual(['aaaa', 'dddd', 'bbbb', 'cccc']);
     expect(out.match(/#### Worksheet scans/g)).toHaveLength(1);
+  });
+
+  // #576: a photo filed without a page is written 0/0 and goes after the printed pages.
+  it('puts photos filed without a page after the printed pages, and reads them back as 0/0', () => {
+    const md = buildNote(['UHW010']);
+    const photo = (hash: string): ScanEntry => ({ ...entry(0, hash), pageCount: 0, caption: 'No page' });
+    let out = insertScanEntries(md, listUnitOpBlocks(md)[0], [photo('eeee'), entry(2, 'bbbb')]);
+    out = insertScanEntries(out, listUnitOpBlocks(out)[0], [entry(1, 'aaaa')]);
+    expect([...listScanHashes(out)]).toEqual(['aaaa', 'bbbb', 'eeee']);
+    expect(out).toContain('<!-- labnoteo-scan page=0/0 sha=eeee -->');
+    expect(listFiledScans(out).find(s => s.hash === 'eeee')).toMatchObject({ page: 0, pageCount: 0, unitOpIndex: 1 });
   });
 
   it('leaves the TOC and separators alone', () => {
