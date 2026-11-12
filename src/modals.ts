@@ -341,7 +341,9 @@ class ConfirmModal extends Modal {
     private readonly message: string,
     private readonly confirmLabel: string,
     private readonly resolve: (ok: boolean) => void,
-    private readonly destructive = false
+    private readonly destructive = false,
+    private readonly cancelLabel?: string,
+    private readonly focusCancel = false
   ) {
     super(app);
   }
@@ -360,14 +362,14 @@ class ConfirmModal extends Modal {
         else b.setCta();
       })
       .addButton(b => {
-        b.setButtonText(t('Cancel')).onClick(() => {
+        b.setButtonText(this.cancelLabel ?? t('Cancel')).onClick(() => {
           this.resolved = true;
           this.resolve(false);
           this.close();
         });
         // Obsidian focuses the first button, so Enter would run a deletion or
         // a move that breaks references before the warning is read (#198).
-        if (this.destructive) window.setTimeout(() => b.buttonEl.focus(), 0);
+        if (this.destructive || this.focusCancel) window.setTimeout(() => b.buttonEl.focus(), 0);
       });
   }
 
@@ -380,15 +382,17 @@ class ConfirmModal extends Modal {
 /**
  * Aborting `signal` closes the dialog, which then resolves false.
  * `destructive` focuses Cancel, so Enter does not confirm something that
- * cannot be undone.
+ * cannot be undone. `cancelLabel` names the second button when declining
+ * leads somewhere (#572), and `focusCancel` makes it the default without the
+ * warning colour of `destructive`.
  */
 export function confirmModal(
   app: App,
   message: string,
   confirmLabel = 'Yes',
-  opts: { signal?: AbortSignal; destructive?: boolean } = {}
+  opts: { signal?: AbortSignal; destructive?: boolean; cancelLabel?: string; focusCancel?: boolean } = {}
 ): Promise<boolean> {
-  const { signal, destructive } = opts;
+  const { signal, destructive, cancelLabel, focusCancel } = opts;
   if (signal?.aborted) return Promise.resolve(false);
   return new Promise(resolve => {
     const modal = new ConfirmModal(
@@ -399,7 +403,9 @@ export function confirmModal(
         signal?.removeEventListener('abort', onAbort);
         resolve(ok);
       },
-      destructive
+      destructive,
+      cancelLabel,
+      focusCancel
     );
     const onAbort = (): void => modal.close();
     signal?.addEventListener('abort', onAbort);

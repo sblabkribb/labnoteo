@@ -632,25 +632,28 @@ export async function createSampleInteractive(
     validate: validateDescription(plugin),
   });
   if (descRaw === undefined) return undefined;
-  const locationRaw = await promptModal(app, {
-    title: plugin.t('Enter a storage location (optional)'),
-    value: existing?.record.location ?? '',
-    placeholder: plugin.t('e.g. Freezer-2 / Box-3 / A1'),
-  });
-  if (locationRaw === undefined) return undefined;
   const description = clean(descRaw);
-  const location = clean(locationRaw);
-  if (
-    !(await confirmLocationClash(app, plugin, {
-      folder: existing?.folder ?? folder,
-      id,
-      alias: alias ?? existing?.record.alias,
-      location,
-      before: existing?.record.location,
-    }))
-  ) {
+  const placed = await promptFreeLocation(app, plugin, {
+    folder: existing?.folder ?? folder,
+    id,
+    alias: alias ?? existing?.record.alias,
+    before: existing?.record.location,
+  });
+  if (!placed.ok) {
+    // Only after a taken slot: what was typed is gone, so say what it was (#572).
+    if (placed.declined) {
+      const saving = alias ? `${alias} (${id})` : id;
+      const entered = [alias, description].filter(Boolean).join(' · ');
+      new Notice(
+        entered
+          ? plugin.t('{0} was not created. You had entered: {1}', saving, entered)
+          : plugin.t('{0} was not created.', saving),
+        10000
+      );
+    }
     return undefined;
   }
+  const location = placed.location;
 
   if (existing) {
     // A blank field keeps the stored value, as in the note sync (#73); clearing
@@ -772,6 +775,34 @@ async function confirmAliasClash(
 }
 
 /**
+ * Ask for a storage location, going back to it while it names a slot another
+ * sample is in and the user would rather change it (#572). Declining the
+ * overlap used to drop everything typed so far; now only closing the
+ * location prompt gives up. `declined` says the overlap was declined before
+ * that, so the caller can say what was not saved.
+ */
+async function promptFreeLocation(
+  app: App,
+  plugin: LabnotePlugin,
+  opts: { folder: string; id: string; alias?: string | null; before?: string | null }
+): Promise<{ ok: true; location: string | null } | { ok: false; declined: boolean }> {
+  let value = opts.before ?? '';
+  let declined = false;
+  for (;;) {
+    const raw = await promptModal(app, {
+      title: plugin.t('Enter a storage location (optional)'),
+      value,
+      placeholder: plugin.t('e.g. Freezer-2 / Box-3 / A1'),
+    });
+    if (raw === undefined) return { ok: false, declined };
+    const location = clean(raw);
+    if (await confirmLocationClash(app, plugin, { ...opts, location })) return { ok: true, location };
+    declined = true;
+    value = raw;
+  }
+}
+
+/**
  * Ask before a sample takes a storage slot another sample is in (#512). A slot
  * holds one tube whatever the sample's type is, so every type of this folder
  * and of Global is read. True when the location may be saved: also when it is
@@ -812,7 +843,12 @@ async function confirmLocationClash(
       ? plugin.t('{0} is already stored at {1}.', taken[0], location)
       : plugin.t('{0} samples are already stored at {1}: {2}.', String(taken.length), location, taken.join(', '));
   const saving = opts.alias ? `${opts.alias} (${id})` : id;
-  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', saving)}`, plugin.t('Save anyway'));
+  // Declining goes back to the location (#572), so it is the default: Enter
+  // no longer puts a second tube in the slot.
+  return confirmModal(app, `${held} ${plugin.t('Save {0} anyway?', saving)}`, plugin.t('Save anyway'), {
+    cancelLabel: plugin.t('Change location'),
+    focusCancel: true,
+  });
 }
 
 /** A sample sharing an alias, as an alias question names it: its ID, marked when discarded (#419). */
@@ -948,18 +984,15 @@ export async function editSampleInteractive(
     validate: validateDescription(plugin),
   });
   if (descRaw === undefined) return false;
-  const locationRaw = await promptModal(app, {
-    title: plugin.t('Enter a storage location (optional)'),
-    value: record.location ?? '',
-    placeholder: plugin.t('e.g. Freezer-2 / Box-3 / A1'),
-  });
-  if (locationRaw === undefined) return false;
 
   const alias = clean(aliasRaw);
   const description = clean(descRaw);
-  const location = clean(locationRaw);
-  if (!(await confirmLocationClash(app, plugin, { folder, id, alias, location, before: record.location })))
+  const placed = await promptFreeLocation(app, plugin, { folder, id, alias, before: record.location });
+  if (!placed.ok) {
+    if (placed.declined) new Notice(plugin.t('{0} was not changed.', alias ? `${alias} (${id})` : id));
     return false;
+  }
+  const location = placed.location;
   // An emptied field is easy to submit by accident and nothing brings it back (#471).
   const oldDescription = record.descriptions?.[0]?.trim();
   const clearing = [

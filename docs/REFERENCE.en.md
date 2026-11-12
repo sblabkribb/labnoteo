@@ -582,6 +582,10 @@ type.
   The question names the sample in the slot as `alias (ID, scope)`, or by its ID when it has no
   alias. Every sample type of this registry and of Global is checked. A wider location (`-80 freezer`,
   `Rack A`) is not asked about, and a slot a discarded sample was in counts as free.
+  The question's default button is **Change location** (Enter and Escape do the same). It goes
+  back to the storage location prompt with the location just typed, so only the slot needs
+  fixing and the alias and description stay. Closing that prompt gives up, and a notice says
+  what was entered so it is not lost unseen.
 - **Delete** is refused while note text uses the sample: the notice names each note by its full
   vault path (a Local sample is checked in its experiment and in the notes outside experiments
   above, a Global one in the whole vault). Remove the references first, or use **Mark as

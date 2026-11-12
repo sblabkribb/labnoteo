@@ -524,6 +524,10 @@ const obsidianKo: Record<string, string> = {
   '(after the last unit operation)': '(마지막 유닛 오퍼레이션 다음)',
   'Save {0} anyway?': '그래도 {0}을(를) 저장할까요?',
   'Save anyway': '그래도 저장',
+  'Change location': '위치 고치기',
+  '{0} was not created.': '{0}을(를) 만들지 않았습니다.',
+  '{0} was not created. You had entered: {1}': '{0}을(를) 만들지 않았습니다. 입력했던 내용: {1}',
+  '{0} was not changed.': '{0}은(는) 바꾸지 않았습니다.',
   '{0} samples already have the alias {1} ({2}).': '{0} 시료 중에 이미 별칭 {1}이(가) 있습니다({2}).',
   '{0} is only listed in the sample list tables of notes ({1}). Its rows are removed with it.':
     '{0}은(는) 노트({1})의 시료 목록 표에만 있습니다. 표의 그 줄도 함께 지웁니다.',
