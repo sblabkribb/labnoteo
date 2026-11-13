@@ -39,3 +39,9 @@ steps:
     args: { view: workflow, label: { ko: RFP 프로모터 비교, en: RFP promoter comparison } }
     poster: true
     hold: 1500
+  - caption: { ko: status를 목록으로 쓰면 누락 대신 잘못된 자료형으로 알려 줍니다, en: "A list-valued status is reported as the wrong type, not missing" }
+    tool: eval
+    args:
+      expression: "(async () => { const f = app.workspace.getActiveFile(); await app.fileManager.processFrontMatter(f, fm => { fm.status = ['in-progress']; }); return true; })()"
+  - highlight: { selector: .labnote-tree-row, text: { ko: '(status는 문자열이어야 함)', en: '(status must be text)' } }
+    hold: 2000

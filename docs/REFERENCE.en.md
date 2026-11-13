@@ -1077,6 +1077,37 @@ current note.
 - When at least one change was made, an empty final answer does not bring up the "The model gave no
   answer" notice.
 
+## Record preservation and diagnostics
+
+- **Registries and sample tables:** Local takes precedence over Global for the same type and ID,
+  ignoring ID case. Listing samples and cancelling table insertion do not rewrite registries.
+  Note sync does not delete existing Local records merely because Global has the ID. An unreadable
+  required registry stops sync for that type; other valid types continue.
+- **Types received from collaborators:** startup discovers nonempty registries missing from the
+  configured types. **Register sample types found in this vault** shows paths and counts and lets
+  you select types. Cancelling leaves the files untouched. Configure a nondefault Global path yourself.
+- **Dates and markers:** inserting a date keeps selected text and adds the date at its end. Use one
+  selection. Issue markers cannot replace unit-operation Meta properties. Successful insertion uses
+  the existing automatic-date, manual-date preservation and undo rules.
+- **Structure:** moving an experiment inside another experiment offers to move it back. A template-shaped
+  block whose `[ID Name]` heading was damaged is diagnosed by line; automatic TOC cleanup pauses until
+  you restore it. No ID is guessed.
+- **Markers in tables:** these are invalid in highlighting and automation validation. Move them below
+  the table. CSV export aborts before changing files when a target has one. Changes during a confirmation
+  abort the export; changes during export prevent old-CSV cleanup.
+- **MCP and status:** append returns the real previous section body in `previousBody`, limited to 500
+  characters and intended as a diagnostic excerpt, not a complete backup. Existing text, placeholders
+  and nested headings stay, with removal counts of zero. Missing, empty and non-text status values
+  have distinct diagnostics.
+
+AI commands send note content, conversation and tool results to the configured provider. Before the
+first request per provider/address on this PC and vault, a confirmation shows the actual request
+address. Cancel sends no request. A changed address requires confirmation again; an ongoing run keeps
+the settings it confirmed. Ollama also sends to a server when configured with a remote address.
+
+After updating, run **Setup research automation** again to refresh installed guides and scripts.
+Edited files or files with damaged managed marks that were skipped have not been updated.
+
 ## Views and the rest
 
 ### Toggle MCP server
@@ -1315,28 +1346,3 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
   by that name. Renaming it, or moving it into another folder, warns and offers to rename it back to
   `labnote`. When `labnote/` has no experiment but experiment folders exist elsewhere in the vault,
   `Create experiment` asks before numbering the new one 001.
-
-
-## Record preservation and diagnostics
-
-- **Registries and sample tables:** Local takes precedence over Global for the same type and ID,
-  ignoring ID case. Listing samples and cancelling table insertion do not rewrite registries.
-  Note sync does not delete existing Local records merely because Global has the ID. An unreadable
-  required registry stops sync for that type; other valid types continue.
-- **Dates and markers:** inserting a date keeps selected text and adds the date at its end. Use one
-  selection. Issue markers cannot replace unit-operation Meta properties. Successful insertion uses
-  the existing automatic-date, manual-date preservation and undo rules.
-
-AI commands send note content, conversation and tool results to the configured provider. Before the
-first request per provider/address on this PC and vault, a confirmation shows the actual request
-address. Cancel sends no request. A changed address requires confirmation again; an ongoing run keeps
-the settings it confirmed. Ollama also sends to a server when configured with a remote address.
-- **Types received from collaborators:** startup discovers nonempty registries missing from the
-  configured types. **Register sample types found in this vault** shows paths and counts and lets
-  you select types. Cancelling leaves the files untouched. Configure a nondefault Global path yourself.
-- **Structure:** moving an experiment inside another experiment offers to move it back. A template-shaped
-  block whose `[ID Name]` heading was damaged is diagnosed by line; automatic TOC cleanup pauses until
-  you restore it. No ID is guessed.
-- **Markers in tables:** these are invalid in highlighting and automation validation. Move them below
-  the table. CSV export aborts before changing files when a target has one. Changes during a confirmation
-  abort the export; changes during export prevent old-CSV cleanup.

@@ -472,7 +472,7 @@ function pickSection(
   } else if (candidates.length > 1) {
     return {
       error:
-        `"${heading}" matches ${candidates.length} sections; nothing was written. ` +
+        `"${heading}" matches ${candidates.length} sections. ` +
         `Call again with ${parentHeading ? 'occurrence' : 'parentHeading or occurrence'} to choose one. ` +
         `Candidates: ${describeSections(candidates)}.`,
     };
@@ -1311,7 +1311,7 @@ export function createLabnoteTools(): ToolDef[] {
             mode: append ? 'append' : 'replace',
             removedLines: append ? 0 : (removed?.lines ?? 0),
             removedSubheadings: append ? 0 : (removed?.subheadings ?? 0),
-            previousBody: append ? '' : (removed?.text ?? '').slice(0, PREVIOUS_BODY_LIMIT),
+            previousBody: (removed?.text ?? '').slice(0, PREVIOUS_BODY_LIMIT),
           },
         };
       },
@@ -1330,7 +1330,7 @@ export function createLabnoteTools(): ToolDef[] {
           occurrence: resolved.index + 1,
           total: resolved.total,
           line: resolved.target.line + 1,
-          removedLines: body?.lines ?? 0,
+          removedLines: resolved.append ? 0 : (body?.lines ?? 0),
           removedSubheadings: resolved.append ? 0 : (body?.subheadings ?? 0),
           ...(resolved.append ? { appending: true } : {}),
           clearing: resolved.content === '',

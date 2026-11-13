@@ -9,6 +9,7 @@
  * shared command helpers, so behaviour matches the command palette exactly).
  */
 import { ItemView, Menu, TFile, TFolder, WorkspaceLeaf, type TAbstractFile } from 'obsidian';
+import { diagnoseStatus } from '@labnoteo/core/lib/experimentStatus';
 import {
   buildExperimentTree,
   buildWorkflowTree,
@@ -221,10 +222,13 @@ export class WorkflowTreeView extends ItemView {
         const updated: unknown = fm?.last_updated_date;
         const created: unknown = fm?.created_date;
         const folder = posix.dirname(f.path);
+        const statusKind = diagnoseStatus(fm?.status);
+        const statusProblem: ExperimentEntry['statusProblem'] = statusKind === 'non-string' || statusKind === 'empty' ? statusKind : undefined;
         return {
           folder,
           title: typeof fm?.title === 'string' ? fm.title : undefined,
           status: typeof fm?.status === 'string' ? fm.status : undefined,
+          statusProblem,
           discuss: fm ? isDiscussFlagged(fm) : false,
           lastUpdated: typeof updated === 'string' && updated.trim() ? updated.trim() : undefined,
           created: typeof created === 'string' && created.trim() ? created.trim() : undefined,
@@ -393,6 +397,8 @@ export class WorkflowTreeView extends ItemView {
         invalidStatus: this.plugin.t('(not an allowed status)'),
         invalidStatusTooltip: this.plugin.t('Validation fails on this status. Allowed statuses: {0}'),
         missingStatus: this.plugin.t('(validation fails)'),
+        nonStringStatus: this.plugin.t('(status must be text)'),
+        emptyStatus: this.plugin.t('(empty status)'),
         missingStatusTooltip: this.plugin.t(
           'An experiment without a status fails validation. Set one with "{0}".',
           this.plugin.t('Change experiment status')

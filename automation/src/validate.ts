@@ -19,7 +19,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { isValidStatus, EXPERIMENT_STATUSES } from '@labnoteo/core/lib/experimentStatus';
+import { diagnoseStatus, EXPERIMENT_STATUSES } from '@labnoteo/core/lib/experimentStatus';
 import { MAX_ISSUE_TITLE, parseFrontMatterYaml, parseIssueMarkers } from '@labnoteo/core';
 import { unrecognizedDiscussValue } from '@labnoteo/core/lib/discussFlag';
 import { findDuplicateNoteIds } from '@labnoteo/core/lib/noteId';
@@ -84,10 +84,13 @@ export function validateExperiments(notes: ValidatedNote[]): string[] {
 
     if (readStringField(note.frontMatter, 'experiment_type') !== 'labnote') continue;
 
-    const status = readStringField(note.frontMatter, 'status');
-    if (!status) {
+    const status = note.frontMatter.status;
+    const statusKind = diagnoseStatus(status);
+    if (statusKind === 'missing') {
       errors.push(`${note.path}: missing required \`status\` front-matter.`);
-    } else if (!isValidStatus(status)) {
+    } else if (statusKind === 'non-string' || statusKind === 'empty') {
+      errors.push(`${note.path}: status must be a non-empty string (allowed: ${EXPERIMENT_STATUSES.join(', ')}).`);
+    } else if (statusKind === 'invalid') {
       errors.push(
         `${note.path}: invalid \`status: ${status}\` ` +
           `(allowed: ${EXPERIMENT_STATUSES.join(', ')}).`

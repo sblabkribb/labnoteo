@@ -4,6 +4,8 @@ import { planIssueMarkerInsertion, parseIssueMarkers } from '../lib/issueMarker'
 import { scanMarkdownTableRanges } from '../lib/exportTablesCsv';
 import { damagedUnitOpHeadings } from '../sections/unitOpDiagnosis';
 import { diagnoseExperimentPath } from '../lib/labnoteStructure';
+import { diagnoseStatus } from '../lib/experimentStatus';
+import { buildExperimentTree } from '../tree/treeModel';
 
 describe('stabilization regressions', () => {
   const unit = '### [UHW010 Spin] one\n#### Meta\n- Start_date: today\n#### Input\n- sample\n#### Method\nspin';
@@ -34,5 +36,18 @@ describe('stabilization regressions', () => {
     const scan = parseIssueMarkers(table.replace(/\r\n/g, '\n'));
     expect(scan.markers).toEqual([]); expect(scan.malformed[0]).toMatchObject({ line: 3, reason: 'table' });
     expect(planIssueMarkerInsertion(table, 0, 0, 'ISS-next', 'topic')).toEqual({ reason: 'table' });
+  });
+  it.each([[undefined, 'missing'], [null, 'non-string'], [['in-progress'], 'non-string'], ['', 'empty'], ['Completed', 'invalid'], ['completed', 'valid']])('distinguishes status %j', (value, expected) => {
+    expect(diagnoseStatus(value)).toBe(expected);
+  });
+  it('keeps non-text and empty status groups separate from missing status in the workflow tree', () => {
+    const tree = buildExperimentTree([
+      { folder: 'labnote/001_A', statusProblem: 'non-string' },
+      { folder: 'labnote/002_B', statusProblem: 'empty', status: '' },
+      { folder: 'labnote/003_C' },
+    ]);
+    expect(tree.children).toHaveLength(3);
+    expect(tree.children!.map(group => group.label).join('\n')).toContain('(status must be text)');
+    expect(tree.children!.find(group => group.label.includes('status must be text'))!.children![0].tooltip).toContain('status must be text');
   });
 });
