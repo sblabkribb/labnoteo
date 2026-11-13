@@ -163,6 +163,7 @@ import {
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
 import { CaretGuard } from './caretGuard';
+import { discoverSampleTypes } from './sampleDiscovery';
 import { LastUpdatedTracker } from './lastUpdatedTracker';
 import { IssueMarkerIndex, markerExperimentDir } from './issueMarkerIndex';
 import { SampleIdIndex } from './sampleIdIndex';
@@ -342,6 +343,7 @@ export default class LabnotePlugin extends Plugin {
     this.app.workspace.onLayoutReady(() =>
       this.run(async () => {
         await refreshAutomationFiles(this.host, this.manifest.version);
+        if (this.settings.sampleTracking) await discoverSampleTypes(this);
       })
     );
     this.app.workspace.onLayoutReady(() =>
