@@ -18,3 +18,10 @@ steps:
     hold: 1200
   - caption: { ko: .github·.labnoteo 같은 점 폴더는 탐색기에 안 보입니다, en: Dot folders such as .github and .labnoteo are hidden in the explorer }
     hold: 2500
+  - caption: { ko: 관리 표시가 손상된 설명서는 덮어쓰지 않습니다, en: A guide with broken managed marks is left unchanged }
+    tool: eval
+    args:
+      expression: "(async () => { const f = app.vault.getFileByPath('QUICKSTART.md'); await app.vault.process(f, s => s.replace('<!-- END labnoteo (managed) -->', '')); return true; })()"
+  - palette: open-user-guide
+  - highlight: { selector: .notice }
+    hold: 2000

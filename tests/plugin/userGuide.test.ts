@@ -32,6 +32,16 @@ function makeHost(files: Record<string, string> = {}, confirmResult = true) {
 }
 
 describe('openUserGuide', () => {
+  it('migrates an exact unmarked template but leaves an unknown unmarked document untouched', async () => {
+    const known = makeHost({ [QUICKSTART_DOC_PATH]: QUICKSTART_DOC_CONTENT });
+    await openUserGuide(known.asHost, '1.0.0');
+    expect(await known.fs.read(QUICKSTART_DOC_PATH)).toBe(managedFileContent(QUICKSTART_ASSET));
+    const unknown = makeHost({ [QUICKSTART_DOC_PATH]: '# Our lab rules\nKeep all records.\n' });
+    await openUserGuide(unknown.asHost, '1.0.0');
+    expect(await unknown.fs.read(QUICKSTART_DOC_PATH)).toBe('# Our lab rules\nKeep all records.\n');
+    expect(unknown.host.confirm).not.toHaveBeenCalled();
+    expect(unknown.host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('Restore one BEGIN/END pair'));
+  });
   it('writes only QUICKSTART.md when it is missing, then opens it', async () => {
     const { fs, host, asHost } = makeHost();
     expect(QUICKSTART_DOC_CONTENT.length).toBeGreaterThan(0);
@@ -51,28 +61,20 @@ describe('openUserGuide', () => {
     await openUserGuide(asHost, '1.0.0');
 
     expect(await fs.read(QUICKSTART_DOC_PATH)).toBe('# my notes\n');
-    expect(host.notify).not.toHaveBeenCalled();
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('file was left unchanged'));
     expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
   });
 
   // #563: with the BEGIN line gone the command opened the guide as it was, and nothing else could fix it.
-  it('rebuilds a guide whose markers are broken after asking, keeping the lab text after END', async () => {
-    const broken = `옛 설명서\n${MANAGED_BLOCK_END}\n\n연구실 규칙\n`;
+  it('opens a broken guide unchanged and explains how to restore the marks', async () => {
+    const broken = `old guide\n${MANAGED_BLOCK_END}\n\nLab rules\n`;
     const { fs, host, asHost } = makeHost({ [QUICKSTART_DOC_PATH]: broken });
-
     await openUserGuide(asHost, '1.0.0');
-
-    expect(host.confirm).toHaveBeenCalledWith(expect.stringContaining('marks of QUICKSTART.md are broken'), expect.anything());
-    expect(await fs.read(QUICKSTART_BACKUP_PATH)).toBe(broken);
-    const rebuilt = await fs.read(QUICKSTART_DOC_PATH);
-    expect(rebuilt.startsWith(upsertManagedBlock('', QUICKSTART_ASSET.content))).toBe(true);
-    expect(rebuilt.endsWith('\n연구실 규칙\n')).toBe(true);
+    expect(host.confirm).not.toHaveBeenCalled();
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('Restore one BEGIN/END pair'));
+    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(broken);
+    expect(await fs.exists(QUICKSTART_BACKUP_PATH)).toBe(false);
     expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
-
-    const kept = makeHost({ [QUICKSTART_DOC_PATH]: broken }, false);
-    await openUserGuide(kept.asHost, '1.0.0');
-    expect(await kept.fs.read(QUICKSTART_DOC_PATH)).toBe(broken);
-    expect(await kept.fs.exists(QUICKSTART_BACKUP_PATH)).toBe(false);
   });
 });
 

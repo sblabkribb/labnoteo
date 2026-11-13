@@ -42,4 +42,20 @@ describe('sample preservation (#598)', () => {
     expect(await fs.read(local)).toBe(raw);
   });
 
+  it('preserves a broken local ledger and still saves another type', async () => {
+    const fs = new MemFileSystem({ [local]: '{broken' });
+    const errors = vi.fn();
+    await saveSamplesFromDocument(fs, note, '@DNA;DNA-1;one\n@RNA;RNA-1;two', 'resources/labsamples', [], [], errors);
+    expect(await fs.read(local)).toBe('{broken');
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(await fs.read(local.replace('DNA.json', 'RNA.json')))).toHaveProperty('RNA-1');
+  });
+  it('does not create Local when the required Global registry cannot be read', async () => {
+    const fs = new MemFileSystem({ [global]: 'null' });
+    const errors = vi.fn();
+    await saveSamplesFromDocument(fs, note, '@DNA;DNA-1;one', 'resources/labsamples', [], [], errors);
+    expect(await fs.exists(local)).toBe(false);
+    expect(await fs.read(global)).toBe('null');
+    expect(errors).toHaveBeenCalledTimes(1);
+  });
 });

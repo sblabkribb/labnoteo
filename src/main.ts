@@ -3185,7 +3185,11 @@ export default class LabnotePlugin extends Plugin {
         content,
         this.settings.globalSampleFolder,
         this.settings.customSampleTypes,
-        sampleListHeaders(this)
+        sampleListHeaders(this),
+        (file, error) => {
+          console.warn('[labnoteo] sample sync skipped:', file, error);
+          this.host.notify('warn', this.t('Could not read a sample registry needed for {0}. No changes were saved for this sample type. Repair the JSON and try again.', file));
+        }
       );
       this.noticeAliasConflicts(conflicts);
       // Freshly-written definitions should show up in autocomplete right away.
