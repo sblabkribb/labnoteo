@@ -915,6 +915,31 @@ export function noteLocalSampleFolder(documentPath: string, globalFolder?: strin
   return globalFolder && isSameSampleFolder(local, globalFolder) ? undefined : local;
 }
 
+/** Read without persisting legacy migrations. A failed read is never an empty ledger. */
+export type SampleRegistryRead =
+  | { status: 'ok'; records: Record<string, SampleRecord> }
+  | { status: 'missing'; records: Record<string, SampleRecord> }
+  | { status: 'invalid'; error: unknown };
+
+export async function readSampleRegistry(fs: LabnoteFs, folder: string, type: string): Promise<SampleRegistryRead> {
+  assertSafeSampleType(type);
+  const file = path.join(folder, `${type}.json`);
+  try {
+    if (!(await fs.exists(file))) return { status: 'missing', records: {} };
+    const raw: unknown = JSON.parse(await fs.read(file));
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Expected a sample registry object');
+    return { status: 'ok', records: mergeCaseCollidingIds(raw as Record<string, SampleRecord>).records };
+  } catch (error) {
+    return { status: 'invalid', error };
+  }
+}
+
+export async function readSamplesByType(fs: LabnoteFs, folder: string, type: string): Promise<Record<string, SampleRecord>> {
+  const result = await readSampleRegistry(fs, folder, type);
+  if (result.status === 'invalid') throw new Error(`Cannot read sample registry: ${path.join(folder, `${type}.json`)}`);
+  return result.records;
+}
+
 /**
  * The IDs of the `type` samples in `folder` with `alias` (trimmed, case
  * ignored). Shared by the app's prompts and the MCP `create_sample` (#310).
@@ -1650,8 +1675,8 @@ export async function saveSamplesFromDocument(
     // its ids captured into a Set the pure callback can consult.
     let globalIds: Set<string> | null = null;
     if (globalLabsamplesFolder && !skipGlobalDedupe) {
-      const globalSamples = await loadSamplesByType(fs, globalLabsamplesFolder, type);
-      globalIds = new Set(Object.keys(globalSamples));
+      const globalSamples = await readSamplesByType(fs, globalLabsamplesFolder, type);
+      globalIds = new Set(Object.keys(globalSamples).map(id => id.toLowerCase()));
     }
 
     // A catalog-type reference that seeds a new local record takes the
@@ -1688,18 +1713,17 @@ export async function saveSamplesFromDocument(
     let typeConflicts: SampleAliasConflict[] = [];
     const merge = (existing: Record<string, SampleRecord>): Record<string, SampleRecord> => {
       typeConflicts = [];
+      const incoming: Record<string, SampleRecord> = {};
+      for (const [id, record] of Object.entries(newDb[type])) {
+        const local = Object.keys(existing).find(key => key.toLowerCase() === id.toLowerCase());
+        if (!local && globalIds?.has(id.toLowerCase())) continue;
+        incoming[local ?? id] = record;
+      }
       const merged = mergeSampleDatabases(
         { [type]: existing },
-        { [type]: newDb[type] },
+        { [type]: incoming },
         { referenceOnly, seedable, aliasConflicts: typeConflicts }
       );
-      if (globalIds) {
-        for (const id of globalIds) {
-          if (merged[type][id]) {
-            delete merged[type][id];
-          }
-        }
-      }
       return merged[type];
     };
 
@@ -1708,7 +1732,7 @@ export async function saveSamplesFromDocument(
     // the file anyway left an empty `{}` registry in the experiment (#82).
     if (!(await fs.exists(filePath)) && Object.keys(merge({})).length === 0) continue;
     await fs.modify(filePath, (raw) => JSON.stringify(merge(parseSampleRecords(raw)), null, 2));
-    conflicts.push(...typeConflicts.filter((c) => !globalIds?.has(c.id)));
+    conflicts.push(...typeConflicts);
   }
   return conflicts;
 }

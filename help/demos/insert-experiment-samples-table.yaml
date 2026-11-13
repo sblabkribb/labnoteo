@@ -14,7 +14,7 @@ steps:
   - caption: { ko: 팔레트에서 이 실험의 시료 목록 삽입, en: Run Insert sample list of this experiment }
     palette: insert-experiment-samples-table
     hold: 1500
-  - caption: { ko: 로컬 샘플과 쓰인 전역 샘플이 표로 들어갑니다, en: Local samples and the Global ones in use go in as a table }
+  - caption: { ko: 로컬 샘플과 쓰인 전역 샘플을 넣고 같은 ID는 로컬을 우선합니다, en: Local and used Global samples go in; Local wins for the same ID }
     highlight: { selector: .cm-table-widget }
     poster: true
     hold: 2000
