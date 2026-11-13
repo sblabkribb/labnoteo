@@ -3070,8 +3070,8 @@ export default class LabnotePlugin extends Plugin {
     const missingTitle = this.t('Not in the sample registry');
     const staleAliasTitle = (alias: string): string => this.t('The registry calls this sample {0}', alias);
     const discardedTitle = (date: string): string => this.t('Marked discarded on {0}', date);
-    const malformedTitle = (reason: 'missing-id' | 'missing-title'): string =>
-      reason === 'missing-id'
+    const malformedTitle = (reason: 'missing-id' | 'missing-title' | 'table'): string =>
+      reason === 'table' ? this.t('Issue markers cannot go inside a table. Run this on a line below the table.') : reason === 'missing-id'
         ? this.t('This marker has no ID. Insert it again with "{0}".', this.t('Insert issue marker'))
         : this.t('This marker has no topic sentence.');
     const getState = (path: string | undefined): HighlightState => {

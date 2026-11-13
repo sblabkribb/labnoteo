@@ -321,7 +321,19 @@ export function extractMarkdownTables(markdown: string): CsvTable[] {
  * {@link extractMarkdownTables}, also counting the pipe tables the reading
  * view shows as text because nothing separates them from the paragraph above.
  */
-export function scanMarkdownTables(markdown: string): MarkdownTableScan {
+export interface MarkdownTableRange {
+  startLine: number;
+  endLine: number;
+  kind: 'table' | 'not-rendered' | 'hidden';
+}
+
+export function scanMarkdownTableRanges(markdown: string): MarkdownTableRange[] {
+  const ranges: MarkdownTableRange[] = [];
+  scanMarkdownTables(markdown, ranges);
+  return ranges;
+}
+
+export function scanMarkdownTables(markdown: string, ranges?: MarkdownTableRange[]): MarkdownTableScan {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n').map(unquote);
   const commented = hiddenCommentLines(lines.map(l => l.text));
   const tables: CsvTable[] = [];
@@ -346,8 +358,10 @@ export function scanMarkdownTables(markdown: string): MarkdownTableScan {
     }
     if (commented[i]) {
       if (isTableHeader(lines, i, line.depth)) {
+        const startLine = i;
         hidden++;
         for (i += 2; i < lines.length && isTableRow(lines[i], line.depth); i++);
+        ranges?.push({ startLine, endLine: i, kind: 'hidden' });
       } else i++;
       // The comment's last line ends the HTML block, so a table right under it
       // is a table: treat the line like a code block, not like paragraph text.
@@ -373,6 +387,7 @@ export function scanMarkdownTables(markdown: string): MarkdownTableScan {
     }
 
     if (isTableHeader(lines, i, line.depth)) {
+      const startLine = i;
       const rendered = startsBlock(prev, line, prevCode);
       const header = splitTableRow(line.text);
       const rows: string[][] = [header];
@@ -389,6 +404,7 @@ export function scanMarkdownTables(markdown: string): MarkdownTableScan {
         rows.push(fitRow(cells, header.length));
         i++;
       }
+      ranges?.push({ startLine, endLine: i, kind: rendered ? 'table' : 'not-rendered' });
       if (rendered)
         tables.push({
           index: tables.length,

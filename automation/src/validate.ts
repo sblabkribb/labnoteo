@@ -177,7 +177,7 @@ function validateMarkers(note: ValidatedNote): string[] {
     const { markers, malformed } = parseIssueMarkers(source.body);
 
     for (const bad of malformed) {
-      const detail = bad.reason === 'missing-id' ? 'missing marker ID' : 'missing topic sentence';
+      const detail = bad.reason === 'table' ? 'issue markers cannot go inside a table' : bad.reason === 'missing-id' ? 'missing marker ID' : 'missing topic sentence';
       errors.push(
         `${source.path}:${bad.line + source.bodyLineOffset}: malformed \`@issue\` marker ` +
           `(${detail}). Expected \`@issue;<ID>;<topic>\` — use the ` +

@@ -36,6 +36,7 @@ import {
 } from '@labnoteo/core';
 import { findDefinedSampleIds } from '@labnoteo/core/lib/sampleStorage';
 import { noteMarkerIds } from './issueMarkerIndex';
+import { scanMarkdownTableRanges } from '@labnoteo/core/lib/exportTablesCsv';
 
 export interface HighlightState {
   types: string[];
@@ -86,6 +87,7 @@ interface TokenRange {
 
 /** Which markers to draw, and how, in the editor. */
 interface MarkerOptions {
+  inTable?: (at: number) => boolean;
   /** Drops the markers the automation will not read (#120). */
   inCode?: (start: number, end: number) => boolean;
   /** Whether a marker starting here is in a comment, which the automation does not read either (#266). */
@@ -164,9 +166,12 @@ export function collectTokenRanges(
   opts: MarkerOptions = {}
 ): TokenRange[] {
   const live = (r: IssueMarkerRange) => !opts.inCode?.(r.start, r.end);
-  const wellFormed = opts.noMarkers ? [] : findIssueMarkerRanges(text, opts.inComment).filter(live);
+  const candidates = opts.noMarkers ? [] : findIssueMarkerRanges(text, opts.inComment).filter(live);
+  const tableMarkers = candidates.filter(r => opts.inTable?.(r.start));
+  const wellFormed = candidates.filter(r => !opts.inTable?.(r.start));
   // Reading view picks the text nodes to style by calling this without options, so these are found regardless.
   const malformed = opts.noMarkers ? [] : findMalformedIssueMarkerRanges(text, opts.inComment).filter(live);
+  malformed.push(...tableMarkers.map(r => ({ ...r, reason: 'table' as const })));
   const markers = [...wellFormed, ...malformed];
   const ranges: TokenRange[] = wellFormed.map(r => {
     const id = MARKER_ID_RE.exec(text.slice(r.start, r.end))?.[1];
@@ -281,6 +286,7 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
       }
 
       build(view: EditorView): DecorationSet {
+        const tableRanges = scanMarkdownTableRanges(view.state.doc.toString()).filter(r => r.kind === 'table');
         const state = getState(editorPath(view));
         this.drawnKey = highlightStateKey(state);
         const { types, colors } = state;
@@ -318,9 +324,14 @@ export function createSampleHighlightPlugin(getState: (path: string | undefined)
           const inCode = (start: number, end: number): boolean =>
             fenced.some(f => from + start < f.end && from + end > f.start);
           const inComment = (at: number): boolean => comments.some(c => from + at >= c.start && from + at < c.end);
+          const inTable = (at: number): boolean => {
+            const line = view.state.doc.lineAt(from + at).number - 1;
+            return tableRanges.some(r => line >= r.startLine && line < r.endLine);
+          };
           for (const r of collectTokenRanges(text, types, colors, {
             inCode,
             inComment,
+            inTable,
             duplicate,
             missing,
             staleAlias,
@@ -417,7 +428,7 @@ function wrapFormattedMarkers(root: HTMLElement): void {
     if (last.nodeType === Node.TEXT_NODE && span.endInLast < (last as Text).length) (last as Text).splitText(span.endInLast);
     const marker = textNode.splitText(span.start);
     const el = document.createElement('span');
-    el.className = ISSUE_MARKER_CLASS;
+    el.className = textNode.parentElement?.closest('td, th') ? MALFORMED_MARKER_CLASS : ISSUE_MARKER_CLASS;
     marker.before(el);
     el.append(marker, ...taken);
   }
@@ -446,7 +457,7 @@ function highlightTextNodes(
     const text = textNode.data;
     const next = textNode.nextSibling;
     const cut = next?.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has(next.nodeName);
-    const ranges = collectTokenRanges(text, types, colors, { ...opts, cut });
+    const ranges = collectTokenRanges(text, types, colors, { ...opts, cut, inTable: () => !!textNode.parentElement?.closest('td, th') });
     const frag = document.createDocumentFragment();
     let last = 0;
     for (const r of ranges) {

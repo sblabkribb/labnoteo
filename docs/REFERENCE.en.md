@@ -1337,3 +1337,6 @@ the settings it confirmed. Ollama also sends to a server when configured with a 
 - **Structure:** moving an experiment inside another experiment offers to move it back. A template-shaped
   block whose `[ID Name]` heading was damaged is diagnosed by line; automatic TOC cleanup pauses until
   you restore it. No ID is guessed.
+- **Markers in tables:** these are invalid in highlighting and automation validation. Move them below
+  the table. CSV export aborts before changing files when a target has one. Changes during a confirmation
+  abort the export; changes during export prevent old-CSV cleanup.

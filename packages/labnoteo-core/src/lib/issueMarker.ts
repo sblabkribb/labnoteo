@@ -22,6 +22,7 @@
  */
 import { isInFrontMatter } from '../sections/documentHead';
 import { overlapsMetaProperty } from '../sections/metaContext';
+import { scanMarkdownTableRanges } from './exportTablesCsv';
 
 /** Marker keyword, without the delimiter. */
 export const ISSUE_MARKER_KEYWORD = '@issue';
@@ -68,7 +69,7 @@ export interface MalformedIssueMarker {
   line: number;
   /** The offending text, from `@issue` to end of line. */
   text: string;
-  reason: 'missing-id' | 'missing-title';
+  reason: 'missing-id' | 'missing-title' | 'table';
 }
 
 /** Result of scanning a note for markers. */
@@ -270,6 +271,7 @@ export function parseIssueMarkers(md: string): IssueMarkerScan {
   const lines = md.split('\n');
   const code = codeLines(lines);
   const comments = markerHiddenRanges(md);
+  const tables = scanMarkdownTableRanges(md).filter(r => r.kind === 'table');
   let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -283,6 +285,10 @@ export function parseIssueMarkers(md: string): IssueMarkerScan {
 
     const text = line.slice(at);
     const lineNo = i + 1;
+    if (tables.some(r => i >= r.startLine && i < r.endLine)) {
+      malformed.push({ line: lineNo, text, reason: 'table' });
+      continue;
+    }
     const m = text.match(MARKER_RE);
     if (!m) {
       malformed.push({ line: lineNo, text, reason: 'missing-id' });
@@ -324,12 +330,16 @@ export interface IssueMarkerRange {
 export function findIssueMarkerRanges(text: string, hidden?: (at: number) => boolean): IssueMarkerRange[] {
   const ranges: IssueMarkerRange[] = [];
   let offset = 0;
+  const tables = scanMarkdownTableRanges(text).filter(r => r.kind === 'table');
+  let lineNo = 0;
   for (const line of text.split('\n')) {
+    const inTable = tables.some(r => lineNo >= r.startLine && lineNo < r.endLine);
+    lineNo++;
     const lineStart = offset;
     const at = markerStart(line, hidden && (a => hidden(lineStart + a)));
     if (at !== -1) {
       const m = line.slice(at).match(MARKER_RE);
-      if (m && (m[2] ?? '').trim()) {
+      if (!inTable && m && (m[2] ?? '').trim()) {
         ranges.push({ start: offset + at, end: offset + line.length });
       }
     }
@@ -350,12 +360,16 @@ export function findMalformedIssueMarkerRanges(
 ): Array<IssueMarkerRange & { reason: MalformedIssueMarker['reason'] }> {
   const ranges: Array<IssueMarkerRange & { reason: MalformedIssueMarker['reason'] }> = [];
   let offset = 0;
+  const tables = scanMarkdownTableRanges(text).filter(r => r.kind === 'table');
+  let lineNo = 0;
   for (const line of text.split('\n')) {
+    const inTable = tables.some(r => lineNo >= r.startLine && lineNo < r.endLine);
+    lineNo++;
     const lineStart = offset;
     const at = markerStart(line, hidden && (a => hidden(lineStart + a)));
     if (at !== -1) {
       const m = line.slice(at).match(MARKER_RE);
-      const reason = !m ? 'missing-id' : (m[2] ?? '').trim() ? undefined : 'missing-title';
+      const reason = inTable ? 'table' : !m ? 'missing-id' : (m[2] ?? '').trim() ? undefined : 'missing-title';
       if (reason) ranges.push({ start: offset + at, end: offset + line.length, reason });
     }
     offset += line.length + 1;
@@ -687,7 +701,9 @@ export function planIssueMarkerInsertion(
   // After the comment check, so a commented-out table line gets the comment
   // reason (#282); before the conflict one, so a table row holding a marker
   // is still refused as a table.
-  if (isTableRow(line)) return { reason: 'table' };
+  const sourceLine = doc.slice(0, from).split('\n').length - 1;
+  const endLine = doc.slice(0, to).split('\n').length - 1;
+  if (scanMarkdownTableRanges(doc).some(r => r.kind === 'table' && sourceLine < r.endLine && endLine >= r.startLine)) return { reason: 'table' };
   const resultStart = after.lastIndexOf('\n', markerAt - 1) + 1;
   const resultEnd = after.indexOf('\n', markerAt);
   const resultLine = after.slice(resultStart, resultEnd === -1 ? after.length : resultEnd);

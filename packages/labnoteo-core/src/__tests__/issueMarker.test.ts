@@ -457,7 +457,7 @@ describe('markers in comments', () => {
     const doc = '<!--\n| 시료 | 농도 |\n| --- | --- |\n-->\n';
     const at = doc.indexOf('시료');
     expect(planIssueMarkerInsertion(doc, at, at, 'ISS-x', '주제')).toEqual({ reason: 'comment' });
-    const live = '| 시료 @issue;ISS-a;x | 농도 |';
+    const live = '| 시료 @issue;ISS-a;x | 농도 |\n| --- | --- |';
     expect(planIssueMarkerInsertion(live, 3, 3, 'ISS-x', '주제')).toEqual({ reason: 'table' });
   });
 
@@ -611,7 +611,7 @@ describe('planIssueMarkerInsertion', () => {
   });
 
   it('refuses inside a table row', () => {
-    expect(planIssueMarkerInsertion('| a | b |', 2, 3, ID)).toEqual({ reason: 'table' });
+    expect(planIssueMarkerInsertion('| a | b |\n| --- | --- |\n| 1 | 2 |', 2, 3, ID)).toEqual({ reason: 'table' });
   });
 
   it('refuses a second marker on one line', () => {
@@ -673,7 +673,7 @@ describe('planIssueMarkerInsertion', () => {
     });
 
     it('still refuses where a marker cannot go', () => {
-      expect(planIssueMarkerInsertion('| a | b |', 2, 2, ID, 'x')).toEqual({ reason: 'table' });
+      expect(planIssueMarkerInsertion('| a | b |\n| --- | --- |\n| 1 | 2 |', 2, 2, ID, 'x')).toEqual({ reason: 'table' });
       expect(planIssueMarkerInsertion('foo @issue;ISS-a;기존', 0, 0, ID, 'x')).toEqual({ reason: 'conflict' });
     });
   });
