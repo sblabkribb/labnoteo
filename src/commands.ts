@@ -871,8 +871,18 @@ export function insertDateCommand(
   // somewhere else in the table. The front matter and Meta checks below would
   // read the cell as the note, so they are skipped either way.
   const cell = activeTableCellEditor(editor) ?? (tableCellHostView(editor) ? editor : null);
+  const input = cell ?? editor;
+  if (input.listSelections?.().length > 1) {
+    host.notify('warn', host.t('Use one selection for this command. Nothing was changed.'));
+    return false;
+  }
   if (cell) {
-    writeIntoCell(cell, text, types);
+    const end = cell.getCursor('to');
+    const selected = cell.getSelection?.() ?? '';
+    if (selected) {
+      const before = cell.getValue().split('\n')[end.line]?.slice(0, end.ch) ?? '';
+      cell.replaceRange(`${before && !/\s$/.test(before) ? ' ' : ''}${text}`, end);
+    } else writeIntoCell(cell, text, types);
     return true;
   }
   const plan = planDateInsertion(
@@ -962,10 +972,12 @@ export async function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost
     while (used.has(id)) id = generateIssueMarkerId();
     return id;
   };
-  const refuse = (reason: 'conflict' | 'table' | 'frontMatter' | 'codeBlock' | 'comment' | 'notLabnote'): false => {
+  const refuse = (reason: 'conflict' | 'table' | 'frontMatter' | 'codeBlock' | 'comment' | 'notLabnote' | 'meta'): false => {
     host.notify(
       'warn',
-      reason === 'notLabnote'
+      reason === 'meta'
+        ? host.t('Issue markers cannot replace Meta properties. Put the discussion on a line outside Meta.')
+        : reason === 'notLabnote'
         ? host.t(
             'Markers in this note open no issue: only the README and workflow notes (.labnote.md) directly in an experiment folder are read. Put the marker in one of those.'
           )
@@ -981,6 +993,11 @@ export async function insertIssueMarkerCommand(editor: Editor, host: LabnoteHost
     );
     return false;
   };
+
+  if (editor.listSelections?.().length > 1) {
+    host.notify('warn', host.t('Use one selection for this command. Nothing was changed.'));
+    return false;
+  }
 
   // issue-sync and validate read only these notes (#428).
   if (notePath !== undefined && !markerExperimentDir(notePath)) return refuse('notLabnote');

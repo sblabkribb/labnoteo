@@ -1321,3 +1321,6 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
   ignoring ID case. Listing samples and cancelling table insertion do not rewrite registries.
   Note sync does not delete existing Local records merely because Global has the ID. An unreadable
   required registry stops sync for that type; other valid types continue.
+- **Dates and markers:** inserting a date keeps selected text and adds the date at its end. Use one
+  selection. Issue markers cannot replace unit-operation Meta properties. Successful insertion uses
+  the existing automatic-date, manual-date preservation and undo rules.

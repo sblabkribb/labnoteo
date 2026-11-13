@@ -15,6 +15,12 @@ steps:
     args: { text: { ko: '확인한 날: ', en: 'Checked on: ' } }
   - palette: insert-date
     hold: 1200
+  - caption: { ko: 글을 선택해도 지우지 않고 끝에 날짜를 붙입니다, en: Selected text is kept and the date is added at its end }
+    tool: eval
+    args:
+      expression: "(() => { const e = app.workspace.activeEditor.editor; const p = e.getCursor(); e.setSelection({line:p.line,ch:0},p); return true; })()"
+  - palette: insert-date
+    hold: 1200
   - caption: { ko: 빈 End_date 줄에서는 날짜와 시간을 채웁니다, en: On an empty End_date line it fills in date and time }
     tool: editor_move
     args: { text: Nucleic acid fragment analyzer, ch: end }
