@@ -159,6 +159,10 @@ export type ExperimentPathDiagnosis =
  */
 export function diagnoseExperimentPath(p: string, opts: { isFolder?: boolean } = {}): ExperimentPathDiagnosis {
   const folder = getExperimentDir(p);
+  const normalized = path.normalize(p);
+  if (opts.isFolder && folder && folder !== normalized && /^\d{3}_/.test(path.basename(normalized))) {
+    return { kind: 'nested', folder: normalized };
+  }
   if (folder) return { kind: 'ok', folder };
   const parts = path.normalize(p).split('/');
   const idx = parts.lastIndexOf('labnote');

@@ -8,6 +8,7 @@
  */
 
 // === Surgical unit-op TOC edits (whitespace-preserving; used by the Obsidian
+export { damagedUnitOpHeadings } from './sections/unitOpDiagnosis';
 // insert-unit-operation flow) ===
 export {
   buildUnitOpTocLine,

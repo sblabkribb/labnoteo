@@ -6,6 +6,7 @@
 import { App, Modal, Notice, Setting, TFile } from 'obsidian';
 import type { LabnoteHost, Translator } from '@labnoteo/core';
 import { getSeoulDateString } from '@labnoteo/core/lib/dateUtils';
+import { damagedUnitOpHeadings } from '@labnoteo/core';
 import { encodePagePayload, payloadLabel, unitOpFingerprint, type PagePayload } from '@labnoteo/core/lib/scanPayload';
 import type { SampleLocationLookup } from '@labnoteo/core/lib/sampleStorage';
 import {
@@ -277,18 +278,30 @@ export function initialWorksheetSelection(unitOps: readonly WorksheetUnitOp[]): 
 /** Pick the unit operations to print (lab ones preselected), then print or open in a browser. */
 export async function printWorksheetCommand(deps: WorksheetDeps, file: TFile): Promise<void> {
   const { app, host, t } = deps;
-  const unitOps = listWorksheetUnitOps(await app.vault.read(file));
+  const text = await app.vault.read(file);
+  const damaged = damagedUnitOpHeadings(text);
+  if (damaged.length) {
+    host.notify('warn', t('Unit operation heading is invalid at {0}:{1}. Restore a heading such as ### [UHW010 Name] Alias. The contents and table of contents were left unchanged.', file.path, String(damaged[0].line + 1)));
+    return;
+  }
+  const unitOps = listWorksheetUnitOps(text);
   if (unitOps.length === 0) {
     host.notify('info', t('This note has no unit operations to print. Add one with "{0}" first.', t('Insert unit operation')));
     return;
   }
   const choice = await new WorksheetModal(app, t, unitOps, deps.paper()).choose();
   if (!choice) return;
+  const latest = await app.vault.read(file);
+  const damagedAfterChoice = damagedUnitOpHeadings(latest);
+  if (damagedAfterChoice.length) {
+    host.notify('warn', t('Unit operation heading is invalid at {0}:{1}. Restore a heading such as ### [UHW010 Name] Alias. The contents and table of contents were left unchanged.', file.path, String(damagedAfterChoice[0].line + 1)));
+    return;
+  }
   if (choice.paper !== deps.paper()) await deps.setPaper(choice.paper);
   const noteId = await deps.ensureNoteId(file);
   if (!noteId) return;
   // Re-read: assigning the ID rewrote the note, and it may have been edited meanwhile.
-  const chosen = listWorksheetUnitOps(await app.vault.read(file)).filter(op =>
+  const chosen = listWorksheetUnitOps(latest).filter(op =>
     choice.indices.includes(op.index)
   );
   const samples = await deps.sampleLookup?.(file);
