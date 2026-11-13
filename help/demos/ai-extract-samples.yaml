@@ -4,6 +4,10 @@ section: ai
 title: { ko: "AI: 샘플 추출", en: "AI: Extract samples" }
 seed: basic
 ai: true
+setup:
+  - tool: eval
+    args:
+      expression: "(() => { app.saveLocalStorage('labnoteo:ai-transmission-v1', null); return true; })()"
 steps:
   - caption: { ko: 본문에 적은 클론들을 샘플로 등록해 봅니다, en: Register the clones written in the note as samples }
     tool: open_file
@@ -14,6 +18,10 @@ steps:
     hold: 1200
   - caption: { ko: "팔레트에서 AI: 샘플 정의 추출", en: "Run AI: Extract sample definitions from the palette" }
     palette: ai-extract-samples
+  - caption: { ko: 전송 주소를 확인하고 이 PC에서 허용합니다, en: Check the destination and allow requests on this PC }
+    tool: modal_button
+    args: { text: $t(Allow) }
+    hold: 1000
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }
     fastForward: true

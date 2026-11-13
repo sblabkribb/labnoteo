@@ -35,6 +35,23 @@ describe('joinUrl', () => {
   });
 });
 
+it('keeps the confirmed endpoint and credentials when mutable settings change during a run', async () => {
+  const original = settings({ llmProvider: 'openai', llmEndpointOpenai: 'https://original.test/base/', llmApiKey: 'original-key' });
+  const provider = createLlmProvider(original)!;
+  original.llmEndpointOpenai = 'https://other.test'; original.llmApiKey = 'other-key';
+  const sent: RequestUrlParam[] = [];
+  __setRequestUrlHandler(request => {
+    sent.push(request);
+    return { status: 200, json: { choices: [{ message: { content: 'ok' } }] }, text: '', headers: {}, arrayBuffer: new ArrayBuffer(0) };
+  });
+  try {
+    await provider.chat([{ role: 'user', content: 'test' }]);
+    expect(sent[0].url).toBe(provider.endpoint);
+    expect(sent[0].url).toBe('https://original.test/base/v1/chat/completions');
+    expect(sent[0].headers?.Authorization).toBe('Bearer original-key');
+  } finally { __setRequestUrlHandler(null); }
+});
+
 describe('createLlmProvider', () => {
   it('returns null when AI is disabled', () => {
     expect(createLlmProvider(settings({ llmProvider: 'none' }))).toBeNull();

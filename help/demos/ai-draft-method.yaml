@@ -4,6 +4,10 @@ section: ai
 title: { ko: "AI: Method 초안", en: "AI: Draft Method" }
 seed: basic
 ai: true
+setup:
+  - tool: eval
+    args:
+      expression: "(() => { app.saveLocalStorage('labnoteo:ai-transmission-v1', null); return true; })()"
 steps:
   - caption: { ko: Method가 빈 유닛 오퍼레이션 안에 커서를 둡니다, en: Put the cursor inside a unit operation with an empty Method }
     tool: open_file
@@ -12,6 +16,10 @@ steps:
     args: { text: (method used in this step), ch: end }
   - caption: { ko: "팔레트에서 AI: Method 섹션 초안 작성", en: "Run AI: Draft Method section from the palette" }
     palette: ai-draft-method
+  - caption: { ko: 전송 주소를 확인하고 이 PC에서 허용합니다, en: Check the destination and allow requests on this PC }
+    tool: modal_button
+    args: { text: $t(Allow) }
+    hold: 1000
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }
     fastForward: true

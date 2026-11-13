@@ -4,12 +4,20 @@ section: ai
 title: { ko: "AI: 워크플로 결과 요약", en: "AI: Summarize workflow results" }
 seed: basic
 ai: true
+setup:
+  - tool: eval
+    args:
+      expression: "(() => { app.saveLocalStorage('labnoteo:ai-transmission-v1', null); return true; })()"
 steps:
   - caption: { ko: 결과를 적은 워크플로 노트를 엽니다, en: Open a workflow note with results written in }
     tool: open_file
     args: { path: { ko: labnote/001_GFP_발현/001_WB030_DNA_Assembly_1차.labnote.md, en: labnote/001_GFP_expression/001_WB030_DNA_Assembly_run1.labnote.md } }
   - caption: { ko: "팔레트에서 AI: 워크플로 결과 요약", en: "Run AI: Summarize workflow results from the palette" }
     palette: ai-summarize-results
+  - caption: { ko: 전송 주소를 확인하고 이 PC에서 허용합니다, en: Check the destination and allow requests on this PC }
+    tool: modal_button
+    args: { text: $t(Allow) }
+    hold: 1000
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }
     fastForward: true

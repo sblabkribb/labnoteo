@@ -1441,6 +1441,7 @@ const obsidianKo: Record<string, string> = {
   'The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.': '{0}의 관리 표시가 없거나 경계가 불분명해 파일을 그대로 두었습니다. 원래 블록을 감싸는 BEGIN/END 한 쌍을 복원한 뒤 다시 실행하세요.',
   'Use one selection for this command. Nothing was changed.': '선택 영역을 하나만 두고 실행하세요. 내용은 바꾸지 않았습니다.',
   'Issue markers cannot replace Meta properties. Put the discussion on a line outside Meta.': 'Meta 속성에는 이슈 마커를 넣을 수 없습니다. Meta 밖의 줄에 논의할 내용을 적어 주세요.',
+  'This AI request sends note content, conversation and tool results to {0}. Allow requests to this address on this PC?': '이 AI 요청은 노트 내용, 대화와 도구 실행 결과를 {0}(으)로 전송합니다. 이 PC에서 이 주소로의 요청을 허용할까요?',
 };
 
 export default obsidianKo;

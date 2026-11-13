@@ -1324,3 +1324,8 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
 - **Dates and markers:** inserting a date keeps selected text and adds the date at its end. Use one
   selection. Issue markers cannot replace unit-operation Meta properties. Successful insertion uses
   the existing automatic-date, manual-date preservation and undo rules.
+
+AI commands send note content, conversation and tool results to the configured provider. Before the
+first request per provider/address on this PC and vault, a confirmation shows the actual request
+address. Cancel sends no request. A changed address requires confirmation again; an ongoing run keeps
+the settings it confirmed. Ollama also sends to a server when configured with a remote address.
