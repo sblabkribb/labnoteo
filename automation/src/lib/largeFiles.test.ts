@@ -41,13 +41,28 @@ describe('classifyFileSize', () => {
 describe('large-file guard against a real Git index', () => {
   let repo: string;
   let cwd: string;
-  const file = '실험 raw\n001.bam';
+  // Windows cannot create a name containing LF; keep Unicode/space coverage there.
+  const file = process.platform === 'win32' ? '실험 raw 001.bam' : '실험 raw\n001.bam';
   const git = (...args: string[]): string => execFileSync('git', args, {
     cwd: repo, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
   });
   const large = (name = file): void => {
     writeFileSync(name, '');
     truncateSync(name, BLOCK_THRESHOLD_BYTES + 1);
+  };
+  const stageLink = (target: string): void => {
+    if (process.platform !== 'win32') {
+      symlinkSync(target, file);
+      git('add', '--', file);
+      return;
+    }
+    // Exercise a real 120000 index entry without requiring Windows symlink privileges.
+    writeFileSync(file, target);
+    const object = execFileSync('git', ['hash-object', '-w', '--stdin'], {
+      cwd: repo, encoding: 'utf8', input: target,
+    }).trim();
+    git('config', 'core.symlinks', 'true');
+    git('update-index', '--add', '--cacheinfo', `120000,${object},${file}`);
   };
   // Seed only the isolated fixture's history; no user identity/config is changed.
   const baseline = (): void => {
@@ -100,8 +115,7 @@ describe('large-file guard against a real Git index', () => {
 
   it('measures a staged symlink blob rather than its large target', () => {
     large('target.bam');
-    symlinkSync('target.bam', file);
-    git('add', '--', file);
+    stageLink('target.bam');
     expect(run(['--staged'])).toBe(0);
   });
 
@@ -134,8 +148,7 @@ describe('large-file guard against a real Git index', () => {
   });
 
   it('checks a staged type change from symlink to large regular file', () => {
-    symlinkSync('missing-target', file);
-    git('add', '--', file);
+    stageLink('missing-target');
     baseline();
     unlinkSync(file);
     large();

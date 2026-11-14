@@ -27,6 +27,8 @@ import {
 } from '@labnoteo/core/lib/sampleUtils';
 import {
   loadSamplesByType,
+  readSamplesByType,
+  sampleReferenceKey,
   loadReferenceSamplesByType,
   upsertSampleRecord,
   mergeSampleRecord,
@@ -202,7 +204,7 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
     // An earlier table and an AI answer list samples without using them (#385, #318).
     const text = maskSampleListTables(maskAiCallouts(note.text), headers);
     for (const s of extractSampleInfoFromText(text, plugin.settings.customSampleTypes)) {
-      used.add(`${s.type}\u0000${s.id}`);
+      used.add(sampleReferenceKey(s.type, s.id));
       references.push(s);
     }
   }
@@ -213,18 +215,20 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
   };
   const rows: string[][] = [];
   for (const type of types) {
-    const localDb = await loadSamplesByType(plugin.fs, local, type);
+    const localDb = await readSamplesByType(plugin.fs, local, type);
     remember(localDb);
     if (isCatalogSampleType(type)) remember(await loadCatalogSamples(plugin, local, type));
     const listed: Array<{ id: string; rec: SampleRecord; scope: SampleScope }> = Object.entries(localDb).map(
       ([id, rec]) => ({ id, rec, scope: 'local' })
     );
     if (globalFolder) {
-      const globalDb = await loadSamplesByType(plugin.fs, globalFolder, type);
+      const globalDb = await readSamplesByType(plugin.fs, globalFolder, type);
       remember(globalDb);
       if (isCatalogSampleType(type)) remember(await loadCatalogSamples(plugin, globalFolder, type));
       for (const [id, rec] of Object.entries(globalDb)) {
-        if (!localDb[id] && used.has(`${type}\u0000${id}`)) listed.push({ id, rec, scope: 'global' });
+        if (!Object.keys(localDb).some(key => key.toLowerCase() === id.toLowerCase()) && used.has(sampleReferenceKey(type, id))) {
+          listed.push({ id, rec, scope: 'global' });
+        }
       }
     }
     // By alias within each type, as the sample view lists them (#410).

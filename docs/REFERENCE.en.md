@@ -1313,3 +1313,10 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
   by that name. Renaming it, or moving it into another folder, warns and offers to rename it back to
   `labnote`. When `labnote/` has no experiment but experiment folders exist elsewhere in the vault,
   `Create experiment` asks before numbering the new one 001.
+
+
+## Record preservation and diagnostics
+
+- **Registries and sample tables:** Local takes precedence over Global for the same type and ID,
+  ignoring ID case. Listing samples and cancelling table insertion do not rewrite registries.
+  Note sync does not delete existing Local records merely because Global has the ID.

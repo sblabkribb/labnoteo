@@ -1294,6 +1294,20 @@ describe('insertExperimentSamplesTable with a table already there', () => {
     }
   });
 
+  it('does not migrate either ledger when table insertion is cancelled (#598)', async () => {
+    const legacy = JSON.stringify({ 'RNA-1': { alias: 'local' }, 'rna-1': { alias: 'legacy' } });
+    await fs.write(REGISTRY, legacy);
+    await fs.write(`${GLOBAL}/RNA.json`, legacy);
+    const { state, tablePlugin } = setUp(`# A\n${OLD_KO}\n`);
+    const before = fs.snapshot();
+    const write = vi.spyOn(fs, 'write');
+    vi.mocked(pickModal).mockResolvedValueOnce('cancel');
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(false);
+    expect(fs.snapshot()).toEqual(before);
+    expect(write).not.toHaveBeenCalled();
+    expect(state.text).toContain(OLD_KO);
+  });
+
   // #450: the picker takes the focus, and a Source mode editor then reports the
   // cursor at the start of the note, so the table went above the title.
   it('inserts where the cursor was before the picker opened, not where it is after', async () => {
