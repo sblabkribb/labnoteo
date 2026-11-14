@@ -18,6 +18,7 @@ import { EditorState, type Extension, type Text, type Transaction } from '@codem
 import { computeUnitOpSyncEdits, pruneUnitOpTocEntries } from '@labnoteo/core';
 import { isValidWorkflowPath } from '@labnoteo/core/lib/workflowStructure';
 import { readLastUpdatedDate } from '@labnoteo/core/lib/dateUtils';
+import { damagedUnitOpHeadings } from '@labnoteo/core';
 
 const UNIT_OP_HEADING_MARK = '### [';
 
@@ -175,6 +176,7 @@ export function createUnitOpReorderFilter(opts: UnitOpReorderFilterOptions): Ext
       if (tr.isUserEvent('input.type.compose') || tr.isUserEvent('set') || fromHistory) return tr;
       if (!path || !isValidWorkflowPath(path)) return tr;
       if (!touchesUnitOpHeading(tr)) return tr;
+      if (damagedUnitOpHeadings(tr.newDoc.toString()).length > 0) return tr;
 
       // CodeMirror documents are `\n`-only, so string offsets map 1:1 to positions.
       // With sorting off, a deleted block still takes its own entry (#406); a cut

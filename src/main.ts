@@ -163,6 +163,8 @@ import {
 import { createMetaDatePickerExtension } from './dateFieldPicker';
 import { createUnitOpReorderFilter } from './unitOpReorderFilter';
 import { CaretGuard } from './caretGuard';
+import { EditorView } from '@codemirror/view';
+import { damagedUnitOpHeadings } from '@labnoteo/core';
 import { discoverSampleTypes } from './sampleDiscovery';
 import { LastUpdatedTracker } from './lastUpdatedTracker';
 import { IssueMarkerIndex, markerExperimentDir } from './issueMarkerIndex';
@@ -283,6 +285,19 @@ export default class LabnotePlugin extends Plugin {
   private readonly lastUpdatedTimers = new Map<string, number>();
   private readonly lastUpdatedTracker = new LastUpdatedTracker();
   readonly caretGuard = new CaretGuard({ editorOf: s => s.field(editorInfoField, false) });
+  private readonly damagedHeadingNotices = new Map<string, string>();
+
+  private reportDamagedHeading(path: string, text: string, caretLine: number): boolean {
+    const damaged = damagedUnitOpHeadings(text);
+    if (!damaged.length) { this.damagedHeadingNotices.delete(path); return false; }
+    const bad = damaged.find(h => h.line !== caretLine);
+    const key = damaged.map(h => h.title).join('\n');
+    if (bad && this.damagedHeadingNotices.get(path) !== key) {
+      this.damagedHeadingNotices.set(path, key);
+      this.host.notify('warn', this.t('Unit operation heading is invalid at {0}:{1}. Restore a heading such as ### [UHW010 Name] Alias. The contents and table of contents were left unchanged.', path, String(bad.line + 1)));
+    }
+    return true;
+  }
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -338,6 +353,13 @@ export default class LabnotePlugin extends Plugin {
       })
     );
     this.registerEditorExtension(this.caretGuard.extension());
+    this.registerEditorExtension(EditorView.updateListener.of(update => {
+      if (!update.selectionSet || update.docChanged) return;
+      const path = update.state.field(editorInfoField, false)?.file?.path;
+      if (path && isValidWorkflowPath(path)) {
+        this.reportDamagedHeading(path, update.state.doc.toString(), update.state.doc.lineAt(update.state.selection.main.head).number - 1);
+      }
+    }));
     this.addSettingTab(new LabnoteSettingTab(this.app, this));
 
     this.app.workspace.onLayoutReady(() =>
@@ -2636,6 +2658,7 @@ export default class LabnotePlugin extends Plugin {
           if (info.file?.path !== path) return;
           if (this.lastChangeFromHistory.get(path)) return;
           const before = editor.getValue();
+          if (this.reportDamagedHeading(path, before, editor.getCursor().line)) return;
           const after = this.settings.autoSyncUnitOpToc
             ? rebuildUnitOpToc(before)
             : refreshUnitOpTocEntries(before);

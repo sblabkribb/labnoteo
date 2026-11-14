@@ -1446,6 +1446,7 @@ const obsidianKo: Record<string, string> = {
   'Deletion-blocking reference': '삭제를 막는 참조',
   'Sample registries need attention (invalid JSON, type mismatch or conflicting type name): {0}': '시료 대장을 확인해 주세요(JSON 오류, 타입 불일치 또는 타입 이름 충돌): {0}',
   'Register sample types found in this vault': '보관함에서 발견한 시료 타입 등록',
+  'Unit operation heading is invalid at {0}:{1}. Restore a heading such as ### [UHW010 Name] Alias. The contents and table of contents were left unchanged.': '{0}:{1}의 유닛 오퍼레이션 제목 형식이 잘못됐습니다. ### [UHW010 Name] 별칭 형태로 복원하세요. 본문과 목차는 그대로 두었습니다.',
 };
 
 export default obsidianKo;

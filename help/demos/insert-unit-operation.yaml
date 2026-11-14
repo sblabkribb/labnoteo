@@ -25,3 +25,9 @@ steps:
   - highlight: { selector: .cm-line, text: UHW250 }
     poster: true
     hold: 1500
+  - caption: { ko: 공정 제목의 대괄호를 지우면 목차 정리를 멈추고 알려 줍니다, en: Removing heading brackets pauses TOC cleanup and shows the location }
+    tool: eval
+    args:
+      expression: "(() => { const e = app.workspace.activeEditor.editor; const s = e.getValue(); const m = /^### \\[([A-Z]+[0-9]+ [^\\]]+)\\]/m.exec(s); if (!m) throw new Error('No unit operation heading'); e.replaceRange('### '+m[1], e.offsetToPos(m.index), e.offsetToPos(m.index+m[0].length)); e.setCursor(e.offsetToPos(e.getValue().length)); return true; })()"
+  - highlight: { selector: .notice }
+    hold: 2000

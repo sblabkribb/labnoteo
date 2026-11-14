@@ -1334,3 +1334,6 @@ the settings it confirmed. Ollama also sends to a server when configured with a 
 - **Types received from collaborators:** startup discovers nonempty registries missing from the
   configured types. **Register sample types found in this vault** shows paths and counts and lets
   you select types. Cancelling leaves the files untouched. Configure a nondefault Global path yourself.
+- **Structure:** moving an experiment inside another experiment offers to move it back. A template-shaped
+  block whose `[ID Name]` heading was damaged is diagnosed by line; automatic TOC cleanup pauses until
+  you restore it. No ID is guessed.
