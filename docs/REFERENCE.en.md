@@ -1162,9 +1162,9 @@ dialog and the notice name the file. Text below the block is always kept.
 
 Do not delete the `BEGIN labnoteo (managed)` or `END labnoteo (managed)` line. With one missing,
 doubled or out of order, updates cannot tell the block from the lab's text, so they leave the file
-alone and say so once. Open user guide (for `QUICKSTART.md`) or Setup research automation (for
-`AGENTS.md`) then asks to rebuild the block: the current file is kept as a backup, and only text that
-cannot have been the block stays (before a lone BEGIN, after a lone END).
+alone and say so once. Open user guide and Setup research automation also leave it unchanged:
+restore exactly one BEGIN/END pair around the original managed block, then run the command again.
+An unmarked edited file is preserved too; the plugin does not guess which text belongs to the lab.
 
 Setup research automation treats an edited marked block of `AGENTS.md` (and the other marked files)
 the same way: it lists the lines that would go (up to eight), asks to put the block back to the
@@ -1319,4 +1319,5 @@ brackets, `#`, `*` and `_` (other than between ASCII letters and digits) are ref
 
 - **Registries and sample tables:** Local takes precedence over Global for the same type and ID,
   ignoring ID case. Listing samples and cancelling table insertion do not rewrite registries.
-  Note sync does not delete existing Local records merely because Global has the ID.
+  Note sync does not delete existing Local records merely because Global has the ID. An unreadable
+  required registry stops sync for that type; other valid types continue.

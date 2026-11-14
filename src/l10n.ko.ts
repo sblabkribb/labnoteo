@@ -1437,6 +1437,8 @@ const obsidianKo: Record<string, string> = {
   'Insert {0} into the open note?': '열려 있는 노트에 {0}을(를) 삽입할까요?',
   'Insert': '삽입',
   'Copied {0} to the clipboard.': '{0}을(를) 클립보드에 복사했습니다.',
+  'Could not read a sample registry needed for {0}. No changes were saved for this sample type. Repair the JSON and try again.': '{0}에 필요한 시료 대장을 읽지 못했습니다. 이 타입은 저장하지 않았습니다. JSON을 복구한 뒤 다시 시도하세요.',
+  'The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.': '{0}의 관리 표시가 없거나 경계가 불분명해 파일을 그대로 두었습니다. 원래 블록을 감싸는 BEGIN/END 한 쌍을 복원한 뒤 다시 실행하세요.',
 };
 
 export default obsidianKo;

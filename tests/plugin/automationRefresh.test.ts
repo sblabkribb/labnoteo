@@ -411,21 +411,18 @@ describe('QUICKSTART managed block', () => {
       const first = await refreshAutomationFiles(asHost, '1.1.0', [GUIDE], legacy);
       expect(first.broken).toEqual(['GUIDE.md']);
       expect(await fs.read('GUIDE.md')).toBe(noBegin);
-      expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('marks of GUIDE.md are broken'));
+      expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('marks of GUIDE.md are incomplete'));
       expect((await refreshAutomationFiles(asHost, '1.1.0', [GUIDE], legacy)).broken).toEqual([]);
     });
 
-    it('is rebuilt by the setup command after asking, with the old file kept', async () => {
-      const { fs, host, asHost } = makeHost({ 'GUIDE.md': noBegin });
-      expect(await applyAsset(asHost, GUIDE)).toBe('merged');
-      expect(host.confirm).toHaveBeenCalledWith(expect.stringContaining('GUIDE.backup.md'), expect.anything());
-      expect(await fs.read('GUIDE.backup.md')).toBe(noBegin);
-      expect(await fs.read('GUIDE.md')).toBe(marked('guide v2', 'Our rule'));
-
-      const declined = makeHost({ 'GUIDE.md': noEnd });
-      declined.host.confirm.mockResolvedValue(false);
-      expect(await applyAsset(declined.asHost, GUIDE)).toBe('skipped');
-      expect(await declined.fs.read('GUIDE.md')).toBe(noEnd);
+    it('leaves both missing-marker forms unchanged without a destructive prompt', async () => {
+      for (const broken of [noBegin, noEnd]) {
+        const { fs, host, asHost } = makeHost({ 'GUIDE.md': broken });
+        expect(await applyAsset(asHost, GUIDE)).toBe('skipped');
+        expect(host.confirm).not.toHaveBeenCalled();
+        expect(await fs.read('GUIDE.md')).toBe(broken);
+        expect(await fs.exists('GUIDE.backup.md')).toBe(false);
+      }
     });
   });
 
@@ -481,16 +478,12 @@ describe('QUICKSTART managed block', () => {
     expect(text.split(MANAGED_BLOCK_BEGIN)).toHaveLength(2);
   });
 
-  it('asks before replacing an edited unmarked copy in the setup command', async () => {
-    const { fs, host, asHost } = makeHost({ 'GUIDE.md': 'guide v1\nOur rule\n' });
-
-    host.confirm.mockResolvedValueOnce(false);
+  it('preserves an edited unmarked copy instead of guessing its boundary', async () => {
+    const original = 'guide v1\nOur rule\n';
+    const { fs, host, asHost } = makeHost({ 'GUIDE.md': original });
     expect(await applyAsset(asHost, GUIDE, contentHash('guide v1\n'), legacy)).toBe('skipped');
-    expect(await fs.read('GUIDE.md')).toBe('guide v1\nOur rule\n');
-    expect(host.confirm).toHaveBeenCalledWith(expect.stringContaining('updates change only the marked block'), expect.anything());
-
-    expect(await applyAsset(asHost, GUIDE, contentHash('guide v1\n'), legacy)).toBe('written');
-    expect(await fs.read('GUIDE.md')).toBe(managedFileContent(GUIDE));
+    expect(await fs.read('GUIDE.md')).toBe(original);
+    expect(host.confirm).not.toHaveBeenCalled();
   });
 
   // #147

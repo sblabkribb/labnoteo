@@ -1634,7 +1634,8 @@ export async function saveSamplesFromDocument(
   documentText: string,
   globalLabsamplesFolder?: string,
   additionalTypes?: string[],
-  sampleListHeaders: ReadonlyArray<readonly string[]> = []
+  sampleListHeaders: ReadonlyArray<readonly string[]> = [],
+  onError: (file: string, error: unknown) => void = (file, error) => console.warn(`[labnoteo] Sample sync skipped: ${file}`, error)
 ): Promise<SampleAliasConflict[]> {
   const conflicts: SampleAliasConflict[] = [];
   const labsamplesFolder = noteLabsamplesFolder(documentPath, globalLabsamplesFolder);
@@ -1665,74 +1666,85 @@ export async function saveSamplesFromDocument(
 
   for (const type of Object.keys(newDb)) {
     assertSafeSampleType(type);
-
-    // Do not keep in Local samples that exist in Global (avoid re-adding after Move to Global).
-    // When workspace root is the experiment folder, local and global paths are the same — skip
-    // or we would load the same JSON as "global" and delete every merged id.
-    //
-    // This global read is hoisted OUT of the atomic callback below: `fs.modify`'s
-    // updater must be synchronous, so the cross-file lookup is awaited first and
-    // its ids captured into a Set the pure callback can consult.
-    let globalIds: Set<string> | null = null;
-    if (globalLabsamplesFolder && !skipGlobalDedupe) {
-      const globalSamples = await readSamplesByType(fs, globalLabsamplesFolder, type);
-      globalIds = new Set(Object.keys(globalSamples).map(id => id.toLowerCase()));
-    }
-
-    // A catalog-type reference that seeds a new local record takes the
-    // catalog's alias instead of the text after `ID;` (which may be the rest of
-    // the sentence). Same folders as the catalog search that inserted it.
-    const catalogRefs = isCatalogSampleType(type)
-      ? references.filter((s) => s.type === type)
-      : [];
-    if (catalogRefs.length > 0) {
-      const catalogFolder = getExperimentLabsamplesFolder(documentPath) ?? labsamplesFolder;
-      const knownTypes = [...SAMPLE_TYPES, ...(additionalTypes ?? [])];
-      const catalog = {
-        ...(globalLabsamplesFolder
-          ? await loadReferenceSamplesByType(fs, globalLabsamplesFolder, type, knownTypes)
-          : {}),
-        ...(await loadReferenceSamplesByType(fs, catalogFolder, type, knownTypes)),
-      };
-      for (const ref of catalogRefs) {
-        const entry = catalog[ref.id];
-        if (!entry) continue;
-        newDb[type][ref.id].alias = entry.alias;
-        // The catalog's own description and location, not the note's prose
-        // after the reference (#271). A reference adds no descriptionSources,
-        // so a later save does not take these away.
-        newDb[type][ref.id].descriptions = entry.descriptions?.[0] ? [entry.descriptions[0]] : [];
-        if (entry.location) newDb[type][ref.id].location = entry.location;
-        // The catalog knows which partbank item this is; a seeded record that
-        // dropped it could never refresh its location or open in partbank.
-        if (entry.source) newDb[type][ref.id].source = entry.source;
-        seedable.add(sampleReferenceKey(type, ref.id));
-      }
-    }
-
-    let typeConflicts: SampleAliasConflict[] = [];
-    const merge = (existing: Record<string, SampleRecord>): Record<string, SampleRecord> => {
-      typeConflicts = [];
-      const incoming: Record<string, SampleRecord> = {};
-      for (const [id, record] of Object.entries(newDb[type])) {
-        const local = Object.keys(existing).find(key => key.toLowerCase() === id.toLowerCase());
-        if (!local && globalIds?.has(id.toLowerCase())) continue;
-        incoming[local ?? id] = record;
-      }
-      const merged = mergeSampleDatabases(
-        { [type]: existing },
-        { [type]: incoming },
-        { referenceOnly, seedable, aliasConflicts: typeConflicts }
-      );
-      return merged[type];
-    };
-
     const filePath = path.join(labsamplesFolder, `${type}.json`);
-    // Referencing only Global or unknown samples adds nothing here; creating
-    // the file anyway left an empty `{}` registry in the experiment (#82).
-    if (!(await fs.exists(filePath)) && Object.keys(merge({})).length === 0) continue;
-    await fs.modify(filePath, (raw) => JSON.stringify(merge(parseSampleRecords(raw)), null, 2));
-    conflicts.push(...typeConflicts);
+    try {
+
+      // Do not seed Local from a Global-only record; existing Local records take precedence.
+      // When workspace root is the experiment folder, local and global paths are the same — skip
+      // or we would load the same JSON as "global" and delete every merged id.
+      //
+      // This global read is hoisted OUT of the atomic callback below: `fs.modify`'s
+      // updater must be synchronous, so the cross-file lookup is awaited first and
+      // its ids captured into a Set the pure callback can consult.
+      let globalIds: Set<string> | null = null;
+      if (globalLabsamplesFolder && !skipGlobalDedupe) {
+        const globalSamples = await readSamplesByType(fs, globalLabsamplesFolder, type);
+        globalIds = new Set(Object.keys(globalSamples).map(id => id.toLowerCase()));
+      }
+
+      // A catalog-type reference that seeds a new local record takes the
+      // catalog's alias instead of the text after `ID;` (which may be the rest of
+      // the sentence). Same folders as the catalog search that inserted it.
+      const catalogRefs = isCatalogSampleType(type)
+        ? references.filter((s) => s.type === type)
+        : [];
+      if (catalogRefs.length > 0) {
+        const catalogFolder = getExperimentLabsamplesFolder(documentPath) ?? labsamplesFolder;
+        const knownTypes = [...SAMPLE_TYPES, ...(additionalTypes ?? [])];
+        const catalog = {
+          ...(globalLabsamplesFolder
+            ? await loadReferenceSamplesByType(fs, globalLabsamplesFolder, type, knownTypes)
+            : {}),
+          ...(await loadReferenceSamplesByType(fs, catalogFolder, type, knownTypes)),
+        };
+        for (const ref of catalogRefs) {
+          const entry = catalog[ref.id];
+          if (!entry) continue;
+          newDb[type][ref.id].alias = entry.alias;
+          // The catalog's own description and location, not the note's prose
+          // after the reference (#271). A reference adds no descriptionSources,
+          // so a later save does not take these away.
+          newDb[type][ref.id].descriptions = entry.descriptions?.[0] ? [entry.descriptions[0]] : [];
+          if (entry.location) newDb[type][ref.id].location = entry.location;
+          // The catalog knows which partbank item this is; a seeded record that
+          // dropped it could never refresh its location or open in partbank.
+          if (entry.source) newDb[type][ref.id].source = entry.source;
+          seedable.add(sampleReferenceKey(type, ref.id));
+        }
+      }
+
+      let typeConflicts: SampleAliasConflict[] = [];
+      const merge = (existing: Record<string, SampleRecord>): Record<string, SampleRecord> => {
+        typeConflicts = [];
+        const incoming: Record<string, SampleRecord> = {};
+        for (const [id, record] of Object.entries(newDb[type])) {
+          const local = Object.keys(existing).find(key => key.toLowerCase() === id.toLowerCase());
+          if (!local && globalIds?.has(id.toLowerCase())) continue;
+          incoming[local ?? id] = record;
+        }
+        const merged = mergeSampleDatabases(
+          { [type]: existing },
+          { [type]: incoming },
+          { referenceOnly, seedable, aliasConflicts: typeConflicts }
+        );
+        return merged[type];
+      };
+
+      const localRead = await readSampleRegistry(fs, labsamplesFolder, type);
+      if (localRead.status === 'invalid') throw localRead.error;
+      // Referencing only Global or unknown samples adds nothing here; creating
+      // the file anyway left an empty `{}` registry in the experiment (#82).
+      if (!(await fs.exists(filePath)) && Object.keys(merge({})).length === 0) continue;
+      await fs.modify(filePath, (raw) => {
+        if (raw === '' && localRead.status === 'missing') return JSON.stringify(merge({}), null, 2);
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected a sample registry object');
+        return JSON.stringify(merge(mergeCaseCollidingIds(parsed as Record<string, SampleRecord>).records), null, 2);
+      });
+      conflicts.push(...typeConflicts);
+    } catch (error) {
+      onError(filePath, error);
+    }
   }
   return conflicts;
 }

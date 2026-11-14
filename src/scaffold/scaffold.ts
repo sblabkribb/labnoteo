@@ -247,11 +247,11 @@ export function managedFileContent(asset: ScaffoldAsset): string {
  * whole and nobody edited: the current template, the template it was last
  * reconciled with, or one an earlier release shipped.
  */
-function isUnedited(
+export function isUnedited(
   current: string,
   asset: ScaffoldAsset,
   recorded: string | undefined,
-  legacy: Readonly<Record<string, readonly string[]>>
+  legacy: Readonly<Record<string, readonly string[]>> = LEGACY_TEMPLATE_HASHES
 ): boolean {
   if (sameContent(current, asset.content)) return true;
   const hash = contentHash(current);
@@ -284,28 +284,13 @@ export async function applyAsset(
     // Ahead of the unmarked case: a lone END would have the whole file replaced
     // without a backup, and the lab's text after it lost (#563).
     if (managedBlockBroken(current)) {
-      const backup = await freeBackupPath(host.fs, backupPathFor(asset.vaultPath));
-      const ok = await host.confirm(
-        host.t(
-          'The BEGIN/END labnoteo (managed) marks of {0} are broken (one is missing or they are out of order), so updates cannot tell their block from your text. Rebuild the block with the new version? Text outside the marks that cannot be part of the block is kept, and the current file is kept as {1}.',
-          asset.vaultPath,
-          backup
-        ),
-        { confirmLabel: host.t('Rebuild'), destructive: true }
-      );
-      if (!ok) return 'skipped';
-      await host.fs.write(backup, current);
-      host.notify('info', host.t('Kept the previous {0} as {1}.', asset.vaultPath, backup));
-      await host.fs.write(asset.vaultPath, rebuildBrokenManagedFile(current, asset));
-      return 'merged';
+      host.notify('warn', host.t('The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.', asset.vaultPath));
+      return 'skipped';
     }
     if (!current.includes(MANAGED_BLOCK_BEGIN) && (!exists || asset.migrateUnmarked)) {
       if (exists && !isUnedited(current, asset, recorded, legacy)) {
-        const ok = await host.confirm(
-          `${host.t('{0} differs from the new version. Edits made after it was installed are lost if you replace it. Replace it with the new version?', asset.vaultPath)} ${host.t('From then on, updates change only the marked block and keep what you write below it.')}`,
-          { confirmLabel: host.t('Overwrite'), destructive: true }
-        );
-        if (!ok) return 'skipped';
+        host.notify('warn', host.t('The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.', asset.vaultPath));
+        return 'skipped';
       }
       await host.fs.write(asset.vaultPath, managedFileContent(asset));
       return 'written';
@@ -327,6 +312,7 @@ export async function applyAsset(
         { confirmLabel: host.t('Overwrite'), destructive: true }
       );
       if (!ok) return 'skipped';
+      if (await host.fs.read(asset.vaultPath) !== current) return 'skipped';
       await host.fs.write(backup, current);
       host.notify('info', host.t('Kept the previous {0} as {1}.', asset.vaultPath, backup));
     }
@@ -700,7 +686,7 @@ export async function refreshAutomationFiles(
     host.notify(
       'warn',
       host.t(
-        'The BEGIN/END labnoteo (managed) marks of {0} are broken, so it was not updated. Run "{1}" to rebuild the block; the current file is kept as a backup.',
+        'The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.',
         path,
         host.t(path === QUICKSTART_DOC_PATH ? 'Open user guide' : 'Setup research automation')
       )
