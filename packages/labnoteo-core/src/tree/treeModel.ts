@@ -62,6 +62,7 @@ export interface ExperimentEntry {
   folder: string;
   title?: string;
   status?: string;
+  statusProblem?: 'non-string' | 'empty';
   /** The README's `discuss` flag is on. */
   discuss?: boolean;
   /** The README's `last_updated_date`. */
@@ -123,6 +124,8 @@ export interface ExperimentTreeLabels {
   invalidStatusTooltip?: string;
   /** Suffix of the group whose experiments have no status at all (#538). */
   missingStatus?: string;
+  nonStringStatus?: string;
+  emptyStatus?: string;
   /** Tooltip of that group, naming the command that sets a status. */
   missingStatusTooltip?: string;
   status?: string;
@@ -320,7 +323,8 @@ export function buildExperimentTree(
   const unreadable = experiments.filter(e => e.frontMatterError);
   for (const e of experiments) {
     if (e.frontMatterError) continue;
-    const status = e.status?.trim() ?? '';
+    const status = e.statusProblem === 'non-string' ? labels.nonStringStatus ?? '(status must be text)'
+      : e.statusProblem === 'empty' ? labels.emptyStatus ?? '(empty status)' : e.status?.trim() ?? '';
     groups.set(status, [...(groups.get(status) ?? []), e]);
   }
   const known = EXPERIMENT_STATUSES as readonly string[];
@@ -392,7 +396,8 @@ function sortByFolder(entries: ExperimentEntry[]): ExperimentEntry[] {
 
 function experimentNode(e: ExperimentEntry, labels: ExperimentTreeLabels): TreeNode {
   const noStatus = labels.noStatus ?? '(none)';
-  const status = e.status?.trim() ?? '';
+  const status = e.statusProblem === 'non-string' ? labels.nonStringStatus ?? '(status must be text)'
+    : e.statusProblem === 'empty' ? labels.emptyStatus ?? '(empty status)' : e.status?.trim() ?? '';
   const project = e.project?.trim();
   const author = authorsOf(e).join(', ');
   const name = path.basename(e.folder);

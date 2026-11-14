@@ -27,3 +27,10 @@ export type ExperimentStatus = (typeof EXPERIMENT_STATUSES)[number];
 export function isValidStatus(x: string): x is ExperimentStatus {
   return (EXPERIMENT_STATUSES as readonly string[]).includes(x);
 }
+
+export function diagnoseStatus(value: unknown): 'missing' | 'non-string' | 'empty' | 'invalid' | 'valid' {
+  if (value === undefined) return 'missing';
+  if (typeof value !== 'string') return 'non-string';
+  if (!value.trim()) return 'empty';
+  return isValidStatus(value.trim()) ? 'valid' : 'invalid';
+}

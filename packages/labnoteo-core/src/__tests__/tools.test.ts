@@ -727,7 +727,7 @@ describe('update_section', () => {
     it('appends after the body and its nested headings with mode "append"', async () => {
       await fs.write(NOTE_PATH, doc);
       const res = await call({ content: '- [review] check padj', mode: 'append' });
-      expect(res.data).toMatchObject({ mode: 'append', removedLines: 0, removedSubheadings: 0, previousBody: '' });
+      expect(res.data).toMatchObject({ mode: 'append', removedLines: 0, removedSubheadings: 0, previousBody: 'OD600 0.82\n\n##### Gel\n\nband at 1 kb' });
       expect(await fs.read(NOTE_PATH)).toBe(
         doc.replace('band at 1 kb\n', 'band at 1 kb\n\n- [review] check padj\n')
       );

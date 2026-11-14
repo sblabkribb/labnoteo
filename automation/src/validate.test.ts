@@ -29,6 +29,17 @@ describe('validateExperiments', () => {
     expect(errors[0]).toContain('missing required `status`');
   });
 
+  it.each([['in-progress'], 1, null, { value: 'completed' }, '', '  '].map(value => [value]))('distinguishes an invalid status type/value %j from a missing key (#580)', value => {
+    const errors = validateExperiments([note('a', { status: value })]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('status must be a non-empty string');
+    expect(errors[0]).not.toContain('missing required');
+  });
+
+  it('keeps the established trimming rule for valid string values', () => {
+    expect(validateExperiments([note('a', { status: ' completed ' })])).toEqual([]);
+  });
+
   it('flags an invalid status value', () => {
     const errors = validateExperiments([note('a', { status: 'done' })]);
     expect(errors).toHaveLength(1);
