@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { planDateInsertion } from '../sections/frontMatter';
 import { planIssueMarkerInsertion, parseIssueMarkers } from '../lib/issueMarker';
+import { scanMarkdownTableRanges } from '../lib/exportTablesCsv';
 import { damagedUnitOpHeadings } from '../sections/unitOpDiagnosis';
 import { diagnoseExperimentPath } from '../lib/labnoteStructure';
 
@@ -26,5 +27,12 @@ describe('stabilization regressions', () => {
     const path = 'labnote/001_A/images/002_B';
     expect(diagnoseExperimentPath(path, { isFolder: true })).toEqual({ kind: 'nested', folder: path });
     expect(diagnoseExperimentPath(`${path}/note.md`)).toEqual({ kind: 'ok', folder: 'labnote/001_A' });
+  });
+  it.each(['\n', '\r\n'])('uses the same table ranges and marker policy with newline %j', newline => {
+    const table = ['Name | Value', '--- | ---', 'A | 1 @issue;ISS-test;check **value**', ''].join(newline);
+    expect(scanMarkdownTableRanges(table)).toEqual([{ startLine: 0, endLine: 3, kind: 'table' }]);
+    const scan = parseIssueMarkers(table.replace(/\r\n/g, '\n'));
+    expect(scan.markers).toEqual([]); expect(scan.malformed[0]).toMatchObject({ line: 3, reason: 'table' });
+    expect(planIssueMarkerInsertion(table, 0, 0, 'ISS-next', 'topic')).toEqual({ reason: 'table' });
   });
 });

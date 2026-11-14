@@ -55,6 +55,33 @@ afterEach(() => {
   Platform.isWin = false;
 });
 
+describe('CSV validation before writes (#590)', () => {
+  it('aborts the entire experiment when one table has a marker, preserving old CSVs', async () => {
+    await fs.write(README, table('ok', '1'));
+    await fs.write(WF1, table('value', '1 @issue;ISS-test;check'));
+    await fs.write(`${DIR}/001_WT020_A.labnote_table9.csv`, 'old');
+    const before = fs.snapshot();
+    const write = vi.spyOn(fs, 'write');
+    await exportExperimentTablesToCsv(plugin(), DIR);
+    expect(fs.snapshot()).toEqual(before);
+    expect(write).not.toHaveBeenCalled();
+    expect(confirmModal).not.toHaveBeenCalled();
+    expect(Notice.shown.at(-1)).toContain(`${WF1}:3`);
+  });
+  it('does not overwrite CSVs if the note changed while confirming', async () => {
+    await fs.write(WF1, table('new header', '2'));
+    const csv = `${DIR}/001_WT020_A.labnote_table1.csv`;
+    await fs.write(csv, '\uFEFFold header\n1\n');
+    vi.mocked(confirmModal).mockImplementationOnce(async () => {
+      await fs.write(WF1, table('changed again', '3'));
+      return true;
+    });
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+    expect(await fs.read(csv)).toBe('\uFEFFold header\n1\n');
+    expect(Notice.shown.at(-1)).toContain('notes changed');
+  });
+});
+
 describe('exportExperimentTablesToCsv (#347)', () => {
   it('exports the tables of the README and every workflow note, with a count per note', async () => {
     await fs.write(README, table('요약', '1'));

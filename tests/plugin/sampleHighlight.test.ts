@@ -54,7 +54,7 @@ describe('markers of a note that is not read for markers', () => {
 
 // #519: a marker validate fails looked like plain text.
 describe('markers without an ID or topic', () => {
-  const malformedTitle = (reason: 'missing-id' | 'missing-title') => (reason === 'missing-id' ? 'no id' : 'no topic');
+  const malformedTitle = (reason: 'missing-id' | 'missing-title' | 'table') => (reason === 'missing-id' ? 'no id' : 'no topic');
 
   it('marks them with the reason as the tooltip, over the sample IDs inside', () => {
     const text = '@issue;;RNA-1 확인';

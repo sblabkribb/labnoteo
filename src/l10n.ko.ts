@@ -1447,6 +1447,9 @@ const obsidianKo: Record<string, string> = {
   'Sample registries need attention (invalid JSON, type mismatch or conflicting type name): {0}': '시료 대장을 확인해 주세요(JSON 오류, 타입 불일치 또는 타입 이름 충돌): {0}',
   'Register sample types found in this vault': '보관함에서 발견한 시료 타입 등록',
   'Unit operation heading is invalid at {0}:{1}. Restore a heading such as ### [UHW010 Name] Alias. The contents and table of contents were left unchanged.': '{0}:{1}의 유닛 오퍼레이션 제목 형식이 잘못됐습니다. ### [UHW010 Name] 별칭 형태로 복원하세요. 본문과 목차는 그대로 두었습니다.',
+  'The notes changed during export. CSV cleanup was skipped.': '내보내는 동안 노트가 바뀌어 이전 CSV 정리를 건너뛰었습니다.',
+  'Issue markers cannot go inside a table. Move these markers below the table and export again: {0}': '표 안에는 이슈 마커를 둘 수 없습니다. 다음 마커를 표 아래로 옮긴 뒤 다시 내보내세요: {0}',
+  'The notes changed during export. Run the export again.': '내보내는 동안 노트가 바뀌었습니다. 다시 내보내세요.',
 };
 
 export default obsidianKo;

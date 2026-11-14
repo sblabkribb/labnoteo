@@ -6,6 +6,7 @@
  */
 import { MarkdownView, Notice, TFile } from 'obsidian';
 import * as posix from '@labnoteo/core/posix';
+import { parseIssueMarkers } from '@labnoteo/core';
 import {
   classifyCsvOverwrites,
   csvRowCount,
@@ -69,6 +70,9 @@ async function readCsv(plugin: LabnotePlugin, path: string): Promise<string | { 
 /** A note's tables as CSVs, worked out before anything is written. */
 interface NoteCsvPlan {
   file: TFile;
+  source: string;
+  sourcePath: string;
+  invalidMarkers: number[];
   dir: string;
   /** Tables left out: no blank line above them, or inside a comment. */
   notRendered: number;
@@ -86,6 +90,9 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
   const dir = posix.dirname(file.path);
   const plan: NoteCsvPlan = {
     file,
+    source: content,
+    sourcePath: file.path,
+    invalidMarkers: parseIssueMarkers(content.replace(/\r\n/g, '\n')).malformed.filter(m => m.reason === 'table').map(m => m.line),
     dir,
     notRendered,
     hidden,
@@ -259,7 +266,8 @@ async function offerStaleCsvCleanup(
   dir: string,
   stale: readonly string[],
   orphans: readonly string[] = [],
-  notes: 'one' | 'many' = 'one'
+  notes: 'one' | 'many' = 'one',
+  stillCurrent?: () => Promise<boolean>
 ): Promise<string> {
   const total = stale.length + orphans.length;
   if (total === 0) return '';
@@ -281,7 +289,10 @@ async function offerStaleCsvCleanup(
   ].filter(Boolean);
   const ok = await confirmModal(plugin.app, sections.join('\n\n'), plugin.t('Move to trash'), { destructive: true });
   if (!ok) return plugin.t('{0} old CSV file(s) kept.', String(total));
-  const kept = await trashTableCsvs(plugin.app, dir, [...stale, ...orphans]);
+  if (stillCurrent && !(await stillCurrent())) return plugin.t('The notes changed during export. CSV cleanup was skipped.');
+  const freshOrphans = await orphanCsvsIn(plugin, dir);
+  const safeOrphans = orphans.filter(name => freshOrphans.includes(name));
+  const kept = orphans.length - safeOrphans.length + await trashTableCsvs(plugin.app, dir, [...stale, ...safeOrphans]);
   const moved = plugin.t('{0} CSV file(s) moved to the trash.', String(total - kept));
   return kept > 0 ? `${moved} ${plugin.t('{0} old CSV file(s) kept.', String(kept))}` : moved;
 }
@@ -377,15 +388,32 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
   await withCaretGuard(plugin, () => exportNoteTables(plugin, file));
 }
 
+async function sourcesMatch(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): Promise<boolean> {
+  try {
+    for (const p of plans) {
+      if (p.file.path !== p.sourcePath || await plugin.app.vault.read(p.file) !== p.source) return false;
+    }
+    return true;
+  } catch { return false; }
+}
+
+function refuseInvalidMarkers(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): boolean {
+  const positions = plans.flatMap(p => p.invalidMarkers.map(line => `${p.sourcePath}:${line}`));
+  if (!positions.length) return false;
+  new Notice(plugin.t('Issue markers cannot go inside a table. Move these markers below the table and export again: {0}', positions.join(', ')), 10000);
+  return true;
+}
+
 async function exportNoteTables(plugin: LabnotePlugin, file: TFile): Promise<void> {
   const plan = await planNoteCsvExport(plugin, file);
+  if (refuseInvalidMarkers(plugin, [plan])) return;
   const skipped = skippedText(plugin, [plan]);
   if (plan.outputs.length === 0) {
     const cleanup = await offerStaleCsvCleanup(
       plugin,
       plan.dir,
       await staleCsvsOf(plugin, file, 0),
-      await orphanCsvsIn(plugin, plan.dir)
+      await orphanCsvsIn(plugin, plan.dir), 'one', () => sourcesMatch(plugin, [plan])
     );
     new Notice([plugin.t('No tables found in this note.'), skipped, cleanup].filter(Boolean).join(' '));
     return;
@@ -394,12 +422,16 @@ async function exportNoteTables(plugin: LabnotePlugin, file: TFile): Promise<voi
     new Notice(plugin.t('No changes made.'));
     return;
   }
+  if (!(await sourcesMatch(plugin, [plan]))) {
+    new Notice(plugin.t('The notes changed during export. Run the export again.'));
+    return;
+  }
   const result = await writeNoteCsvExport(plugin, plan);
   const cleanup = await offerStaleCsvCleanup(
     plugin,
     plan.dir,
     await staleCsvsOf(plugin, file, plan.outputs.length),
-    await orphanCsvsIn(plugin, plan.dir)
+    await orphanCsvsIn(plugin, plan.dir), 'one', () => sourcesMatch(plugin, [plan])
   );
   const paths = plan.outputs.map(o => o.path);
   showExportNotice(
@@ -441,10 +473,15 @@ async function exportFolderTables(plugin: LabnotePlugin, dir: string): Promise<v
     if (file instanceof TFile) plans.push(await planNoteCsvExport(plugin, file));
   }
   const skipped = skippedText(plugin, plans);
+  if (refuseInvalidMarkers(plugin, plans)) return;
+  const stillCurrent = async () => await sourcesMatch(plugin, plans)
+    && (await plugin.fs.list(dir)).filter(n => /\.md$/i.test(n)).sort().join('\n') === [...names].sort().join('\n');
   const staleOf = async () =>
     (await Promise.all(plans.map(p => staleCsvsOf(plugin, p.file, p.outputs.length)))).flat();
-  const cleanupAll = async () =>
-    offerStaleCsvCleanup(plugin, dir, await staleOf(), await orphanCsvsIn(plugin, dir), 'many');
+  const cleanupAll = async () => {
+    if (!(await stillCurrent())) return plugin.t('The notes changed during export. CSV cleanup was skipped.');
+    return offerStaleCsvCleanup(plugin, dir, await staleOf(), await orphanCsvsIn(plugin, dir), 'many', stillCurrent);
+  };
   const withTables = plans.filter(p => p.outputs.length > 0);
   if (withTables.length === 0) {
     const cleanup = await cleanupAll();
@@ -458,6 +495,10 @@ async function exportFolderTables(plugin: LabnotePlugin, dir: string): Promise<v
     return;
   }
   const result: CsvWriteResult = { written: [], locked: [], renamed: [], notRenamed: 0 };
+  if (!(await stillCurrent())) {
+    new Notice(plugin.t('The notes changed during export. Run the export again.'));
+    return;
+  }
   for (const plan of withTables) {
     const r = await writeNoteCsvExport(plugin, plan);
     result.written.push(...r.written);

@@ -18,3 +18,10 @@ steps:
     highlight: { selector: .nav-file-title, text: _table1 }
     poster: true
     hold: 1500
+  - caption: { ko: 표 안에 이슈 마커가 있으면 파일을 바꾸기 전에 멈춥니다, en: A marker inside a table stops export before any file changes }
+    tool: eval
+    args:
+      expression: "(() => { const e = app.workspace.activeEditor.editor; const end = e.offsetToPos(e.getValue().length); e.replaceRange('\\n\\n| Value |\\n| --- |\\n| 1 @issue;ISS-demo;Check value |\\n', end); return true; })()"
+  - palette: export-tables-csv
+  - highlight: { selector: .notice }
+    hold: 2000
