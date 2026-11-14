@@ -15,7 +15,7 @@ steps:
     tool: ui_press
     args: { keys: Enter }
     hold: 800
-  - caption: { ko: 마커가 붙고 색으로 강조됩니다, en: The marker is added and highlighted }
+  - caption: { ko: 마커가 강조됩니다. 표 안이나 Meta 속성에는 넣을 수 없습니다, en: The marker is highlighted; tables and Meta properties cannot hold one }
     highlight: { selector: .labnote-issue-marker }
     poster: true
     hold: 1500

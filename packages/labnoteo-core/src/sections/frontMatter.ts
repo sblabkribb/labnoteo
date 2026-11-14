@@ -2,6 +2,7 @@ import * as yaml from 'js-yaml';
 import { isInFrontMatter } from './documentHead';
 import { findMetaDateFieldInLine } from '../lib/dateUtils';
 import { endsAliasedReference } from '../sample/referenceInsert';
+import { overlapsMetaProperty } from './metaContext';
 
 /** Result of {@link parseFrontMatterYaml}. */
 export interface FrontMatterParse {
@@ -319,6 +320,11 @@ export function planDateInsertion(
   const nl = doc.indexOf('\n', from);
   let lineEnd = nl === -1 ? doc.length : nl;
   if (!isInFrontMatter(doc, from) && !isInFrontMatter(doc, to)) {
+    if (from !== to && overlapsMetaProperty(doc, from, to)) return { reason: 'metaDate' };
+    if (from !== to && !findMetaDateFieldInLine(doc.slice(lineStart, lineEnd))) {
+      const pad = to > 0 && !/\s/.test(doc[to - 1]) ? ' ' : '';
+      return { from: to, to, text: `${pad}${text}` };
+    }
     const pad = types && endsAliasedReference(doc.slice(lineStart, from), types) ? ' ' : '';
     if (to > lineEnd) return { from, to, text: `${pad}${text}` };
     if (doc[lineEnd - 1] === '\r') lineEnd--;

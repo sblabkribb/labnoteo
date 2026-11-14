@@ -21,6 +21,7 @@
  * them, and `validate` that reports broken ones.
  */
 import { isInFrontMatter } from '../sections/documentHead';
+import { overlapsMetaProperty } from '../sections/metaContext';
 
 /** Marker keyword, without the delimiter. */
 export const ISSUE_MARKER_KEYWORD = '@issue';
@@ -564,7 +565,7 @@ export function renderIssueMarker(marker: { id: string; title: string }): string
  */
 export type IssueMarkerInsertion =
   | { edit: { from: number; to: number; insert: string }; cursor: number }
-  | { reason: 'conflict' | 'table' | 'frontMatter' | 'codeBlock' | 'comment' };
+  | { reason: 'conflict' | 'table' | 'frontMatter' | 'codeBlock' | 'comment' | 'meta' };
 
 const isHeadingLine = (line: string): boolean => /^ {0,3}#{1,6}(?:\s|$)/.test(line);
 const isTableRow = (line: string): boolean => /^\s*\|/.test(line);
@@ -622,6 +623,7 @@ export function planIssueMarkerInsertion(
   topic?: string
 ): IssueMarkerInsertion {
   if (from > to) [from, to] = [to, from];
+  if (overlapsMetaProperty(doc, from, to)) return { reason: 'meta' };
   if (isInFrontMatter(doc, from)) return { reason: 'frontMatter' };
   // A selection that swallowed its line break (triple-click) ends on that line.
   while (to > from && doc[to - 1] === '\n') to--;

@@ -1439,6 +1439,8 @@ const obsidianKo: Record<string, string> = {
   'Copied {0} to the clipboard.': '{0}을(를) 클립보드에 복사했습니다.',
   'Could not read a sample registry needed for {0}. No changes were saved for this sample type. Repair the JSON and try again.': '{0}에 필요한 시료 대장을 읽지 못했습니다. 이 타입은 저장하지 않았습니다. JSON을 복구한 뒤 다시 시도하세요.',
   'The managed marks of {0} are incomplete or ambiguous. The file was left unchanged. Restore one BEGIN/END pair around the original block and try again.': '{0}의 관리 표시가 없거나 경계가 불분명해 파일을 그대로 두었습니다. 원래 블록을 감싸는 BEGIN/END 한 쌍을 복원한 뒤 다시 실행하세요.',
+  'Use one selection for this command. Nothing was changed.': '선택 영역을 하나만 두고 실행하세요. 내용은 바꾸지 않았습니다.',
+  'Issue markers cannot replace Meta properties. Put the discussion on a line outside Meta.': 'Meta 속성에는 이슈 마커를 넣을 수 없습니다. Meta 밖의 줄에 논의할 내용을 적어 주세요.',
 };
 
 export default obsidianKo;

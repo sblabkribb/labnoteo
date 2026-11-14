@@ -445,7 +445,10 @@ export default class LabnotePlugin extends Plugin {
         this.t('A date cannot be typed into a property or the title from here. Click in the note body, then run this again.')
       );
     } else {
-      insertDateCommand(editor, this.host, now(), getSampleDisplayMeta(this.settings.customSampleTypes).types);
+      if (insertDateCommand(editor, this.host, now(), getSampleDisplayMeta(this.settings.customSampleTypes).types)) {
+        const path = this.app.workspace.activeEditor?.file?.path;
+        if (path) this.markUserEdit(path);
+      }
     }
     return true;
   }
@@ -467,6 +470,7 @@ export default class LabnotePlugin extends Plugin {
     const path = active?.file?.path ?? '';
     this.run(async () => {
       const inserted = await insertIssueMarkerCommand(editor, this.host, path);
+      if (inserted) this.markUserEdit(path);
       if (!inserted || this.issueAutomationHintShown) return;
       const state = await issueAutomationState(this.host);
       if (state === 'ready') return;
