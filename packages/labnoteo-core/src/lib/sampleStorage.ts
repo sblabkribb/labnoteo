@@ -915,31 +915,6 @@ export function noteLocalSampleFolder(documentPath: string, globalFolder?: strin
   return globalFolder && isSameSampleFolder(local, globalFolder) ? undefined : local;
 }
 
-/** Read without persisting legacy migrations. A failed read is never an empty ledger. */
-export type SampleRegistryRead =
-  | { status: 'ok'; records: Record<string, SampleRecord> }
-  | { status: 'missing'; records: Record<string, SampleRecord> }
-  | { status: 'invalid'; error: unknown };
-
-export async function readSampleRegistry(fs: LabnoteFs, folder: string, type: string): Promise<SampleRegistryRead> {
-  assertSafeSampleType(type);
-  const file = path.join(folder, `${type}.json`);
-  try {
-    if (!(await fs.exists(file))) return { status: 'missing', records: {} };
-    const raw: unknown = JSON.parse(await fs.read(file));
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Expected a sample registry object');
-    return { status: 'ok', records: mergeCaseCollidingIds(raw as Record<string, SampleRecord>).records };
-  } catch (error) {
-    return { status: 'invalid', error };
-  }
-}
-
-export async function readSamplesByType(fs: LabnoteFs, folder: string, type: string): Promise<Record<string, SampleRecord>> {
-  const result = await readSampleRegistry(fs, folder, type);
-  if (result.status === 'invalid') throw new Error(`Cannot read sample registry: ${path.join(folder, `${type}.json`)}`);
-  return result.records;
-}
-
 /**
  * The IDs of the `type` samples in `folder` with `alias` (trimmed, case
  * ignored). Shared by the app's prompts and the MCP `create_sample` (#310).
@@ -990,6 +965,31 @@ export async function loadSamplesByType(
     }
   }
   return records;
+}
+
+/** Read without persisting legacy migrations. A failed read is never an empty ledger. */
+export type SampleRegistryRead =
+  | { status: 'ok'; records: Record<string, SampleRecord> }
+  | { status: 'missing'; records: Record<string, SampleRecord> }
+  | { status: 'invalid'; error: unknown };
+
+export async function readSampleRegistry(fs: LabnoteFs, folder: string, type: string): Promise<SampleRegistryRead> {
+  assertSafeSampleType(type);
+  const file = path.join(folder, `${type}.json`);
+  try {
+    if (!(await fs.exists(file))) return { status: 'missing', records: {} };
+    const raw: unknown = JSON.parse(await fs.read(file));
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Expected a sample registry object');
+    return { status: 'ok', records: mergeCaseCollidingIds(raw as Record<string, SampleRecord>).records };
+  } catch (error) {
+    return { status: 'invalid', error };
+  }
+}
+
+export async function readSamplesByType(fs: LabnoteFs, folder: string, type: string): Promise<Record<string, SampleRecord>> {
+  const result = await readSampleRegistry(fs, folder, type);
+  if (result.status === 'invalid') throw new Error(`Cannot read sample registry: ${path.join(folder, `${type}.json`)}`);
+  return result.records;
 }
 
 /**
@@ -1894,6 +1894,7 @@ export interface SampleUsageSpot {
   ch: number;
   /** The enclosing heading, after its own parent (`[UHW250 PCR] › Output`); '' above the first heading. */
   heading: string;
+  referenceKind?: 'ai-summary' | 'deletion-blocker';
 }
 
 /**
@@ -1905,12 +1906,14 @@ export function findSampleUsageSpots(
   docs: ReadonlyArray<{ path: string; text: string }>,
   type: string,
   id: string,
-  sampleListHeaders: ReadonlyArray<readonly string[]> = []
+  sampleListHeaders: ReadonlyArray<readonly string[]> = [],
+  opts: { includeAiCallouts?: boolean } = {}
 ): SampleUsageSpot[] {
   const idLower = id.toLowerCase();
   const out: SampleUsageSpot[] = [];
   for (const doc of docs) {
-    const masked = maskSampleListTables(maskAiCallouts(doc.text), sampleListHeaders);
+    const aiMasked = maskAiCallouts(doc.text);
+    const masked = maskSampleListTables(opts.includeAiCallouts ? doc.text : aiMasked, sampleListHeaders);
     const spans = findSampleReferenceSpans(masked, [type]).filter(s => s.id.toLowerCase() === idLower);
     if (spans.length === 0) continue;
     const lineStarts = [0];
@@ -1928,6 +1931,7 @@ export function findSampleUsageSpots(
         line,
         ch: span.start - lineStarts[line],
         heading: h ? (h.parentHeading ? `${h.parentHeading} › ${h.text}` : h.text) : '',
+        ...(aiMasked.slice(span.start, span.end).trim() === '' ? { referenceKind: 'ai-summary' as const } : {}),
       });
     }
   }

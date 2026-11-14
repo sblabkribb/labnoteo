@@ -1301,16 +1301,20 @@ export async function sampleUsageSpots(
   type: string,
   id: string
 ): Promise<SampleUsageSpot[]> {
-  return (await notesUsingSample(app, plugin, folder, type, id)).flatMap(doc => {
-    const spots = findSampleUsageSpots([doc], type, id, sampleListHeaders(plugin));
-    return spots.length > 0 ? spots : [{ path: doc.path, line: 0, ch: 0, heading: '' }];
+  const used = new Set((await notesUsingSample(app, plugin, folder, type, id)).map(doc => doc.path));
+  const { notes } = await notesForSample(app, plugin, { folder, type, id });
+  return notes.flatMap(doc => {
+    const spots = findSampleUsageSpots([doc], type, id, sampleListHeaders(plugin), { includeAiCallouts: true });
+    return spots.map(spot => ({ ...spot, ...(!used.has(doc.path) && !spot.referenceKind ? { referenceKind: 'deletion-blocker' as const } : {}) }));
   });
 }
 
 /** Where in its note a usage is, for the usage list: the section and the 1-based line. */
 export function usageSpotLabel(t: LabnotePlugin['t'], spot: SampleUsageSpot): string {
   const line = String(spot.line + 1);
-  return spot.heading ? t('{0} · line {1}', spot.heading, line) : t('Line {0}', line);
+  const label = spot.heading ? t('{0} · line {1}', spot.heading, line) : t('Line {0}', line);
+  return spot.referenceKind === 'ai-summary' ? `${label} · ${t('AI summary reference')}`
+    : spot.referenceKind === 'deletion-blocker' ? `${label} · ${t('Deletion-blocking reference')}` : label;
 }
 
 /** A note's text, from its open editor when it has one. */

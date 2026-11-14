@@ -574,7 +574,9 @@ type.
   outside every experiment (a daily note, say) whose registries do not have its ID, for usages,
   deleting, alias changes and type changes alike; when another experiment has a sample with the
   same ID, those notes are counted but left unchanged, and the dialog says so. A reference copied
-  into an AI summary callout (`> [!note] AI …`) is not a usage (deleting still counts it). A
+  into an AI summary callout (`> [!note] AI …`) is not counted as actual usage, but View usages
+  shows it as **AI summary reference**. Other references excluded from usage but blocking deletion
+  appear as **Deletion-blocking reference**, with a link to the line. A
   README that went into the registry's usage record (`sources`) before this rule is not taken out
   by itself.
 - **Edit** asks before saving an alias another sample of the same type in the same registry
@@ -1329,3 +1331,6 @@ AI commands send note content, conversation and tool results to the configured p
 first request per provider/address on this PC and vault, a confirmation shows the actual request
 address. Cancel sends no request. A changed address requires confirmation again; an ongoing run keeps
 the settings it confirmed. Ollama also sends to a server when configured with a remote address.
+- **Types received from collaborators:** startup discovers nonempty registries missing from the
+  configured types. **Register sample types found in this vault** shows paths and counts and lets
+  you select types. Cancelling leaves the files untouched. Configure a nondefault Global path yourself.

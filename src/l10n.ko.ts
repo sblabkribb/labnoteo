@@ -1442,6 +1442,10 @@ const obsidianKo: Record<string, string> = {
   'Use one selection for this command. Nothing was changed.': '선택 영역을 하나만 두고 실행하세요. 내용은 바꾸지 않았습니다.',
   'Issue markers cannot replace Meta properties. Put the discussion on a line outside Meta.': 'Meta 속성에는 이슈 마커를 넣을 수 없습니다. Meta 밖의 줄에 논의할 내용을 적어 주세요.',
   'This AI request sends note content, conversation and tool results to {0}. Allow requests to this address on this PC?': '이 AI 요청은 노트 내용, 대화와 도구 실행 결과를 {0}(으)로 전송합니다. 이 PC에서 이 주소로의 요청을 허용할까요?',
+  'AI summary reference': 'AI 요약 안의 참조',
+  'Deletion-blocking reference': '삭제를 막는 참조',
+  'Sample registries need attention (invalid JSON, type mismatch or conflicting type name): {0}': '시료 대장을 확인해 주세요(JSON 오류, 타입 불일치 또는 타입 이름 충돌): {0}',
+  'Register sample types found in this vault': '보관함에서 발견한 시료 타입 등록',
 };
 
 export default obsidianKo;
