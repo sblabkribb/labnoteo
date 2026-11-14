@@ -69,6 +69,7 @@ export interface ChatOptions {
 
 export interface LlmProvider {
   readonly name: string;
+  readonly endpoint?: string;
   chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult>;
 }
 
@@ -142,7 +143,8 @@ function normalizeToolCalls(raw: unknown): ToolCall[] {
 
 class OllamaProvider implements LlmProvider {
   readonly name = 'ollama';
-  constructor(private readonly settings: LabnoteSettings) {}
+  readonly endpoint: string;
+  constructor(private readonly settings: LabnoteSettings) { this.endpoint = joinUrl(settings.llmEndpointOllama, '/api/chat'); }
 
   /** Ollama keys tool results by `tool_name` and takes arguments as objects. */
   private static toWire(messages: ChatMessage[]): unknown[] {
@@ -165,7 +167,7 @@ class OllamaProvider implements LlmProvider {
 
   async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult> {
     const res = await requestUrl({
-      url: joinUrl(this.settings.llmEndpointOllama, '/api/chat'),
+      url: this.endpoint,
       method: 'POST',
       contentType: 'application/json',
       body: JSON.stringify({
@@ -199,7 +201,8 @@ class OllamaProvider implements LlmProvider {
 
 class OpenAiProvider implements LlmProvider {
   readonly name = 'openai';
-  constructor(private readonly settings: LabnoteSettings) {}
+  readonly endpoint: string;
+  constructor(private readonly settings: LabnoteSettings) { this.endpoint = joinUrl(settings.llmEndpointOpenai, '/v1/chat/completions'); }
 
   /** OpenAI keys tool results by `tool_call_id` and takes arguments as JSON strings. */
   private static toWire(messages: ChatMessage[]): unknown[] {
@@ -228,7 +231,7 @@ class OpenAiProvider implements LlmProvider {
       headers.Authorization = `Bearer ${this.settings.llmApiKey}`;
     }
     const res = await requestUrl({
-      url: joinUrl(this.settings.llmEndpointOpenai, '/v1/chat/completions'),
+      url: this.endpoint,
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -256,6 +259,7 @@ class OpenAiProvider implements LlmProvider {
 
 /** Build the configured provider, or null when AI is disabled. */
 export function createLlmProvider(settings: LabnoteSettings): LlmProvider | null {
+  settings = { ...settings };
   switch (settings.llmProvider) {
     case 'ollama':
       return new OllamaProvider(settings);

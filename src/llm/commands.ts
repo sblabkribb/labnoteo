@@ -7,7 +7,7 @@
  * mutation flowing through the tested core helpers (`create_sample`, section
  * edits).
  */
-import { Notice } from 'obsidian';
+import { MarkdownView, Notice } from 'obsidian';
 import {
   createLabnoteTools,
   runTool,
@@ -58,6 +58,10 @@ import {
 import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
 import type LabnotePlugin from '../main';
 import { createLlmProvider, type ChatMessage } from './provider';
+import { createPcStore } from '../scan/pcStore';
+import { TransmissionConsent, TransmissionCancelled } from './transmissionConsent';
+import type { LabnoteSettings } from '../settings';
+import type { LlmProvider } from './provider';
 import { describeLlmError } from './llmError';
 import { countToolOutcomes, runAgent, type AgentRun } from './agent';
 import { buildApprovalMessage, erasesRecordedLines } from './approvalMessage';
@@ -218,11 +222,35 @@ function failureReasons(plugin: LabnotePlugin, executed: AgentRun['executed']): 
   return plugin.t('Failed: {0}.', list);
 }
 
-async function complete(
+const transmissionConsents = new WeakMap<LabnotePlugin, TransmissionConsent>();
+function guardedProvider(plugin: LabnotePlugin, settings: LabnoteSettings): LlmProvider | null {
+  const provider = createLlmProvider(settings);
+  if (!provider?.endpoint) return provider;
+  const endpoint = provider.endpoint;
+  let consent = transmissionConsents.get(plugin);
+  if (!consent) {
+    consent = new TransmissionConsent(createPcStore(plugin.app), async address => {
+      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      if (view) plugin.caretGuard.arm(view, Infinity);
+      try {
+        return await plugin.host.confirm(plugin.t('This AI request sends note content, conversation and tool results to {0}. Allow requests to this address on this PC?', address), { confirmLabel: plugin.t('Allow') });
+      } finally { if (view) plugin.caretGuard.arm(view, 2000); }
+    });
+    transmissionConsents.set(plugin, consent);
+  }
+  const gate = consent;
+  return { name: provider.name, endpoint, async chat(messages, options) {
+    if (!(await gate.allow(provider.name, endpoint))) throw new TransmissionCancelled();
+    return provider.chat(messages, options);
+  } };
+}
+
+async function completeWithSettings(
   plugin: LabnotePlugin,
+  settings: LabnoteSettings,
   messages: ChatMessage[]
 ): Promise<string | undefined> {
-  const provider = createLlmProvider(plugin.settings);
+  const provider = guardedProvider(plugin, settings);
   if (!provider) {
     new Notice(plugin.t('Configure an AI provider in settings first.'));
     return undefined;
@@ -242,8 +270,9 @@ async function complete(
     }
     return content;
   } catch (err) {
+    if (err instanceof TransmissionCancelled) return undefined;
     console.error('[labnoteo] AI request failed:', err);
-    new Notice(describeLlmError(err, plugin.settings, plugin.t), 10000);
+    new Notice(describeLlmError(err, settings, plugin.t), 10000);
     return undefined;
   }
 }
@@ -369,13 +398,14 @@ function unitOpContext(text: string, loc: UnitOpMethodLocation): string {
  * wrote one); anywhere else it goes in as a block after the cursor's line.
  */
 export async function draftMethodCommand(plugin: LabnotePlugin): Promise<void> {
+  const settings = { ...plugin.settings };
   const target = plugin.host.editTarget();
   if (!target) {
     new Notice(plugin.t('Open a note to insert into.'));
     return;
   }
   // Before any question: without a provider the answers would go nowhere (#399).
-  if (!createLlmProvider(plugin.settings)) {
+  if (!createLlmProvider(settings)) {
     new Notice(plugin.t('Configure an AI provider in settings first.'));
     return;
   }
@@ -413,7 +443,7 @@ export async function draftMethodCommand(plugin: LabnotePlugin): Promise<void> {
   }
 
   if (!loc) {
-    const out = await complete(plugin, [
+    const out = await completeWithSettings(plugin, settings, [
       {
         role: 'system',
         content:
@@ -442,7 +472,7 @@ export async function draftMethodCommand(plugin: LabnotePlugin): Promise<void> {
     return;
   }
 
-  const out = await complete(plugin, [
+  const out = await completeWithSettings(plugin, settings, [
     {
       role: 'system',
       content:
@@ -568,6 +598,7 @@ export function isExperimentReadme(path: string): boolean {
  * cursor's line.
  */
 export async function summarizeResultsCommand(plugin: LabnotePlugin): Promise<void> {
+  const settings = { ...plugin.settings };
   const target = plugin.host.editTarget();
   if (!target) {
     new Notice(plugin.t('Open a note to insert into.'));
@@ -603,7 +634,7 @@ export async function summarizeResultsCommand(plugin: LabnotePlugin): Promise<vo
   const results = workflow
     ? extractResultSections(text)
     : stripIssueMarkers(stripTemplatePlaceholders(stripAiCallouts(stripFrontMatter(text))));
-  const out = await complete(plugin, [
+  const out = await completeWithSettings(plugin, settings, [
     {
       role: 'system',
       content:
@@ -673,6 +704,7 @@ function experimentNotes(plugin: LabnotePlugin, dir: string, readme: string): st
  * end of that section, replacing the one an earlier run put there.
  */
 export async function summarizeExperimentCommand(plugin: LabnotePlugin): Promise<void> {
+  const settings = { ...plugin.settings };
   const target = plugin.host.editTarget();
   if (!target || !isExperimentReadme(target.path)) {
     new Notice(plugin.t('Open an experiment README first.'));
@@ -704,7 +736,7 @@ export async function summarizeExperimentCommand(plugin: LabnotePlugin): Promise
     EXPERIMENT_RESULTS_BUDGET
   );
   const body = collected.map((c, i) => `## ${c.label}\n${c.results.slice(0, shares[i])}`).join('\n\n');
-  const reply = await complete(plugin, [
+  const reply = await completeWithSettings(plugin, settings, [
     {
       role: 'system',
       content:
@@ -900,6 +932,7 @@ export function skipKnownSamples(
 
 /** Ask the model to extract sample definitions, then persist them via the tool. */
 export async function extractSamplesCommand(plugin: LabnotePlugin): Promise<void> {
+  const settings = { ...plugin.settings };
   const target = plugin.host.editTarget();
   if (!target) {
     new Notice(plugin.t('Open a note first.'));
@@ -913,7 +946,7 @@ export async function extractSamplesCommand(plugin: LabnotePlugin): Promise<void
   }
 
   const types = getSampleDisplayMeta(plugin.settings.customSampleTypes).types;
-  const out = await complete(plugin, [
+  const out = await completeWithSettings(plugin, settings, [
     {
       role: 'system',
       content:
@@ -1003,7 +1036,8 @@ export async function extractSamplesCommand(plugin: LabnotePlugin): Promise<void
  * client already had.
  */
 export async function askAgentCommand(plugin: LabnotePlugin): Promise<void> {
-  const provider = createLlmProvider(plugin.settings);
+  const settings = { ...plugin.settings };
+  const provider = guardedProvider(plugin, settings);
   if (!provider) {
     new Notice(plugin.t('Configure an AI provider in settings first.'));
     return;
@@ -1107,8 +1141,9 @@ export async function askAgentCommand(plugin: LabnotePlugin): Promise<void> {
     }
     new Notice(toolRunNotice(plugin, run.executed), 8000);
   } catch (err) {
+    if (err instanceof TransmissionCancelled) return undefined;
     console.error('[labnoteo] AI request failed:', err);
-    new Notice(describeLlmError(err, plugin.settings, plugin.t), 10000);
+    new Notice(describeLlmError(err, settings, plugin.t), 10000);
   } finally {
     notice.hide();
   }

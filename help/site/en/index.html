@@ -292,6 +292,7 @@
   <p>Helpers that work inside Obsidian. The clips were recorded with a local Ollama <code>qwen3.5:9b</code> model, with the wait for each reply fast-forwarded. What the model writes varies with the model and the language.</p>
   <article class="feature" id="ai-settings">
     <h3>AI provider settings</h3>
+    <p>AI commands send note content, conversation and tool results to the configured address. The first request per address on this PC and vault asks for confirmation. Remote Ollama also sends to that server.</p>
     <p>Under Settings → Labnote Assistant → <code>AI provider</code>, set <code>Provider</code> to <code>Ollama</code> or <code>OpenAI-compatible</code> and fill in the <code>Ollama endpoint</code> (or OpenAI endpoint) and <code>Model</code>. It is <code>Disabled</code> by default, and the AI commands do nothing until you change it.</p>
     <figure class="clip" data-clip="ai-settings"><figcaption>Provider · endpoint · model</figcaption></figure>
   </article>

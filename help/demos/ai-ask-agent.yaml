@@ -4,6 +4,10 @@ section: ai
 title: { ko: "AI: 어시스턴트에게 요청", en: "AI: Ask assistant" }
 seed: basic
 ai: true
+setup:
+  - tool: eval
+    args:
+      expression: "(() => { app.saveLocalStorage('labnoteo:ai-transmission-v1', null); return true; })()"
 steps:
   - caption: { ko: 워크플로 노트를 연 채로 어시스턴트를 부릅니다, en: Call the assistant with the workflow note open }
     tool: open_file
@@ -20,6 +24,10 @@ steps:
     hold: 800
   - tool: ui_press
     args: { keys: Enter }
+  - caption: { ko: 전송 주소를 확인하고 이 PC에서 허용합니다, en: Check the destination and allow requests on this PC }
+    tool: modal_button
+    args: { text: $t(Allow) }
+    hold: 1000
   - tool: ui_wait
     args: { notice: '', timeoutMs: 300000 }
     fastForward: true
