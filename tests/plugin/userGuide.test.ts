@@ -42,6 +42,20 @@ describe('openUserGuide', () => {
     expect(unknown.host.confirm).not.toHaveBeenCalled();
     expect(unknown.host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('Restore one BEGIN/END pair'));
   });
+  // The unmarked template is migrated through the editor's save: a save that kept it from
+  // going in leaves the guide as it was and unrecorded, and says so.
+  it.each([
+    [false, 'was not written'],
+    ['uncertain', 'may or may not have the change'],
+  ] as const)('does not record a migration of the unmarked template whose write came to %s', async (answer, said) => {
+    const { fs, host, asHost } = makeHost({ [QUICKSTART_DOC_PATH]: QUICKSTART_DOC_CONTENT });
+    await openUserGuide(asHost, '1.0.0', async () => answer);
+    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(QUICKSTART_DOC_CONTENT);
+    expect(await fs.exists(INSTALL_RECORD_PATH)).toBe(false);
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining(said));
+    expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
+  });
+
   it('writes only QUICKSTART.md when it is missing, then opens it', async () => {
     const { fs, host, asHost } = makeHost();
     expect(QUICKSTART_DOC_CONTENT.length).toBeGreaterThan(0);
@@ -115,6 +129,48 @@ describe('openUserGuide with a guide left at an older release', () => {
     expect(await fs.read(QUICKSTART_BACKUP_PATH)).toBe(edited);
     expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(oldFile(QUICKSTART_DOC_CONTENT));
     expect(await fs.read(QUICKSTART_DOC_PATH)).toContain('연구실 규칙');
+  });
+
+  // The file on disk is as it was asked about, but the open editor holds the guide brought up to
+  // date meanwhile: the answer no longer fits what is written over, so nothing is replaced.
+  it('leaves an edited old block the editor changed while the dialog was open, and says so', async () => {
+    const edited = oldFile(`${OLD}\n우리 연구실 메모`);
+    const inEditor = oldFile(QUICKSTART_DOC_CONTENT);
+    const { fs, host, asHost } = makeHost({
+      [QUICKSTART_DOC_PATH]: edited,
+      [INSTALL_RECORD_PATH]: record(contentHash(QUICKSTART_DOC_CONTENT)),
+    });
+    let written: string | undefined;
+    await openUserGuide(asHost, VERSION, async (path, change) => {
+      const next = change(path === QUICKSTART_DOC_PATH ? inEditor : '');
+      if (path !== QUICKSTART_DOC_PATH) await fs.write(path, next);
+      else if (next !== inEditor) written = next;
+      return true;
+    });
+    expect(host.confirm).toHaveBeenCalledTimes(1);
+    expect(written).toBeUndefined();
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('The user guide changed while you were deciding'));
+    expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
+  });
+
+  // Saved on disk while the dialog was open: the guide and the backup name are left as they
+  // are, and the user is told, not left to wonder why nothing changed.
+  it('leaves an edited old block saved again while the dialog was open, and says so', async () => {
+    const edited = oldFile(`${OLD}\n우리 연구실 메모`);
+    const saved = oldFile(`${OLD}\n우리 연구실 메모\n하나 더`);
+    const { fs, host, asHost } = makeHost({
+      [QUICKSTART_DOC_PATH]: edited,
+      [INSTALL_RECORD_PATH]: record(contentHash(QUICKSTART_DOC_CONTENT)),
+    });
+    host.confirm.mockImplementation(async () => {
+      await fs.write(QUICKSTART_DOC_PATH, saved);
+      return true;
+    });
+    await openUserGuide(asHost, VERSION);
+    expect(await fs.read(QUICKSTART_DOC_PATH)).toBe(saved);
+    expect(await fs.exists(QUICKSTART_BACKUP_PATH)).toBe(false);
+    expect(host.notify).toHaveBeenCalledWith('warn', expect.stringContaining('The user guide changed while you were deciding'));
+    expect(host.openFile).toHaveBeenCalledWith(QUICKSTART_DOC_PATH);
   });
 
   it('does not write over a backup an earlier replacement left (#344)', async () => {
