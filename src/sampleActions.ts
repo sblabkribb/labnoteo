@@ -8,7 +8,7 @@
  * the modals, persists JSON via the vault fs, and surfaces notices.
  */
 import { App, MarkdownView, Notice, type Editor } from 'obsidian';
-import { isOffsetBeforeBody, maskAiCallouts, planReferenceInsert, type EditTarget, type PickItem } from '@labnoteo/core';
+import { isInFrontMatter, isOffsetBeforeBody, maskAiCallouts, planReferenceInsert, type EditTarget, type PickItem } from '@labnoteo/core';
 import {
   generateSampleId,
   normalizeSampleId,
@@ -64,7 +64,7 @@ import type LabnotePlugin from './main';
 import { invalidFolderText } from './settings';
 import { processNoteThroughVault } from './commands';
 import { promptModal, confirmModal, pickModal } from './modals';
-import { isReadingViewTarget, tableCellEditorOf } from './obsidianHost';
+import { editTargetView, isReadingViewTarget, tableCellEditorOf } from './obsidianHost';
 import { writeIntoCell } from './tableCellTarget';
 import obsidianKo from './l10n.ko';
 
@@ -189,6 +189,20 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
     new Notice(plugin.t('Open a note to insert into.'));
     return false;
   }
+  const view = editTargetView(target);
+  if (view) plugin.caretGuard.arm(view, Infinity);
+  try {
+    // Both calls read the editor before yielding to registry I/O.
+    const [text, caret] = await Promise.all([target.getText(), caretBeforeModal(target)]);
+    return await insertSampleListForTarget(app, plugin, target, text, caret);
+  } finally {
+    if (view) plugin.caretGuard.arm(view, 2000);
+  }
+}
+
+async function insertSampleListForTarget(
+  app: App, plugin: LabnotePlugin, target: EditTarget, text: string, caret: number | undefined
+): Promise<boolean> {
   const globalFolder = plugin.settings.globalSampleFolder;
   const local = noteLabsamplesFolder(target.path, globalFolder);
   if (!getExperimentDir(target.path) || isSameSampleFolder(local, globalFolder)) {
@@ -255,11 +269,29 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
 
   // In the UI language, as the scope cells are, whatever an older table used.
   const table = buildMarkdownTable(headers[0], rows, new Set([0]));
-  let text = await target.getText();
-  // Read before the picker below opens: a picker takes the focus, and in Source
-  // mode the editor then reports the cursor at the start of the note (#450).
-  const caret = await caretBeforeModal(target);
-  let tables = findSampleListTableRanges(text, headers);
+  const tables = findSampleListTableRanges(text, headers).filter(range =>
+    text[range.start] === '|' && !isInFrontMatter(text, range.start)
+  );
+  const apply = async (changes: { start: number; end: number; text: string }[], offset: number) => {
+    let applied = false;
+    if (target.applyChangesIfCurrent) {
+      applied = await target.applyChangesIfCurrent(text, changes, offset);
+    } else if (await target.getText() === text) {
+      const first = changes[0].start;
+      const last = changes[changes.length - 1].end;
+      let from = first;
+      const replacement = changes.map(change => {
+        const segment = text.slice(from, change.start) + change.text;
+        from = change.end;
+        return segment;
+      }).join('');
+      await target.replaceRange(first, last, replacement);
+      await target.revealOffset?.(offset);
+      applied = true;
+    }
+    if (!applied) new Notice(plugin.t('The note changed during sample table insertion. Run the command again.'));
+    return applied;
+  };
   if (tables.length > 0) {
     // A second table sat silently under the first (#450).
     const choice = await pickModal<'replace' | 'add' | 'cancel'>(
@@ -278,10 +310,8 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
     );
     if (choice === undefined || choice === 'cancel') return false;
     if (choice === 'replace') {
-      // From the last table, so the earlier ones keep their offsets.
-      for (const range of [...tables].reverse()) await target.replaceRange(range.start, range.end, table);
-      const below = tables[0].start + table.length + (text[tables[0].end] === '\n' ? 1 : 0);
-      await target.revealOffset?.(below);
+      const below = tables[0].start + table.length + (/^\r?\n/.exec(text.slice(tables[0].end))?.[0].length ?? 0);
+      if (!(await apply(tables.map(({ start, end }) => ({ start, end, text: table })), below))) return false;
       plugin.markUserEdit(target.path);
       new Notice(
         `${plugin.t(
@@ -292,27 +322,18 @@ export async function insertExperimentSamplesTable(app: App, plugin: LabnotePlug
       );
       return true;
     }
-    // Written to from outside (a sync) while the picker was open: the table
-    // ranges are read again, but not the cursor, which is kept from before.
-    const now = await target.getText();
-    if (now !== text) {
-      text = now;
-      tables = findSampleListTableRanges(text, headers);
-    }
   }
   const cursor = caretIn(caret, text);
   // In the front matter or above the title the table would break the
   // properties, so it goes at the end like a sample reference does (#360).
   const atEnd = cursor !== text.length && isOffsetBeforeBody(text, cursor);
   // Inside a sample list table's text, a new table would break it: below it instead.
-  const inside = tables.find(range => cursor > range.start && cursor < range.end);
+  const inside = tables.find(range => cursor >= range.start && cursor <= range.end);
   const at = atEnd ? text.length : (inside?.end ?? cursor);
   const before = at === 0 || text[at - 1] === '\n' ? (at > 1 && text[at - 2] !== '\n' ? '\n' : '') : '\n\n';
   const after = at >= text.length || text[at] === '\n' ? '\n' : '\n\n';
-  await target.replaceRange(at, at, `${before}${table}${after}`);
-  // Below the table, not in its last cell, so running the command again does
-  // not land inside this table (#196).
-  await target.revealOffset?.(at + before.length + table.length + after.length);
+  const insertion = before + table + after;
+  if (!(await apply([{ start: at, end: at, text: insertion }], at + insertion.length))) return false;
   plugin.markUserEdit(target.path);
   const where = atEnd ? ` ${plugin.t('The cursor was in the properties or above the title, so the table is at the end of the note.')}` : '';
   new Notice(`${plugin.t('Inserted {0} sample(s).', String(rows.length))}${where}${leftOut}`);
@@ -658,6 +679,12 @@ export async function createSampleInteractive(
     return undefined;
   }
   const location = placed.location;
+  let catalogNumber: string | undefined;
+  if (type === 'Reagent' || type === 'Labware') {
+    const entered = await promptModal(app, { title: plugin.t('Enter CAT No (optional)'), value: existing?.record.catalogNumber ?? '' });
+    if (entered === undefined) return undefined;
+    catalogNumber = entered.trim() || undefined;
+  }
 
   if (existing) {
     // A blank field keeps the stored value, as in the note sync (#73); clearing
@@ -666,6 +693,7 @@ export async function createSampleInteractive(
       alias: alias ?? undefined,
       description: description ?? undefined,
       location: location ?? undefined,
+      catalogNumber,
     });
     plugin.refreshSampleViews();
     const merged = (await loadSamplesByType(plugin.fs, existing.folder, type))[id];
@@ -708,7 +736,7 @@ export async function createSampleInteractive(
 
   // `sources` is omitted so the record keeps whatever documents already
   // reference it; a tree-created sample legitimately starts with none.
-  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location, catalogNumber });
   plugin.refreshSampleViews();
   // A vault-root note's "local" folder is the global one (#64): say where it went.
   const landedInGlobal =
@@ -997,11 +1025,18 @@ export async function editSampleInteractive(
     return false;
   }
   const location = placed.location;
+  let catalogNumber: string | null | undefined;
+  if (type === 'Reagent' || type === 'Labware') {
+    const entered = await promptModal(app, { title: plugin.t('Enter CAT No (optional)'), value: record.catalogNumber ?? '' });
+    if (entered === undefined) return false;
+    catalogNumber = entered.trim() || null;
+  }
   // An emptied field is easy to submit by accident and nothing brings it back (#471).
   const oldDescription = record.descriptions?.[0]?.trim();
   const clearing = [
     record.alias?.trim() && !alias ? plugin.t("the alias '{0}'", record.alias.trim()) : '',
     oldDescription && !description ? plugin.t("the first description '{0}'", oldDescription) : '',
+    record.catalogNumber && catalogNumber === null ? plugin.t("CAT No '{0}'", record.catalogNumber) : '',
   ].filter(Boolean);
   if (
     clearing.length > 0 &&
@@ -1018,7 +1053,7 @@ export async function editSampleInteractive(
   ) {
     return false;
   }
-  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location });
+  await upsertSampleRecord(plugin.fs, folder, type, id, { alias, description, location, catalogNumber });
   plugin.refreshSampleViews();
 
   // Best-effort: keep the active note's `@type;` definition in sync (single

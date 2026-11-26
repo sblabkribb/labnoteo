@@ -15,6 +15,7 @@ import {
   buildSampleReferenceText,
 } from '@labnoteo/core/lib/sampleUtils';
 import { isSameSampleFolder, type SampleRecord } from '@labnoteo/core/lib/sampleStorage';
+import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import type LabnotePlugin from '../main';
 import { focusTree, renderTree } from './treeRender';
 import { addPartbankMenuItems } from '../partbank/partbankActions';
@@ -280,12 +281,19 @@ export class SampleTreeView extends ItemView {
       return;
     }
     const notes = new Set(spots.map(s => s.path)).size;
-    const spot = await pickModal(
+    const exp = getExperimentDir(this.app.workspace.getActiveFile()?.path ?? '');
+    const traced = exp ? spots.filter(s => s.direction && !s.referenceKind && getExperimentDir(s.path) === exp)
+      .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }) || a.line - b.line) : [];
+    const items = spots.map(s => ({ label: s.path, description: usageSpotLabel(this.plugin.t, s), value: s }));
+    const spot = await pickModal<(typeof spots)[number] | 'trace'>(
       this.app,
-      spots.map(s => ({ label: s.path, description: usageSpotLabel(this.plugin.t, s), value: s })),
+      [...(traced.length ? [{ label: this.plugin.t('Trace Input and Output in this experiment'), value: 'trace' as const }] : []), ...items],
       { title: this.plugin.t('Notes using {0} ({1})', sample.id, String(notes)) }
     );
-    if (spot) await this.plugin.host.openFile(spot.path, { line: spot.line, ch: spot.ch });
+    const destination = spot === 'trace' ? await pickModal(this.app,
+      traced.map(s => ({ label: `${this.plugin.t(s.direction!)} · ${s.path}`, description: usageSpotLabel(this.plugin.t, s), value: s })),
+      { title: this.plugin.t('Trace Input and Output in this experiment') }) : spot;
+    if (destination) await this.plugin.host.openFile(destination.path, { line: destination.line, ch: destination.ch });
   }
 
   /** Sample node: copy / insert reference / view usages / edit / delete. */

@@ -930,6 +930,12 @@ describe('saveSamplesByType type validation', () => {
 });
 
 describe('upsertSampleRecord (Phase 3 atomic merge)', () => {
+  it('preserves the exact catalog number through unrelated updates (#575)', async () => {
+    const fs = new MemFileSystem({});
+    await upsertSampleRecord(fs, FOLDER, 'Reagent', 'Reagent-1', { alias: 'old', description: null, catalogNumber: '0004-01' });
+    await upsertSampleRecord(fs, FOLDER, 'Reagent', 'Reagent-1', { alias: 'new', description: null });
+    expect((await loadSamplesByType(fs, FOLDER, 'Reagent'))['Reagent-1'].catalogNumber).toBe('0004-01');
+  });
   const FOLDER = 'labnote/001_Exp/resources/labsamples';
 
   it('creates a record when the file is absent', async () => {

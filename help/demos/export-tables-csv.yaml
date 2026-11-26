@@ -14,14 +14,29 @@ steps:
   - caption: { ko: 팔레트에서 표를 CSV로 내보내기, en: Run Export tables to CSV from the palette }
     palette: export-tables-csv
     hold: 1500
-  - caption: { ko: 노트 옆에 표마다 CSV 파일이 생깁니다, en: A CSV file per table appears next to the note }
+  - caption: { ko: 저장한 노트의 표마다 CSV가 생깁니다, en: Each table in the saved note gets a CSV }
     highlight: { selector: .nav-file-title, text: _table1 }
     poster: true
+    hold: 1500
+  - caption: { ko: 빈 줄이 빠진 표가 있으면 기존 CSV를 보존합니다, en: A missing blank line holds the existing CSVs }
+    tool: eval
+    args:
+      expression: "(() => { const e = app.workspace.activeEditor.editor; const end = e.offsetToPos(e.getValue().length); e.replaceRange('\\n\\nCaption\\n| Value |\\n| --- |\\n| 2 |\\n', end); return true; })()"
+  - tool: ui_press
+    args: { keys: Ctrl+S }
+  - palette: export-tables-csv
+  - caption: { ko: 바뀔 줄을 확인한 뒤 빈 줄을 넣고 다시 내보냅니다, en: Preview the locations and add the blank lines }
+    tool: ui_click
+    args: { text: $t(Add blank lines and export again) }
+  - tool: modal_button
+    args: { text: $t(Add blank lines and export again) }
     hold: 1500
   - caption: { ko: 표 안에 이슈 마커가 있으면 파일을 바꾸기 전에 멈춥니다, en: A marker inside a table stops export before any file changes }
     tool: eval
     args:
       expression: "(() => { const e = app.workspace.activeEditor.editor; const end = e.offsetToPos(e.getValue().length); e.replaceRange('\\n\\n| Value |\\n| --- |\\n| 1 @issue;ISS-demo;Check value |\\n', end); return true; })()"
+  - tool: ui_press
+    args: { keys: Ctrl+S }
   - palette: export-tables-csv
   - highlight: { selector: .notice }
     hold: 2000

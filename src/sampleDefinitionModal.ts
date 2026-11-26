@@ -116,6 +116,7 @@ class SampleDefinitionModal extends Modal {
       [t('Type'), this.type],
       [t('ID'), this.id],
       [t('Alias'), record.alias ?? '-'],
+      ...(this.type === 'Reagent' || this.type === 'Labware' ? [[t('CAT No'), record.catalogNumber ?? '-'] as [string, string]] : []),
       [t('Location'), sampleLocationText(this.plugin, record) || '-'],
       // The partbank id is the one key that makes the link usable by hand.
       ...(source

@@ -392,7 +392,8 @@ export async function isVaultGitRepository(host: LabnoteHost): Promise<boolean> 
  */
 export async function setupResearchAutomationCommand(
   host: LabnoteHost,
-  pluginVersion: string
+  pluginVersion: string,
+  hooksPath?: () => Promise<string | null | undefined>
 ): Promise<void> {
   const result: ScaffoldResult = { written: 0, merged: 0, skipped: 0, removed: 0 };
   const record = await readInstallRecord(host);
@@ -450,7 +451,9 @@ export async function setupResearchAutomationCommand(
       ? host.t('Research automation is already up to date ({0} files checked).', String(upToDate))
       : [
           host.t(
-            'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").',
+            hooksPath
+              ? 'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5}.'
+              : 'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5} (run "git config core.hooksPath {6}").',
             String(result.written),
             String(result.merged),
             String(result.skipped),
@@ -479,6 +482,17 @@ export async function setupResearchAutomationCommand(
         SETUP_DOC_PATH
       )
     );
+  } else if (hooksPath) {
+    const hooks = await hooksPath();
+    if (hooks === HOOKS_DIR_PATH) {
+      host.notify('info', host.t('Git uses the Labnote pre-commit hook path.'));
+    } else if (hooks === null) {
+      host.notify('warn', host.t('The Labnote pre-commit hook is not configured. Run "git config core.hooksPath {0}" in this vault.', HOOKS_DIR_PATH));
+    } else if (hooks === undefined) {
+      host.notify('warn', host.t('Could not check the pre-commit hook. Run "git config --get core.hooksPath" in this vault to check for {0}.', HOOKS_DIR_PATH));
+    } else {
+      host.notify('warn', host.t('Git uses another hook path ({0}). Review it before configuring the Labnote hook at {1}.', hooks, HOOKS_DIR_PATH));
+    }
   }
 
   // `.gitignore` merges by appending, so a vault upgraded from an older version

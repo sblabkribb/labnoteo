@@ -25,6 +25,6 @@ steps:
   - caption: { ko: 기존 표를 최신으로 바꾸기를 고릅니다, en: Pick Replace the existing table(s) with the current samples }
     tool: modal_pick
     args: { text: $t(Replace the existing table(s) with the current samples), filter: '' }
-  - caption: { ko: 표가 지금 시료로 바뀌었다고 알려 줍니다, en: A notice says the table now has the current samples }
+  - caption: { ko: 표를 갱신합니다. 선택 중 본문이 바뀌면 다시 실행하세요, en: The table updates. Rerun the command if the note changed }
     highlight: { selector: .notice }
     hold: 1500

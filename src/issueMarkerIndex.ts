@@ -54,10 +54,15 @@ export async function experimentMarkerSpots(fs: LabnoteFs, dir: string): Promise
 
 /** `001_WB090_x.labnote.md:48, …` for a message, naming at most `max` spots. */
 export function formatMarkerSpots(spots: readonly MarkerSpot[], t: (key: string, ...args: string[]) => string, max = 3): string {
-  const named = spots
-    .slice(0, max)
-    .map(s => `${posix.basename(s.path)}:${s.line}`)
-    .join(', ');
+  const grouped = new Map<string, number[]>();
+  for (const spot of spots.slice(0, max)) {
+    const lines = grouped.get(spot.path) ?? [];
+    lines.push(spot.line);
+    grouped.set(spot.path, lines);
+  }
+  const named = [...grouped].map(([path, lines]) =>
+    lines.length === 1 ? `${posix.basename(path)}:${lines[0]}` : `${posix.basename(path)}: ${lines.join(', ')}`
+  ).join(', ');
   return spots.length > max ? t('{0} (+{1} more)', named, String(spots.length - max)) : named;
 }
 

@@ -57,6 +57,7 @@ import {
   createLabnoteStructure,
   diagnoseExperimentPath,
   experimentFoldersOutsideLabnote,
+  experimentFolderName,
   experimentTitleBudget,
   experimentTitleLength,
   getExperimentDir,
@@ -113,6 +114,7 @@ import {
   defaultWorkflowTitle,
   isValidWorkflowPath,
   parseWorkflowFileName,
+  parseWorkflowHeading,
   planWorkflowRetitle,
   planWorkflowExperimenterSync,
   type ExperimenterSyncBlock,
@@ -124,6 +126,7 @@ import {
   workflowAliasProblem,
 } from '@labnoteo/core/lib/workflowStructure';
 import { removeWorkflowFromReadme } from '@labnoteo/core/lib/workflowDelete';
+import { placeWorkflowPresetSteps, workflowPresetSteps, type PresetStep } from '@labnoteo/core/lib/workflowPreset';
 // Re-exported so command registration in main.ts imports every command from one
 // place; the implementation lives under src/scaffold with its asset registry.
 export { setupResearchAutomationCommand } from './scaffold/scaffold';
@@ -132,6 +135,7 @@ import { caretBeforeModal, caretIn } from '@labnoteo/core/lib/caret';
 import type { StampNote } from './lastUpdatedStamp';
 import { experimentMarkerSpots, formatMarkerSpots, markerExperimentDir } from './issueMarkerIndex';
 import { isVaultGitRepository } from './scaffold/scaffold';
+import { csvSnapshot } from './csvSnapshot';
 import { removeSourcesForDocument } from '@labnoteo/core/lib/sampleStorage';
 
 // Vault root sentinel. Core loaders treat a falsy root as "no workspace" and
@@ -318,6 +322,12 @@ export function experimentTitleHint(
         warn: true,
       };
     }
+    const suffix = experimentFolderName('000', value.trim()).slice(4).toLowerCase();
+    const collision = existing.find(e => posix.basename(e.folder).replace(/^\d+_/, '').toLowerCase() === suffix);
+    if (suffix && collision) return {
+      text: host.t('This title produces the same folder name as {0} apart from the number. Change the start of the title to distinguish them.', posix.basename(collision.folder)),
+      warn: true,
+    };
     const length = experimentTitleLength(value);
     return {
       text: host.t(
@@ -699,7 +709,11 @@ export async function changeExperimentStatusCommand(
       ...(current && isValidStatus(current) && { selected: current }),
     }
   );
-  if (!chosen || chosen === current) return;
+  if (!chosen) return;
+  if (chosen === current) {
+    host.notify('info', host.t('Experiment status kept: {0}.', current));
+    return;
+  }
 
   // Set (or append, when absent) `status`; the other lines stay as written (#422).
   const changes: Record<string, unknown> = { status: chosen };
@@ -1251,7 +1265,8 @@ async function createWorkflowFile(
   host: LabnoteHost,
   labnoteDir: string,
   chosen: WorkflowItem,
-  stamp: (content: string, path?: string) => string
+  stamp: (content: string, path?: string) => string,
+  preset?: readonly PresetStep[]
 ): Promise<CreatedWorkflow | undefined> {
   // Listed before the prompt, which warns about an alias already in use (#297).
   const existingFiles = await host.fs.list(labnoteDir);
@@ -1282,12 +1297,9 @@ async function createWorkflowFile(
   const fileName = createWorkflowFileName(sequence, info, cleanAlias || undefined);
   const workflowPath = posix.join(labnoteDir, fileName);
 
-  await host.fs.write(
-    workflowPath,
-    createWorkflowContent(info, experimenter, cleanAlias || undefined, {
-      locale: getObsidianLanguage(),
-    })
-  );
+  const note = createWorkflowContent(info, experimenter, cleanAlias || undefined, { locale: getObsidianLanguage() });
+  if (preset) await app.vault.create(workflowPath, placeWorkflowPresetSteps(note, preset, experimenter));
+  else await host.fs.write(workflowPath, note);
   warnIfWindowsPathTooLong(app, host, workflowPath);
 
   const displayTitle = cleanAlias
@@ -1303,6 +1315,60 @@ async function createWorkflowFile(
   );
 
   return { path: workflowPath, fileName, displayTitle, registered };
+}
+
+const WORKFLOW_PRESETS = 'resources/workflow-presets.json';
+interface WorkflowPreset {
+  label: string;
+  id: string;
+  name: string;
+  steps: PresetStep[];
+}
+
+export async function saveWorkflowPreset(host: LabnoteHost, sampleTypes: readonly string[]): Promise<void> {
+  const target = host.editTarget();
+  if (!target || !isValidWorkflowPath(target.path)) {
+    host.notify('warn', host.t('Open a workflow note to save a preset.'));
+    return;
+  }
+  const text = await target.getText();
+  const heading = parseWorkflowHeading(text);
+  if (!heading) {
+    host.notify('warn', host.t('Open a workflow note to save a preset.'));
+    return;
+  }
+  const input = await host.prompt({ title: host.t('Workflow preset name'), value: heading.alias || heading.name,
+    validate: value => value.trim() ? null : host.t('Enter a name for this preset.') });
+  if (input === undefined) return;
+  const preset: WorkflowPreset = { label: input.trim(), id: heading.id, name: heading.name, steps: workflowPresetSteps(text, sampleTypes) };
+  let added = false;
+  await host.fs.modify(WORKFLOW_PRESETS, raw => {
+    const previous: WorkflowPreset[] = raw.trim() ? JSON.parse(raw) : [];
+    if (previous.some(item => item.label.toLowerCase() === preset.label.toLowerCase())) return raw;
+    added = true;
+    return JSON.stringify([...previous, preset], null, 2) + '\n';
+  });
+  host.notify(added ? 'info' : 'warn', host.t(added ? 'Workflow preset saved: {0}' : 'A workflow preset already has this name: {0}', preset.label));
+}
+
+export async function loadWorkflowPreset(
+  app: App, host: LabnoteHost, stamp: (content: string, path?: string) => string
+): Promise<void> {
+  const dir = await resolveLabnoteDir(app, host);
+  if (!dir) return;
+  const presets: WorkflowPreset[] = await host.fs.exists(WORKFLOW_PRESETS)
+    ? JSON.parse(await host.fs.read(WORKFLOW_PRESETS)) : [];
+  if (!presets.length) {
+    host.notify('info', host.t('There are no saved workflow presets.'));
+    return;
+  }
+  const chosen = await host.pick(presets.map(value => ({ label: value.label, value })), { title: host.t('Select workflow preset') });
+  if (!chosen) return;
+  const created = await createWorkflowFile(app, host, dir, { ...chosen, description: '', category: '' }, stamp, chosen.steps);
+  if (created) {
+    await host.openFile(created.path);
+    notifyWorkflowCreated(host, created);
+  }
 }
 
 /** What {@link registerWorkflowInReadme} did. */
@@ -1898,11 +1964,17 @@ export async function moveTableCsvs(
  * Move the table CSVs `names` (base names in `dir`) to the trash (#74, #75).
  * Returns how many stayed because the move failed.
  */
-export async function trashTableCsvs(app: App, dir: string, names: readonly string[]): Promise<number> {
+export async function trashTableCsvs(
+  app: App, dir: string, names: readonly string[], mayTrash?: (name: string) => Promise<boolean>
+): Promise<number> {
   let kept = 0;
   for (const name of names) {
     const path = posix.join(dir, name);
     try {
+      if (mayTrash && !(await mayTrash(name))) {
+        kept++;
+        continue;
+      }
       const file = app.vault.getFileByPath(path);
       if (file instanceof TFile) {
         // `trashFile` (1.6.6+) follows the user's "Deleted files" setting.
@@ -1935,7 +2007,7 @@ export async function offerTableCsvCleanupOnDelete(
   host: LabnoteHost,
   deletedPaths: readonly string[]
 ): Promise<void> {
-  const byDir = new Map<string, string[]>();
+  const byDir = new Map<string, Map<string, { note: string; raw: string }>>();
   const listings = new Map<string, string[]>();
   for (const p of deletedPaths) {
     const dir = posix.dirname(p);
@@ -1943,11 +2015,15 @@ export async function offerTableCsvCleanupOnDelete(
     listings.set(dir, files);
     const note = posix.basename(p);
     if (files.includes(note)) continue;
-    const found = byDir.get(dir) ?? [];
-    for (const csv of siblingTableCsvs(note, files)) if (!found.includes(csv)) found.push(csv);
+    const found = byDir.get(dir) ?? new Map();
+    for (const csv of siblingTableCsvs(note, files)) {
+      if (found.has(csv)) continue;
+      const raw = await csvSnapshot(host.fs, posix.join(dir, csv));
+      if (typeof raw === 'string') found.set(csv, { note: p, raw });
+    }
     byDir.set(dir, found);
   }
-  const all = [...byDir.values()].flat();
+  const all = [...byDir.values()].flatMap(found => [...found.keys()]);
   if (all.length === 0) return;
 
   const ok = await host.confirm(
@@ -1960,9 +2036,15 @@ export async function offerTableCsvCleanupOnDelete(
   if (!ok) return;
 
   let kept = 0;
-  for (const [dir, names] of byDir) kept += await trashTableCsvs(app, dir, names);
+  for (const [dir, found] of byDir) {
+    kept += await trashTableCsvs(app, dir, [...found.keys()], async name => {
+      const snapshot = found.get(name)!;
+      return !(await host.fs.exists(snapshot.note)) &&
+        await csvSnapshot(host.fs, posix.join(dir, name)) === snapshot.raw;
+    });
+  }
   host.notify('info', host.t('{0} CSV file(s) moved to the trash.', String(all.length - kept)));
-  if (kept > 0) host.notify('warn', host.t('{0} CSV file(s) could not be moved to the trash.', String(kept)));
+  if (kept > 0) host.notify('warn', host.t('{0} old CSV file(s) kept.', String(kept)));
 }
 
 /**

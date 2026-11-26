@@ -228,6 +228,11 @@ listed and says to switch to the editing view and put the cursor on the line fir
 
 ## Workflows
 
+**Save workflow as preset** keeps the unit operation order and reusable Parameters, Environment
+and Method text in the vault. In the destination experiment, **Create workflow from preset**
+assigns a fresh note ID and dates. The previous experiment's results, scans, issue links and
+sample references are excluded.
+
 ### Create workflow
 
 Create a numbered workflow note and add it to the README checklist.
@@ -405,6 +410,11 @@ Export note tables to `<note name>.labnote_tableN.csv` next to the note. A CSV i
 export time: after you edit the table, or a sample edit or type change rewrites the note's aliases
 or IDs, export again to bring the CSV up to date.
 
+If a table is missing the blank line above it, or an open editor contains unsaved changes, all
+CSVs for that note are kept. Other notes in an experiment export continue. For supported
+top-level tables, **Add blank lines and export again** previews the locations before changing them.
+If a note or a CSV changes during confirmation, rerun the export for that note.
+
 **Naming**
 
 - With ten tables or more the number has as many digits as the table count (`table01` … `table11`)
@@ -491,6 +501,10 @@ explorer.
   out (inside a comment, or with no blank line above) are counted per note (`In: README 1`).
 
 ## Samples
+
+Reagent and Labware records accept an optional `CAT No` during registration and editing. It
+appears in the sample definition. In **View usages**, choose **Trace Input and Output in this
+experiment** to open a specific reference in workflow order.
 
 - The sample view, autocomplete, the definition search and the sample list table list samples by
   alias, numbers by their size (`WTR-2` before `WTR-10`), then those without an alias by ID.
@@ -616,6 +630,8 @@ the current samples** writes every sample list table of the note again from the 
 and order changed by hand are lost) and leaves the text around them alone; **Insert one more table**
 inserts as before (below the table when the cursor is in its text); `Cancel` changes nothing. The
 new table's header and scope cells are in the UI language. Tables in other notes are left alone.
+If the note changes while the picker is open, run the command again. One Undo restores all tables
+from a replacement.
 
 References the note makes that no registry has are left out of the table, and the notice names them.
 
@@ -897,6 +913,8 @@ starts on a new page, so the sheets can be filed by unit operation.
 
 ### Import scanned pages
 
+If a JPEG or PNG cannot be opened, transfer the original file again or take a new photo.
+
 Drop photos, PDFs or zips to file them in their notes by QR code, then show the results (open note,
 undo, delete earlier scan). Also the scan icon in the left ribbon.
 
@@ -1161,6 +1179,10 @@ Enter opens, and Shift+F10 or the menu key opens the right-click menu.
   `Open sample definition` list joins them with `; `.
 
 ### Setup research automation
+
+Setup checks Git's effective pre-commit hook path on each run. Review an existing custom hook
+before changing it. To recover edits in a deleted root instruction file or Wiki draft, use
+the trash or Git. Running setup again recreates the starter files.
 
 Scaffold GitHub Actions and scripts into the current vault. See
 [Research automation](../README.en.md#research-automation).

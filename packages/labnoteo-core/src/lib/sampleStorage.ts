@@ -18,6 +18,7 @@ import {
 } from './sampleUtils';
 import { escapeRegExp } from './regexUtils';
 import { maskAiCallouts } from './aiCallout';
+import { listUnitOpBlocks } from '../sections/scanInsert';
 import { listHeadings } from '../sections/sectionEdit';
 import { getExperimentDir, getExperimentLabsamplesFolder } from './labnoteStructure';
 import { normalizeSampleSource, type SampleSource } from '../partbank/types';
@@ -53,6 +54,8 @@ export interface SampleRecord {
    * populated from partbank via a {@link SampleLocationProvider}.
    */
   location?: string | null;
+  /** Optional reagent or labware catalog number, stored as entered. */
+  catalogNumber?: string;
   /**
    * The date (`YYYY-MM-DD`) the sample was marked used up or thrown away
    * (#158). It stays in the registry, so references keep resolving, but sorts
@@ -115,6 +118,7 @@ const KNOWN_RECORD_KEYS: ReadonlySet<string> = new Set([
   'descriptions',
   'sources',
   'location',
+  'catalogNumber',
   'discarded',
   'discardedLocation',
   'descriptionSources',
@@ -157,6 +161,7 @@ function normalizeSampleRecord(rec: unknown, fallbackType: string): SampleRecord
       ? r.sources.filter((s): s is string => typeof s === 'string')
       : [],
     location: typeof r.location === 'string' ? r.location : null,
+    ...(typeof r.catalogNumber === 'string' && r.catalogNumber ? { catalogNumber: r.catalogNumber } : {}),
     ...(typeof r.discarded === 'string' && r.discarded ? { discarded: r.discarded } : {}),
     ...(typeof r.discardedLocation === 'string' && r.discardedLocation
       ? { discardedLocation: r.discardedLocation }
@@ -210,6 +215,7 @@ function mergeCaseCollidingIds(
     if (!target.alias && rec.alias) target.alias = rec.alias;
     if (rec.aliasSources) target.aliasSources = { ...rec.aliasSources, ...target.aliasSources };
     if (!target.location && rec.location) target.location = rec.location;
+    if (!target.catalogNumber && rec.catalogNumber) target.catalogNumber = rec.catalogNumber;
     if (!target.discardedLocation && rec.discardedLocation) target.discardedLocation = rec.discardedLocation;
     if (!target.source && rec.source) target.source = rec.source;
     for (const [key, value] of Object.entries(unknownKeys(rec, KNOWN_RECORD_KEYS))) {
@@ -1391,6 +1397,7 @@ export async function upsertSampleRecord(
     sources?: string[];
     location?: string | null;
     source?: SampleSource | null;
+    catalogNumber?: string | null;
   }
 ): Promise<void> {
   assertSafeSampleType(type);
@@ -1414,6 +1421,8 @@ export async function upsertSampleRecord(
     const source = fields.source !== undefined ? fields.source : (existing?.source ?? null);
     if (source) record.source = source;
     else delete record.source;
+    if (fields.catalogNumber) record.catalogNumber = fields.catalogNumber;
+    else if (fields.catalogNumber === null) delete record.catalogNumber;
     records[id] = record;
     return JSON.stringify(records, null, 2);
   });
@@ -1440,6 +1449,7 @@ export async function mergeSampleRecord(
     description?: string;
     sources?: string[];
     location?: string;
+    catalogNumber?: string;
   }
 ): Promise<{ discarded: string | null }> {
   assertSafeSampleType(type);
@@ -1460,6 +1470,7 @@ export async function mergeSampleRecord(
         : descriptions,
       sources: [...sources, ...(fields.sources ?? []).filter(s => !sources.includes(s))],
       location: fields.location !== undefined ? fields.location : (existing?.location ?? null),
+      ...(fields.catalogNumber ? { catalogNumber: fields.catalogNumber } : {}),
     };
     return JSON.stringify(records, null, 2);
   });
@@ -1895,6 +1906,7 @@ export interface SampleUsageSpot {
   /** The enclosing heading, after its own parent (`[UHW250 PCR] › Output`); '' above the first heading. */
   heading: string;
   referenceKind?: 'ai-summary' | 'deletion-blocker';
+  direction?: 'Input' | 'Output';
 }
 
 /**
@@ -1918,20 +1930,28 @@ export function findSampleUsageSpots(
     if (spans.length === 0) continue;
     const lineStarts = [0];
     for (let i = 0; i < doc.text.length; i++) if (doc.text[i] === '\n') lineStarts.push(i + 1);
-    const headings = listHeadings(doc.text);
+    const headings = listHeadings(doc.text).reverse();
+    const unitOps = listUnitOpBlocks(doc.text);
     let lastLine = -1;
     for (const span of spans) {
       let line = 0;
       while (line + 1 < lineStarts.length && lineStarts[line + 1] <= span.start) line++;
       if (line === lastLine) continue;
       lastLine = line;
-      const h = [...headings].reverse().find(x => x.line <= line);
+      const h = headings.find(x => x.line <= line);
+      const unitOp = unitOps.find(block => block.headingLine < line && line < block.endLine);
+      const section = unitOp && headings.find(heading => heading.level === 4 &&
+        heading.line > unitOp.headingLine && heading.line <= line);
+      const direction = section?.text.trim().toLowerCase();
+      const fromAi = aiMasked.slice(span.start, span.end).trim() === '';
       out.push({
         path: doc.path,
         line,
         ch: span.start - lineStarts[line],
         heading: h ? (h.parentHeading ? `${h.parentHeading} › ${h.text}` : h.text) : '',
-        ...(aiMasked.slice(span.start, span.end).trim() === '' ? { referenceKind: 'ai-summary' as const } : {}),
+        ...(fromAi ? { referenceKind: 'ai-summary' as const } : {}),
+        ...(!fromAi && direction === 'input' ? { direction: 'Input' as const } :
+          !fromAi && direction === 'output' ? { direction: 'Output' as const } : {}),
       });
     }
   }

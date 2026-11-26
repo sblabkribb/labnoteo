@@ -6,7 +6,7 @@
  */
 import { MarkdownView, Notice, TFile } from 'obsidian';
 import * as posix from '@labnoteo/core/posix';
-import { parseIssueMarkers } from '@labnoteo/core';
+import { isInFrontMatter, parseIssueMarkers } from '@labnoteo/core';
 import {
   classifyCsvOverwrites,
   csvRowCount,
@@ -17,6 +17,7 @@ import {
   type CsvOverwriteKind,
   type ExcelRiskCell,
   type ExcelRiskKind,
+  type MarkdownTableRange,
 } from '@labnoteo/core/lib/exportTablesCsv';
 import { getExperimentDir } from '@labnoteo/core/lib/labnoteStructure';
 import { EXCEL_PATH_MAX } from '@labnoteo/core/lib/regexUtils';
@@ -29,6 +30,7 @@ import {
 import { confirmModal } from './modals';
 import { listFileNames, trashTableCsvs, windowsPathsOver } from './commands';
 import type LabnotePlugin from './main';
+import { csvSnapshot } from './csvSnapshot';
 
 /** One table's CSV: where it goes, what is written, and the CSV already there (BOM and CRLF dropped). */
 interface CsvOutput {
@@ -57,16 +59,6 @@ function isFileLocked(err: unknown): boolean {
   return /^(EBUSY|EPERM|EACCES)\b/.test(err instanceof Error ? err.message : String(err));
 }
 
-/** The CSV at `path` without BOM and CRLF, or `locked` when it cannot be read (#476). */
-async function readCsv(plugin: LabnotePlugin, path: string): Promise<string | { locked: true }> {
-  try {
-    return normalizeCsv(await plugin.fs.read(path));
-  } catch (err) {
-    if (!isFileLocked(err)) throw err;
-    return { locked: true };
-  }
-}
-
 /** A note's tables as CSVs, worked out before anything is written. */
 interface NoteCsvPlan {
   file: TFile;
@@ -76,6 +68,9 @@ interface NoteCsvPlan {
   dir: string;
   /** Tables left out: no blank line above them, or inside a comment. */
   notRendered: number;
+  missingLines: number[];
+  unsaved: boolean;
+  csvs: Map<string, string | null | undefined>;
   hidden: number;
   outputs: CsvOutput[];
   renames: ReadonlyArray<{ from: string; to: string }>;
@@ -86,7 +81,8 @@ interface NoteCsvPlan {
 
 async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<NoteCsvPlan> {
   const content = await plugin.app.vault.read(file);
-  const { tables, notRendered, hidden } = scanMarkdownTables(content);
+  const ranges: MarkdownTableRange[] = [];
+  const { tables, notRendered, hidden } = scanMarkdownTables(content, ranges);
   const dir = posix.dirname(file.path);
   const plan: NoteCsvPlan = {
     file,
@@ -95,39 +91,45 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
     invalidMarkers: parseIssueMarkers(content.replace(/\r\n/g, '\n')).malformed.filter(m => m.reason === 'table').map(m => m.line),
     dir,
     notRendered,
+    missingLines: ranges.filter(range => range.kind === 'not-rendered').map(range => range.startLine + 1),
+    unsaved: hasUnsavedText(plugin, file.path, content),
+    csvs: new Map(),
     hidden,
     outputs: [],
     renames: [],
     moved: [],
     headerChanged: [],
   };
-  if (tables.length === 0) return plan;
+  if (plan.unsaved || notRendered || tables.length === 0) return plan;
 
   const siblings = await plugin.fs.list(dir);
   const names = planTableCsvNames(file.name, siblings, tables.length);
+  const paths = new Set([...names.names, ...names.renames.map(r => r.from), ...names.stale]);
+  await Promise.all([...paths].map(async name => {
+    const path = posix.join(dir, name);
+    plan.csvs.set(path, await csvSnapshot(plugin.fs, path));
+  }));
   const renamedFrom = new Map(names.renames.map(r => [r.to, r.from]));
-  const outputs = await Promise.all(
-    tables.map(async table => {
-      const name = names.names[table.index];
-      const path = posix.join(dir, name);
-      // A CSV still to be renamed holds the old content of this table.
-      const current = posix.join(dir, renamedFrom.get(name) ?? name);
-      const csv = tableToCsv(table.rows, { bom: true });
-      const read = (await plugin.fs.exists(current)) ? await readCsv(plugin, current) : undefined;
-      const output: CsvOutput = {
-        path,
-        csv,
-        fresh: normalizeCsv(csv),
-        header: table.rows[0] ?? [],
-        risky: excelRiskCells(table.rows),
-        ...(table.dropped ? { dropped: table.dropped } : {}),
-        ...(table.codePipe ? { codePipe: true } : {}),
-      };
-      if (typeof read === 'object') output.locked = true;
-      else output.old = read;
-      return output;
-    })
-  );
+  const outputs = tables.map(table => {
+    const name = names.names[table.index];
+    const path = posix.join(dir, name);
+    // A CSV still to be renamed holds the old content of this table.
+    const current = posix.join(dir, renamedFrom.get(name) ?? name);
+    const csv = tableToCsv(table.rows, { bom: true });
+    const read = plan.csvs.get(current);
+    const output: CsvOutput = {
+      path,
+      csv,
+      fresh: normalizeCsv(csv),
+      header: table.rows[0] ?? [],
+      risky: excelRiskCells(table.rows),
+      ...(table.dropped ? { dropped: table.dropped } : {}),
+      ...(table.codePipe ? { codePipe: true } : {}),
+    };
+    if (read === undefined || plan.csvs.get(path) === undefined) output.locked = true;
+    else if (read !== null) output.old = normalizeCsv(read);
+    return output;
+  });
   // `a → a` says nothing when two tables share a header: show what differs (#110).
   const sameHeaderHint = (old: string, fresh: string): string => {
     if (firstLine(old) !== firstLine(fresh)) return '';
@@ -143,12 +145,7 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
     0,
     ...siblingTableCsvs(file.name, siblings).map(f => Number(/_table(\d+)\.csv$/.exec(f)![1]))
   );
-  const staleOld = await Promise.all(
-    names.stale.map(async name => {
-      const read = await readCsv(plugin, posix.join(dir, name));
-      return typeof read === 'object' ? '' : read;
-    })
-  );
+  const staleOld = names.stale.map(name => normalizeCsv(plan.csvs.get(posix.join(dir, name)) ?? ''));
   const kinds = classifyCsvOverwrites(outputs, existingCount, staleOld);
   // A locked CSV is not written, so there is nothing to ask about it.
   const linesOf = (kind: CsvOverwriteKind) =>
@@ -158,7 +155,9 @@ async function planNoteCsvExport(plugin: LabnotePlugin, file: TFile): Promise<No
         o =>
           `- ${posix.basename(o.path)}: ${firstLine(o.old!)} → ${firstLine(o.fresh)}${sameHeaderHint(o.old!, o.fresh)}`
       );
-  return { ...plan, outputs, renames: names.renames, moved: linesOf('moved'), headerChanged: linesOf('headerChanged') };
+  const renames = names.renames.filter(r => plan.csvs.get(posix.join(dir, r.from)) !== undefined &&
+    plan.csvs.get(posix.join(dir, r.to)) === null);
+  return { ...plan, outputs, renames, moved: linesOf('moved'), headerChanged: linesOf('headerChanged') };
 }
 
 /** Ask once before overwriting CSVs that would change table or header; true when there is nothing to ask. */
@@ -188,17 +187,27 @@ interface CsvWriteResult {
   locked: string[];
   renamed: string[];
   notRenamed: number;
+  failed: string[];
+  changed: boolean;
+  unchanged: number;
 }
 
 async function writeNoteCsvExport(plugin: LabnotePlugin, plan: NoteCsvPlan): Promise<CsvWriteResult> {
   // Renamed before writing: the new name must be free when the CSV moves to it.
   const renamed: string[] = [];
   const notRenamed = new Set<string>();
+  const expected = new Map(plan.csvs);
+  const result: CsvWriteResult = { renamed, notRenamed: 0, written: [], locked: [], failed: [], changed: false, unchanged: 0 };
   for (const r of plan.renames) {
-    const csvFile = plugin.app.vault.getFileByPath(posix.join(plan.dir, r.from));
+    const from = posix.join(plan.dir, r.from);
+    const to = posix.join(plan.dir, r.to);
+    if (!(await sourceMatches(plugin, plan)) || await csvSnapshot(plugin.fs, from) !== expected.get(from) ||
+        await csvSnapshot(plugin.fs, to) !== null) return { ...result, changed: true, notRenamed: notRenamed.size };
+    const csvFile = plugin.app.vault.getFileByPath(from);
     try {
       if (!(csvFile instanceof TFile)) throw new Error(`${r.from} is not in the vault index`);
-      await plugin.app.fileManager.renameFile(csvFile, posix.join(plan.dir, r.to));
+      await plugin.app.fileManager.renameFile(csvFile, to);
+      expected.set(to, expected.get(from));
       renamed.push(`${r.from} → ${r.to}`);
     } catch (err) {
       console.warn('[labnoteo] could not rename table CSV:', err);
@@ -206,23 +215,31 @@ async function writeNoteCsvExport(plugin: LabnotePlugin, plan: NoteCsvPlan): Pro
     }
   }
 
-  const written: string[] = [];
-  const locked: string[] = [];
+  const { written, locked, failed } = result;
   for (const o of plan.outputs) {
     if (o.locked) {
       locked.push(o.path);
       continue;
     }
-    if (o.old === o.fresh && !notRenamed.has(posix.basename(o.path))) continue;
+    if (!(await sourceMatches(plugin, plan)) || await csvSnapshot(plugin.fs, o.path) !== expected.get(o.path)) {
+      return { ...result, changed: true, notRenamed: notRenamed.size };
+    }
+    if (o.old === o.fresh && !notRenamed.has(posix.basename(o.path))) {
+      result.unchanged++;
+      continue;
+    }
     try {
       await plugin.fs.write(o.path, o.csv);
       written.push(o.path);
     } catch (err) {
-      if (!isFileLocked(err)) throw err;
-      locked.push(o.path);
+      if (isFileLocked(err)) locked.push(o.path);
+      else {
+        console.error('[labnoteo] CSV write failed:', o.path, err);
+        failed.push(o.path);
+      }
     }
   }
-  return { written, locked, renamed, notRenamed: notRenamed.size };
+  return { ...result, notRenamed: notRenamed.size };
 }
 
 /** How long after an export ends a caret moved to the top is still put back (#470). */
@@ -267,9 +284,16 @@ async function offerStaleCsvCleanup(
   stale: readonly string[],
   orphans: readonly string[] = [],
   notes: 'one' | 'many' = 'one',
-  stillCurrent?: () => Promise<boolean>
+  eligible?: (name: string) => Promise<boolean>
 ): Promise<string> {
-  const total = stale.length + orphans.length;
+  const snapshots = new Map<string, string>();
+  for (const name of [...stale, ...orphans]) {
+    const raw = await csvSnapshot(plugin.fs, posix.join(dir, name));
+    if (typeof raw === 'string' && (!eligible || await eligible(name))) snapshots.set(name, raw);
+  }
+  stale = stale.filter(name => snapshots.has(name));
+  orphans = orphans.filter(name => snapshots.has(name));
+  const total = snapshots.size;
   if (total === 0) return '';
   const sections = [
     stale.length > 0
@@ -289,10 +313,11 @@ async function offerStaleCsvCleanup(
   ].filter(Boolean);
   const ok = await confirmModal(plugin.app, sections.join('\n\n'), plugin.t('Move to trash'), { destructive: true });
   if (!ok) return plugin.t('{0} old CSV file(s) kept.', String(total));
-  if (stillCurrent && !(await stillCurrent())) return plugin.t('The notes changed during export. CSV cleanup was skipped.');
-  const freshOrphans = await orphanCsvsIn(plugin, dir);
-  const safeOrphans = orphans.filter(name => freshOrphans.includes(name));
-  const kept = orphans.length - safeOrphans.length + await trashTableCsvs(plugin.app, dir, [...stale, ...safeOrphans]);
+  const kept = await trashTableCsvs(plugin.app, dir, [...snapshots.keys()], async name =>
+    (!eligible || await eligible(name)) &&
+    (!orphans.includes(name) || (await orphanCsvsIn(plugin, dir)).includes(name)) &&
+    await csvSnapshot(plugin.fs, posix.join(dir, name)) === snapshots.get(name)
+  );
   const moved = plugin.t('{0} CSV file(s) moved to the trash.', String(total - kept));
   return kept > 0 ? `${moved} ${plugin.t('{0} old CSV file(s) kept.', String(kept))}` : moved;
 }
@@ -324,7 +349,12 @@ function skippedText(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): stri
       ? plugin.t(
           '{0} table(s) were not exported: with no blank line above, the reading view shows them as text. Add a blank line above a table to export it.',
           String(notRendered)
-        ) + where(p => p.notRendered)
+        ) + ' ' + plugin.t('CSV files for these notes were kept: {0}.',
+          plans.flatMap(p => p.missingLines.map(line => `${p.sourcePath}:${line}`)).join(', '))
+      : '',
+    plans.some(p => p.unsaved)
+      ? plugin.t('Save these notes and export again. Their CSV files were kept: {0}.',
+        plans.filter(p => p.unsaved).map(p => p.sourcePath).join(', '))
       : '',
     hidden > 0
       ? plugin.t(
@@ -355,9 +385,9 @@ function showExportNotice(parts: readonly string[], locked: readonly string[]): 
 }
 
 /** The opening line of the export notice. */
-function exportedText(plugin: LabnotePlugin, result: CsvWriteResult, total: number): string {
+function exportedText(plugin: LabnotePlugin, result: CsvWriteResult): string {
   const written = result.written.length;
-  const unchanged = total - written - result.locked.length;
+  const { unchanged } = result;
   if (written === 0 && unchanged === 0) return '';
   return written === 0
     ? plugin.t('The CSV files are already up to date ({0}).', String(unchanged))
@@ -388,13 +418,117 @@ export async function exportTablesToCsv(plugin: LabnotePlugin, file: TFile): Pro
   await withCaretGuard(plugin, () => exportNoteTables(plugin, file));
 }
 
-async function sourcesMatch(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): Promise<boolean> {
+function hasUnsavedText(plugin: LabnotePlugin, path: string, saved: string): boolean {
+  const normalized = saved.replace(/\r\n/g, '\n');
+  return (plugin.app.workspace?.getLeavesOfType?.('markdown') ?? []).some(({ view }) =>
+    view instanceof MarkdownView && view.file?.path === path && view.getMode() !== 'preview' &&
+    view.editor.getValue().replace(/\r\n/g, '\n') !== normalized
+  );
+}
+
+async function sourceMatches(plugin: LabnotePlugin, p: NoteCsvPlan): Promise<boolean> {
   try {
-    for (const p of plans) {
-      if (p.file.path !== p.sourcePath || await plugin.app.vault.read(p.file) !== p.source) return false;
-    }
-    return true;
+    return p.file.path === p.sourcePath && await plugin.app.vault.read(p.file) === p.source &&
+      !hasUnsavedText(plugin, p.sourcePath, p.source);
   } catch { return false; }
+}
+
+async function csvsMatch(plugin: LabnotePlugin, plan: NoteCsvPlan): Promise<boolean> {
+  for (const [path, expected] of plan.csvs) {
+    if (expected !== undefined && await csvSnapshot(plugin.fs, path) !== expected) return false;
+  }
+  return true;
+}
+
+const exportHeld = (plan: NoteCsvPlan): boolean => plan.unsaved || plan.notRendered > 0;
+
+function writeFailureText(plugin: LabnotePlugin, result: CsvWriteResult): string {
+  return result.failed.length
+    ? plugin.t('Could not write these CSV files: {0}.', result.failed.map(path => posix.basename(path)).join(', '))
+    : '';
+}
+
+async function cleanupAfterExport(
+  plugin: LabnotePlugin, dir: string, plans: readonly NoteCsvPlan[], eligible: readonly NoteCsvPlan[], mode: 'one' | 'many'
+): Promise<string> {
+  const staleOwners = new Map<string, NoteCsvPlan>();
+  for (const p of eligible) {
+    if (!(await sourceMatches(plugin, p))) continue;
+    for (const name of await staleCsvsOf(plugin, p.file, p.outputs.length)) staleOwners.set(name, p);
+  }
+  const names = await plugin.fs.list(dir);
+  const protectedNames = new Set(plans.flatMap(p => siblingTableCsvs(posix.basename(p.sourcePath), names)));
+  return offerStaleCsvCleanup(plugin, dir, [...staleOwners.keys()],
+    (await orphanCsvsIn(plugin, dir)).filter(name => !protectedNames.has(name)), mode, async name => {
+      const owner = staleOwners.get(name);
+      return !owner || await sourceMatches(plugin, owner);
+    });
+}
+
+/** Offsets where inserting a blank line makes a top-level table render. */
+export function csvTableBlankLineRepair(source: string, lines: readonly number[]): { text: string; lines: number[] } {
+  const rows = source.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  let changed = source;
+  const offsets = [0];
+  const repaired: number[] = [];
+  for (const row of rows) offsets.push(offsets[offsets.length - 1] + row.length);
+  for (const line of [...new Set(lines)].sort((a, b) => b - a)) {
+    const index = line - 1;
+    const row = rows[index];
+    const previous = rows[index - 1];
+    if (!row || !previous || /^[ \t>]/.test(row) || /^[ \t>]|^(?:[-+*]|\d+[.)])[ \t]/.test(previous)) continue;
+    const at = offsets[index];
+    if (isInFrontMatter(source, at)) continue;
+    changed = changed.slice(0, at) + (previous.endsWith('\r\n') ? '\r\n' : '\n') + changed.slice(at);
+    repaired.unshift(line);
+  }
+  return { text: changed, lines: repaired };
+}
+
+function offerBlankLineRepair(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): void {
+  if (typeof document === 'undefined') return;
+  const repairs = plans.filter(p => !p.unsaved && p.missingLines.length > 0).flatMap(plan => {
+    const { text, lines } = csvTableBlankLineRepair(plan.source, plan.missingLines);
+    return lines.length ? [{ plan, text, lines: lines.map(line => `${plan.sourcePath}:${line}`) }] : [];
+  });
+  if (!repairs.length) return;
+  const fragment = document.createDocumentFragment();
+  const button = document.createElement('button');
+  button.textContent = plugin.t('Add blank lines and export again');
+  fragment.append(button);
+  const notice = new Notice(fragment, 15000);
+  button.addEventListener('click', () => {
+    notice.hide();
+    plugin.run(async () => {
+      const approved = await confirmModal(plugin.app, plugin.t('Add a blank line above each of these tables and export again?\n\n{0}',
+        repairs.flatMap(r => r.lines).join('\n')), plugin.t('Add blank lines and export again'));
+      if (!approved) return;
+      const failed: string[] = [];
+      for (const { plan, text } of repairs) {
+        let changed = false;
+        try {
+          if (await sourceMatches(plugin, plan)) {
+            await plugin.app.vault.process(plan.file, current => {
+              if (current !== plan.source || plan.file.path !== plan.sourcePath ||
+                  hasUnsavedText(plugin, plan.sourcePath, plan.source)) return current;
+              changed = true;
+              return text;
+            });
+          }
+          if (!changed || await plugin.app.vault.read(plan.file) !== text) {
+            failed.push(plan.sourcePath);
+            continue;
+          }
+        } catch (error) {
+          console.error('[labnoteo] could not add blank lines:', plan.sourcePath, error);
+          failed.push(plan.sourcePath);
+          continue;
+        }
+        await exportTablesToCsv(plugin, plan.file);
+      }
+      if (failed.length) new Notice(plugin.t('Could not save these notes. Their CSV files were kept: {0}.', failed.join(', ')));
+    });
+  }, { once: true });
 }
 
 function refuseInvalidMarkers(plugin: LabnotePlugin, plans: readonly NoteCsvPlan[]): boolean {
@@ -408,13 +542,13 @@ async function exportNoteTables(plugin: LabnotePlugin, file: TFile): Promise<voi
   const plan = await planNoteCsvExport(plugin, file);
   if (refuseInvalidMarkers(plugin, [plan])) return;
   const skipped = skippedText(plugin, [plan]);
+  if (exportHeld(plan)) {
+    new Notice(skipped, 10000);
+    offerBlankLineRepair(plugin, [plan]);
+    return;
+  }
   if (plan.outputs.length === 0) {
-    const cleanup = await offerStaleCsvCleanup(
-      plugin,
-      plan.dir,
-      await staleCsvsOf(plugin, file, 0),
-      await orphanCsvsIn(plugin, plan.dir), 'one', () => sourcesMatch(plugin, [plan])
-    );
+    const cleanup = await cleanupAfterExport(plugin, plan.dir, [plan], [plan], 'one');
     new Notice([plugin.t('No tables found in this note.'), skipped, cleanup].filter(Boolean).join(' '));
     return;
   }
@@ -422,22 +556,24 @@ async function exportNoteTables(plugin: LabnotePlugin, file: TFile): Promise<voi
     new Notice(plugin.t('No changes made.'));
     return;
   }
-  if (!(await sourcesMatch(plugin, [plan]))) {
+  if (!(await sourceMatches(plugin, plan))) {
     new Notice(plugin.t('The notes changed during export. Run the export again.'));
     return;
   }
+  if (!(await csvsMatch(plugin, plan))) {
+    new Notice(plugin.t('CSV files changed during export. Export again: {0}.', plan.sourcePath));
+    return;
+  }
   const result = await writeNoteCsvExport(plugin, plan);
-  const cleanup = await offerStaleCsvCleanup(
-    plugin,
-    plan.dir,
-    await staleCsvsOf(plugin, file, plan.outputs.length),
-    await orphanCsvsIn(plugin, plan.dir), 'one', () => sourcesMatch(plugin, [plan])
-  );
+  const cleanup = result.changed || result.failed.length || result.locked.length || result.notRenamed ? '' :
+    await cleanupAfterExport(plugin, plan.dir, [plan], [plan], 'one');
   const paths = plan.outputs.map(o => o.path);
   showExportNotice(
     [
       lockedText(plugin, result.locked),
-      exportedText(plugin, result, plan.outputs.length),
+      writeFailureText(plugin, result),
+      result.changed ? plugin.t('Notes or CSV files changed during export. Export again: {0}.', plan.sourcePath) : '',
+      exportedText(plugin, result),
       renameText(plugin, result),
       savedIn(plugin, plan.dir, plan.outputs, result),
       skipped,
@@ -474,49 +610,54 @@ async function exportFolderTables(plugin: LabnotePlugin, dir: string): Promise<v
   }
   const skipped = skippedText(plugin, plans);
   if (refuseInvalidMarkers(plugin, plans)) return;
-  const stillCurrent = async () => await sourcesMatch(plugin, plans)
-    && (await plugin.fs.list(dir)).filter(n => /\.md$/i.test(n)).sort().join('\n') === [...names].sort().join('\n');
-  const staleOf = async () =>
-    (await Promise.all(plans.map(p => staleCsvsOf(plugin, p.file, p.outputs.length)))).flat();
-  const cleanupAll = async () => {
-    if (!(await stillCurrent())) return plugin.t('The notes changed during export. CSV cleanup was skipped.');
-    return offerStaleCsvCleanup(plugin, dir, await staleOf(), await orphanCsvsIn(plugin, dir), 'many', stillCurrent);
-  };
+  const eligible = plans.filter(p => !exportHeld(p));
+  const noTables = eligible.filter(p => p.outputs.length === 0);
   const withTables = plans.filter(p => p.outputs.length > 0);
   if (withTables.length === 0) {
-    const cleanup = await cleanupAll();
+    const cleanup = eligible.length ? await cleanupAfterExport(plugin, dir, plans, noTables, 'many') : '';
     new Notice(
-      [plugin.t('No tables found in the notes of {0}.', posix.basename(dir)), skipped, cleanup].filter(Boolean).join(' ')
+      [eligible.length ? plugin.t('No tables found in the notes of {0}.', posix.basename(dir)) : '', skipped, cleanup]
+        .filter(Boolean).join(' ')
     );
+    offerBlankLineRepair(plugin, plans);
     return;
   }
   if (!(await confirmOverwrites(plugin, withTables))) {
     new Notice(plugin.t('No changes made.'));
     return;
   }
-  const result: CsvWriteResult = { written: [], locked: [], renamed: [], notRenamed: 0 };
-  if (!(await stillCurrent())) {
-    new Notice(plugin.t('The notes changed during export. Run the export again.'));
-    return;
-  }
+  const result: CsvWriteResult = { written: [], locked: [], renamed: [], notRenamed: 0, failed: [], changed: false, unchanged: 0 };
+  const processed: NoteCsvPlan[] = [];
+  const cleanupPlans = [...noTables];
+  const changed: string[] = [];
   for (const plan of withTables) {
+    if (!(await sourceMatches(plugin, plan)) || !(await csvsMatch(plugin, plan))) {
+      changed.push(plan.sourcePath);
+      continue;
+    }
     const r = await writeNoteCsvExport(plugin, plan);
+    if (r.changed) changed.push(plan.sourcePath);
+    else processed.push(plan);
+    if (!r.changed && !r.failed.length && !r.locked.length && !r.notRenamed) cleanupPlans.push(plan);
     result.written.push(...r.written);
     result.locked.push(...r.locked);
     result.renamed.push(...r.renamed);
     result.notRenamed += r.notRenamed;
+    result.failed.push(...r.failed);
+    result.unchanged += r.unchanged;
   }
-  const cleanup = await cleanupAll();
-  const paths = withTables.flatMap(p => p.outputs.map(o => o.path));
-  const perNote = withTables.map(p => `${noteLabel(p.file)} ${p.outputs.length}`);
-  const withoutTables = plans.length - withTables.length;
-  const outputs = withTables.flatMap(p => p.outputs);
+  const cleanup = cleanupPlans.length ? await cleanupAfterExport(plugin, dir, plans, cleanupPlans, 'many') : '';
+  const paths = processed.flatMap(p => p.outputs.map(o => o.path));
+  const perNote = processed.map(p => `${noteLabel(p.file)} ${p.outputs.length}`);
+  const outputs = processed.flatMap(p => p.outputs);
   showExportNotice(
     [
       lockedText(plugin, result.locked),
-      exportedText(plugin, result, paths.length),
-      plugin.t('Tables per note: {0}.', listInline(plugin, perNote, 5)),
-      withoutTables > 0 ? plugin.t('{0} note(s) without tables were skipped.', String(withoutTables)) : '',
+      writeFailureText(plugin, result),
+      exportedText(plugin, result),
+      perNote.length ? plugin.t('Tables per note: {0}.', listInline(plugin, perNote, 5)) : '',
+      noTables.length ? plugin.t('{0} note(s) without tables were skipped.', String(noTables.length)) : '',
+      changed.length ? plugin.t('Notes or CSV files changed during export. Export again: {0}.', changed.join(', ')) : '',
       renameText(plugin, result),
       savedIn(plugin, dir, outputs, result),
       skipped,
@@ -528,6 +669,7 @@ async function exportFolderTables(plugin: LabnotePlugin, dir: string): Promise<v
     ],
     result.locked
   );
+  offerBlankLineRepair(plugin, plans);
 }
 
 /** How Excel would change cells of `kind`, with the examples. */
