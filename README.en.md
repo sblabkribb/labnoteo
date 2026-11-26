@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**Version 0.142.0**
+**Version 0.143.0**
 
 [한국어](README.md)
 
@@ -74,7 +74,9 @@ Under a Korean UI the command palette shows each name as `Korean (English)` (e.g
 | Toggle MCP server | Start/stop the local MCP server (see the [Copilot guide](docs/COPILOT.md#선택-labnote-툴-연결--mcp)) |
 | Open workflow view / Open sample view | Reveal the sidebar view and move focus into its list |
 | Open sample definition | Open the definition window, where you edit, move, delete or retype a sample, for the sample under the cursor or one picked by search |
-| Insert sample list of this experiment | Insert this experiment's samples as a Markdown table at the cursor |
+| Insert sample list of this experiment | Insert or refresh a Markdown table of this experiment's samples |
+| Save workflow as preset | Save the reusable parts of the current workflow in the vault |
+| Create workflow from preset | Create a new workflow from a saved preset |
 | Download partbank catalog | Download your own partbank items as product catalog files in the global sample folder |
 | Refresh storage locations from partbank | Read the storage location of every partbank-linked sample again and store the changes after confirming |
 | Show note barcode | Show the note's ID and QR code in a window, giving it an ID first if it has none |

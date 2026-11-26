@@ -74,7 +74,9 @@ export function writeIntoCell(cell: Editor, text: string, types: readonly string
  * end of that table, and an insertion there always starts on a new line, so
  * nothing is appended to the table's last row.
  */
-export function noteTargetBelowTable(path: string, view: EditorView, cell: HTMLElement): EditTarget {
+export function noteTargetBelowTable(
+  path: string, view: EditorView, cell: HTMLElement, isCurrent: () => boolean = () => true
+): EditTarget {
   const doc = () => view.state.doc.toString();
   const cursor = (): number => {
     let at = view.state.selection.main.head;
@@ -100,6 +102,16 @@ export function noteTargetBelowTable(path: string, view: EditorView, cell: HTMLE
     },
     async replaceRange(start: number, end: number, text: string) {
       replace(start, end, text);
+    },
+    async applyChangesIfCurrent(expected, changes, caret) {
+      if (!isCurrent() || doc() !== expected) return false;
+      view.dispatch({
+        changes: changes.map(change => ({ from: change.start, to: change.end, insert: change.text })),
+        selection: { anchor: caret },
+        scrollIntoView: true,
+      });
+      view.focus();
+      return true;
     },
     async getCursorOffset() {
       return cursor();

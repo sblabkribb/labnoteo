@@ -1,6 +1,6 @@
 # Labnote Assistant for Obsidian (labnoteo)
 
-**버전 0.142.0**
+**버전 0.143.0**
 
 [English](README.en.md)
 
@@ -73,7 +73,9 @@ Obsidian 설치와 git·GitHub 계정 준비부터 커뮤니티 플러그인·�
 | MCP 서버 켜기/끄기 (`Toggle MCP server`) | 로컬 MCP 서버를 켜고 끕니다([Copilot 가이드](docs/COPILOT.md#선택-labnote-툴-연결--mcp) 참고) |
 | 워크플로/샘플 뷰 열기 (`Open workflow view` / `Open sample view`) | 사이드바 뷰를 표시하고 포커스를 목록으로 옮깁니다 |
 | 샘플 정의 열기 (편집·이동·삭제) (`Open sample definition`) | 커서 위 샘플이나 검색해 고른 샘플의 정의 창을 엽니다 |
-| 이 실험의 시료 목록 삽입 (`Insert sample list of this experiment`) | 이 실험의 시료를 Markdown 표로 커서 위치에 넣습니다 |
+| 이 실험의 시료 목록 삽입 (`Insert sample list of this experiment`) | 이 실험의 시료를 Markdown 표로 넣거나 기존 표를 갱신합니다 |
+| 워크플로를 프리셋으로 저장 (`Save workflow as preset`) | 현재 워크플로의 재사용할 구성을 보관함에 저장합니다 |
+| 프리셋으로 워크플로 생성 (`Create workflow from preset`) | 저장한 프리셋으로 새 워크플로를 만듭니다 |
 | partbank 카탈로그 내려받기 (`Download partbank catalog`) | partbank의 내 항목을 전역 샘플 폴더의 제품 카탈로그 파일로 받습니다 |
 | partbank에서 보관 위치 일괄 갱신 (`Refresh storage locations from partbank`) | partbank와 연결된 시료의 보관 위치를 한꺼번에 다시 읽어 확인 후 저장합니다 |
 | 노트 바코드 보기 (`Show note barcode`) | 노트의 ID와 QR을 창으로 보여 줍니다(ID가 없으면 먼저 발급) |

@@ -247,7 +247,8 @@ export function run(argv: string[] = process.argv.slice(2)): number {
     if (notes.length === 0) {
       console.log('⚠ validate: 검증할 실험 노트가 없습니다(labnote/**/README.labnote.md 0개).');
     } else {
-      console.log(`✅ validate: ${notes.length}개 노트 검증 통과.`);
+      const checked = new Set(notes.flatMap(note => [note.path, ...note.sources.map(source => source.path)]));
+      console.log(`✅ validate: 실험 ${notes.length}개 · 노트 ${checked.size}개 검증 통과.`);
     }
     return 0;
   }

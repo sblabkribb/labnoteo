@@ -94,6 +94,12 @@ export interface EditTarget {
    * document text) with `text`.
    */
   replaceRange(start: number, end: number, text: string): Promise<void>;
+  /** Apply sorted changes and place the caret if this target still has the expected document. */
+  applyChangesIfCurrent?(
+    expected: string,
+    changes: readonly { start: number; end: number; text: string }[],
+    caret: number
+  ): Promise<boolean>;
   /**
    * Current cursor (selection start) as a character offset into the document.
    * Optional: hosts without cursor tracking may omit it.

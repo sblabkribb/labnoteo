@@ -1283,6 +1283,14 @@ describe('insertExperimentSamplesTable with a table already there', () => {
     expect(tablePlugin.markUserEdit).toHaveBeenCalledWith(NOTE);
   });
 
+  it('leaves a sample-table example inside an indented list fence alone', async () => {
+    const example = '- Example\n\n    ```md\n' + OLD_KO.split('\n').map(line => '    ' + line).join('\n') + '\n    ```';
+    const { state, tablePlugin } = setUp(`# A\n${OLD_KO}\n\n${example}\n`);
+    vi.mocked(pickModal).mockResolvedValueOnce('replace');
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+    expect(state.text).toBe(`# A\n${FRESH}\n\n${example}\n`);
+  });
+
   it('adds one more like before when asked, below the table when the cursor is in its text', async () => {
     const doc = `# A\n${OLD_KO}\n\nafter\n`;
     const end = `# A\n${OLD_KO}`.length;
@@ -1301,6 +1309,35 @@ describe('insertExperimentSamplesTable with a table already there', () => {
       vi.mocked(pickModal).mockResolvedValueOnce(answer);
       expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(false);
       expect(state.text).toBe(doc);
+    }
+  });
+
+  it('does not replace table ranges if the note changes during the picker (#450)', async () => {
+    const doc = `# A\n${OLD_KO}\n\nafter\n`;
+    const { state, tablePlugin } = setUp(doc, doc.indexOf('old'));
+    vi.mocked(pickModal).mockImplementationOnce(async () => {
+      state.text = 'external edit\n' + doc;
+      return 'replace';
+    });
+    expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(false);
+    expect(state.text).toBe('external edit\n' + doc);
+    expect(tablePlugin.markUserEdit).not.toHaveBeenCalled();
+  });
+
+  it('captures the cursor before the first sample ledger read (#450)', async () => {
+    const doc = `# A\n${OLD_KO}\n\nKeep this line.\n`;
+    const { state, tablePlugin } = setUp(doc, doc.indexOf('old'));
+    const read = fs.read.bind(fs);
+    const reading = vi.spyOn(fs, 'read').mockImplementation(async path => {
+      if (path === REGISTRY) state.cursor = 0;
+      return read(path);
+    });
+    vi.mocked(pickModal).mockResolvedValueOnce('add');
+    try {
+      expect(await insertExperimentSamplesTable(app, tablePlugin)).toBe(true);
+      expect(state.text.indexOf(FRESH)).toBeLessThan(state.text.indexOf('Keep this line.'));
+    } finally {
+      reading.mockRestore();
     }
   });
 

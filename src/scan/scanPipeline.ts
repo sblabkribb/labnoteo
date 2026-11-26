@@ -22,6 +22,7 @@ import { hasPage, isPagePayload, unitOpFingerprint, type PagePayload, type ScanP
 import * as posix from '@labnoteo/core/posix';
 import { processNoteThroughVault } from '../commands';
 import type { NoteIdService } from '../barcode/noteIdService';
+import { ScanImageDecodeError } from './decode';
 import {
   SCANS_SUBFOLDER,
   UNMATCHED_FOLDER,
@@ -192,7 +193,10 @@ export class ScanPipeline {
         results.push(...rest);
       } catch (err) {
         console.error('[labnoteo] scan failed:', input.name, err);
-        results.push({ source: input.name, status: 'error', message: err instanceof Error ? err.message : String(err) });
+        const message = err instanceof ScanImageDecodeError
+          ? this.deps.host.t('This image could not be opened. Transfer the original file again or take a new photo.')
+          : err instanceof Error ? err.message : String(err);
+        results.push({ source: input.name, status: 'error', message });
       }
       for (let i = first; i < results.length; i++) results[i].input = input.name;
     }

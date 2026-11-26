@@ -458,6 +458,52 @@ const obsidianKo: Record<string, string> = {
   'Exported {0} CSV file(s) ({1} unchanged file(s) left as they were).':
     'CSV 파일 {0}개를 내보냈습니다(내용이 같은 {1}개는 그대로 둠).',
   'The CSV files are already up to date ({0}).': 'CSV 파일이 이미 최신입니다({0}개).',
+  'The note changed during sample table insertion. Run the command again.':
+    '시료 표를 넣는 동안 노트가 바뀌었습니다. 명령을 다시 실행하세요.',
+  'CSV files for these notes were kept: {0}.': '다음 노트의 CSV는 그대로 두었습니다. 표 위치 {0}.',
+  'Save these notes and export again. Their CSV files were kept: {0}.':
+    '다음 노트를 저장한 후 다시 내보내세요. 해당 CSV는 그대로 두었습니다. {0}.',
+  'CSV files changed during export. Export again: {0}.':
+    '내보내는 동안 CSV 파일이 바뀌었습니다. 다시 내보내세요. {0}.',
+  'Notes or CSV files changed during export. Export again: {0}.':
+    '내보내는 동안 노트나 CSV 파일이 바뀌었습니다. 다시 내보내세요. {0}.',
+  'Could not write these CSV files: {0}.': '다음 CSV 파일을 쓰지 못했습니다. {0}.',
+  'Add blank lines and export again': '빈 줄을 넣고 다시 내보내기',
+  'Enter CAT No (optional)': 'CAT No를 입력하세요 (선택 사항)',
+  'CAT No': 'CAT No',
+  "CAT No '{0}'": "CAT No '{0}'",
+  'Save workflow as preset': '워크플로를 프리셋으로 저장',
+  'Create workflow from preset': '프리셋으로 워크플로 생성',
+  'Open a workflow note to save a preset.': '프리셋으로 저장할 워크플로 노트를 여세요.',
+  'Workflow preset name': '워크플로 프리셋 이름',
+  'Enter a name for this preset.': '프리셋 이름을 입력하세요.',
+  'Workflow preset saved: {0}': '워크플로 프리셋을 저장했습니다. {0}',
+  'A workflow preset already has this name: {0}': '이미 같은 이름의 워크플로 프리셋이 있습니다. {0}',
+  'There are no saved workflow presets.': '저장한 워크플로 프리셋이 없습니다.',
+  'Select workflow preset': '워크플로 프리셋 선택',
+  'Trace Input and Output in this experiment': '이 실험의 Input·Output 추적',
+  'Add a blank line above each of these tables and export again?\n\n{0}':
+    '다음 표 위에 빈 줄을 하나씩 넣고 다시 내보낼까요?\n\n{0}',
+  'Could not save these notes. Their CSV files were kept: {0}.':
+    '다음 노트를 저장하지 못해 해당 CSV를 그대로 두었습니다. {0}.',
+  'Experiment status kept: {0}.': '실험 상태를 그대로 두었습니다({0}).',
+  'This title produces the same folder name as {0} apart from the number. Change the start of the title to distinguish them.':
+    '이 제목은 번호를 빼면 {0}과 같은 폴더 이름이 됩니다. 구분하려면 제목 앞부분을 바꾸세요.',
+  'This image could not be opened. Transfer the original file again or take a new photo.':
+    '이미지를 열 수 없습니다. 원본 파일을 다시 전송하거나 사진을 다시 찍어 주세요.',
+  'Git uses the Labnote pre-commit hook path.': 'Git에 Labnote 커밋 전 검사 경로가 설정되어 있습니다.',
+  'Research automation set up ({0} written, {1} merged, {2} skipped, {3} removed). Researchers: see {4}. Admin setup: {5}.':
+    '연구노트 자동화를 설정했습니다 (생성 {0} · 병합 {1} · 건너뜀 {2} · 정리 {3}). 연구원 안내는 {4}, 관리자 설정은 {5} 문서를 확인하세요.',
+  'The Labnote pre-commit hook is not configured. Run "git config core.hooksPath {0}" in this vault.':
+    'Labnote 커밋 전 검사 경로가 설정되지 않았습니다. 이 보관함에서 "git config core.hooksPath {0}"를 실행하세요.',
+  'Could not check the pre-commit hook. Run "git config --get core.hooksPath" in this vault to check for {0}.':
+    '커밋 전 검사 경로를 확인할 수 없습니다. 이 보관함에서 "git config --get core.hooksPath"를 실행해 {0}인지 확인하세요.',
+  'Git uses another hook path ({0}). Review it before configuring the Labnote hook at {1}.':
+    'Git이 다른 훅 경로({0})를 사용합니다. Labnote 훅 경로 {1}을 설정하기 전에 기존 훅을 확인하세요.',
+  'Deleted {0}. Wiki publishing and AI agents look for these drafts by path. Restore your edits from trash or Git, or run "Setup research automation" to recreate the starter files.':
+    '{0}을(를) 삭제했습니다. Wiki 발행과 AI 에이전트는 해당 경로에서 원고를 찾습니다. 편집한 원고는 휴지통이나 Git에서 복구하고, 기본 파일을 다시 만들려면 "연구노트 자동화 설정"을 실행하세요.',
+  'Deleted {0}. AI agents and research automation look for this file at the vault root. Restore your edits from trash or Git, or run "Setup research automation" to recreate the starter file.':
+    '{0}을(를) 삭제했습니다. AI 에이전트와 연구노트 자동화는 보관함 최상위에서 이 파일을 찾습니다. 편집한 파일은 휴지통이나 Git에서 복구하고, 기본 파일을 다시 만들려면 "연구노트 자동화 설정"을 실행하세요.',
   'Saved in {0}: {1}.': '저장 위치 {0}: {1}.',
   '(new)': '(새 파일)',
   'Could not write {0} CSV file(s) because another program (such as Excel) has them open or they are read-only: {1}. Close them and export again.':

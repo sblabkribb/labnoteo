@@ -12,7 +12,7 @@
  * and what {@link VaultFileSystem} reads, so no absolute-path conversion is
  * needed anywhere in shared logic.
  */
-import { App, MarkdownView, Notice, TFile, type Editor } from 'obsidian';
+import { App, FileSystemAdapter, MarkdownView, Notice, Platform, TFile, type Editor } from 'obsidian';
 import type {
   LabnoteHost,
   EditTarget,
@@ -28,6 +28,31 @@ import { activeTableCellEditor, editorView, noteTargetBelowTable, tableCellHostV
 
 const readingViewChecks = new WeakMap<EditTarget, () => boolean>();
 const tableCellEditors = new WeakMap<EditTarget, Editor>();
+const targetViews = new WeakMap<EditTarget, MarkdownView>();
+
+export const editTargetView = (target: EditTarget): MarkdownView | undefined => targetViews.get(target);
+
+export function vaultGitHooksPath(app: App): Promise<string | null | undefined> {
+  const adapter = app.vault.adapter;
+  if (!Platform.isDesktopApp || !(adapter instanceof FileSystemAdapter)) return Promise.resolve(undefined);
+  const cwd = adapter.getBasePath();
+  const { execFile } = require('child_process') as typeof import('node:child_process');
+  const paths = require('path') as typeof import('node:path');
+  return new Promise(resolve => {
+    execFile('git', ['config', '--path', '--get', 'core.hooksPath'], { cwd, timeout: 3000, windowsHide: true }, (error, stdout) => {
+      if (error) {
+        resolve(error.code === 1 ? null : undefined);
+        return;
+      }
+      const value = stdout.replace(/\r?\n$/, '');
+      if (!value) return resolve(null);
+      const configured = paths.resolve(cwd, value);
+      const expected = paths.resolve(cwd, '.labnoteo/hooks');
+      const compare = Platform.isWin ? (path: string) => path.toLowerCase() : (path: string) => path;
+      resolve(compare(configured) === compare(expected) ? '.labnoteo/hooks' : value);
+    });
+  });
+}
 
 /**
  * The editor of the table cell `target` was made for, or undefined when no
@@ -68,6 +93,9 @@ export function createObsidianHost(
     if (!view || !file) return undefined;
     const noteView = view;
     const editor = view.editor;
+    const path = file.path;
+    const isCurrent = () => noteView.file === file && file.path === path &&
+      app.workspace.getMostRecentLeaf()?.view === noteView;
     // A focused table cell is edited in its own editor holding the cell text
     // alone (#196). Obsidian 1.14 keeps `view.editor` on the note and hands out
     // that cell editor through the editor component instead (#303, #543), so it
@@ -78,8 +106,9 @@ export function createObsidianHost(
     const cellHost = cell ? tableCellHostView(cell) ?? editorView(editor) : undefined;
     const cellDom = cell ? editorView(cell)?.dom : undefined;
     if (cell && cellHost && cellDom) {
-      const target = noteTargetBelowTable(file.path, cellHost, cellDom);
+      const target = noteTargetBelowTable(path, cellHost, cellDom, isCurrent);
       tableCellEditors.set(target, cell);
+      targetViews.set(target, noteView);
       return target;
     }
     // In reading view the editor is hidden: what is written to it is never
@@ -114,6 +143,26 @@ export function createObsidianHost(
         await toSource();
         editor.replaceRange(text, editor.offsetToPos(start), editor.offsetToPos(end));
       },
+      async applyChangesIfCurrent(expected, changes, caret) {
+        if (!isCurrent()) return false;
+        if (inPreview()) {
+          if (noteView.getViewData() !== expected) return false;
+          await toSource();
+        }
+        if (!isCurrent() || noteView.editor !== editor || editor.getValue() !== expected) return false;
+        editor.transaction({
+          changes: changes.map(change => ({
+            from: editor.offsetToPos(change.start),
+            to: editor.offsetToPos(change.end),
+            text: change.text,
+          })),
+        });
+        const pos = editor.offsetToPos(caret);
+        editor.setCursor(pos);
+        editor.scrollIntoView({ from: pos, to: pos }, true);
+        editor.focus();
+        return true;
+      },
       async getCursorOffset() {
         if (inPreview()) return noteView.getViewData().length;
         return editor.posToOffset(editor.getCursor('from'));
@@ -134,6 +183,7 @@ export function createObsidianHost(
       },
     };
     readingViewChecks.set(target, inPreview);
+    targetViews.set(target, noteView);
     return target;
   }
 

@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { App, TFile as VaultFile } from 'obsidian';
 import { MarkdownView, Notice, Platform, TFile } from '../stubs/obsidian';
 import { MemFileSystem } from '../../packages/labnoteo-core/src/fs/memFileSystem';
-import { exportExperimentTablesToCsv, exportTablesToCsv } from '../../src/exportCsv';
+import { csvTableBlankLineRepair, exportExperimentTablesToCsv, exportTablesToCsv } from '../../src/exportCsv';
 import { confirmModal } from '../../src/modals';
 import type LabnotePlugin from '../../src/main';
 
@@ -56,6 +56,56 @@ afterEach(() => {
 });
 
 describe('CSV validation before writes (#590)', () => {
+  it('preserves all CSVs belonging to a note with a missing blank line (#600)', async () => {
+    const csv = `${DIR}/001_WT020_A.labnote_table1.csv`;
+    await fs.write(WF1, table('good', '1') + '\nCaption\n' + table('omitted', '2'));
+    await fs.write(WF2, table('ok', '3'));
+    await fs.write(csv, 'original\r\n');
+    await exportExperimentTablesToCsv(plugin(), DIR);
+    expect(await fs.read(csv)).toBe('original\r\n');
+    expect(await fs.read(`${DIR}/002_WT030_B.labnote_table1.csv`)).toBe('\uFEFFok\n3\n');
+    expect(Notice.shown.at(-1)).toContain(`${WF1}:6`);
+  });
+
+  it('preserves a CSV edited after the overwrite preview (#600)', async () => {
+    const csv = `${DIR}/001_WT020_A.labnote_table1.csv`;
+    await fs.write(WF1, table('new header', '2'));
+    await fs.write(csv, '\uFEFFold header\n1\n');
+    vi.mocked(confirmModal).mockImplementationOnce(async () => {
+      await fs.write(csv, 'edited in Excel\r\n');
+      return true;
+    });
+    await exportTablesToCsv(plugin(), new TFile(WF1) as unknown as VaultFile);
+    expect(await fs.read(csv)).toBe('edited in Excel\r\n');
+    expect(Notice.shown.at(-1)).toContain('CSV files changed');
+  });
+
+  it('holds an open unsaved note and allows another note with only a line-ending difference', async () => {
+    const saved = table('saved', '1');
+    await fs.write(WF1, saved);
+    await fs.write(WF2, saved.replace(/\n/g, '\r\n'));
+    app.workspace = {
+      getActiveViewOfType: () => null,
+      getLeavesOfType: () => [WF1, WF2].map((path, i) => ({
+        view: Object.assign(new MarkdownView(), {
+          file: new TFile(path),
+          editor: { getValue: () => i ? saved : table('unsaved', '2') },
+        }),
+      })),
+    } as unknown as App['workspace'];
+    await exportExperimentTablesToCsv(plugin(), DIR);
+    expect(await fs.exists(`${DIR}/001_WT020_A.labnote_table1.csv`)).toBe(false);
+    expect(await fs.exists(`${DIR}/002_WT030_B.labnote_table1.csv`)).toBe(true);
+    expect(Notice.shown.at(-1)).toContain('Save these notes');
+  });
+
+  it('repairs only top-level table headers and retains CRLF without adding a final newline', () => {
+    const source = 'Caption\r\n| X |\r\n| --- |\r\n\r\n> caption\r\n> | Y |\r\n> | --- |';
+    expect(csvTableBlankLineRepair(source, [2, 6])).toEqual({
+      text: source.replace('Caption\r\n', 'Caption\r\n\r\n'),
+      lines: [2],
+    });
+  });
   it('aborts the entire experiment when one table has a marker, preserving old CSVs', async () => {
     await fs.write(README, table('ok', '1'));
     await fs.write(WF1, table('value', '1 @issue;ISS-test;check'));
@@ -317,7 +367,8 @@ describe('the caret of the note being exported', () => {
     arm.mockClear();
     vi.mocked(confirmModal).mockResolvedValue(true);
     vi.spyOn(fs, 'write').mockRejectedValue(new Error('disk full'));
-    await expect(exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile)).rejects.toThrow('disk full');
+    await exportTablesToCsv(p(), new TFile(WF1) as unknown as VaultFile);
+    expect(Notice.shown.at(-1)).toContain('Could not write these CSV files');
     expect(arm.mock.calls).toEqual([
       [view, Infinity],
       [view, 2000],

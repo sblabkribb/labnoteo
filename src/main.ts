@@ -74,7 +74,7 @@ import {
 } from '@labnoteo/core/lib/sampleStorage';
 import { VaultFileSystem } from './vaultFileSystem';
 import { bilingualName, createObsidianTranslator } from './i18n';
-import { createObsidianHost } from './obsidianHost';
+import { createObsidianHost, vaultGitHooksPath } from './obsidianHost';
 import {
   createExperimentCommand,
   changeExperimentStatusCommand,
@@ -85,6 +85,8 @@ import {
   issueAutomationState,
   toggleDiscussionFlagCommand,
   createWorkflowCommand,
+  saveWorkflowPreset,
+  loadWorkflowPreset,
   renumberWorkflowsCommand,
   syncWorkflowChecklistCommand,
   workflowNumberClashNotice,
@@ -556,6 +558,16 @@ export default class LabnotePlugin extends Plugin {
       callback: () =>
         this.run(() => changeExperimentStatusCommand(this.app, this.host, this.stampLastUpdated)),
     });
+    this.addCommand({
+      id: 'save-workflow-preset',
+      name: this.paletteName('Save workflow as preset'),
+      callback: () => this.run(() => saveWorkflowPreset(this.host, getSampleDisplayMeta(this.settings.customSampleTypes).types)),
+    });
+    this.addCommand({
+      id: 'load-workflow-preset',
+      name: this.paletteName('Create workflow from preset'),
+      callback: () => this.run(() => loadWorkflowPreset(this.app, this.host, this.stampLastUpdated)),
+    });
 
     this.addCommand({
       id: 'retry-experiment',
@@ -581,7 +593,7 @@ export default class LabnotePlugin extends Plugin {
       name: this.paletteName('Setup research automation'),
       callback: () =>
         this.run(async () => {
-          await setupResearchAutomationCommand(this.host, this.manifest.version);
+          await setupResearchAutomationCommand(this.host, this.manifest.version, () => vaultGitHooksPath(this.app));
           await this.offerAttachmentFolder();
         }),
     });
@@ -1107,6 +1119,18 @@ export default class LabnotePlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('delete', file => {
         this.collectDeletedCatalogs(file);
+        const pathDeleted = file.path;
+        if (pathDeleted === 'AGENTS.md' || pathDeleted === 'CLAUDE.md' || pathDeleted === 'wiki-staging' ||
+            automationNameKind(pathDeleted) === 'section') {
+          this.run(async () => {
+            if (!(await isAutomationInstalled(this.host)) || await this.host.fs.exists(pathDeleted)) return;
+            const wiki = pathDeleted.startsWith('wiki-staging');
+            this.host.notify('warn', this.t(wiki
+              ? 'Deleted {0}. Wiki publishing and AI agents look for these drafts by path. Restore your edits from trash or Git, or run "Setup research automation" to recreate the starter files.'
+              : 'Deleted {0}. AI agents and research automation look for this file at the vault root. Restore your edits from trash or Git, or run "Setup research automation" to recreate the starter file.',
+            pathDeleted));
+          });
+        }
         if (!(file instanceof TFile)) return;
         this.copiedWorkflows.delete(file.path);
         if (file.name === 'README.labnote.md') {

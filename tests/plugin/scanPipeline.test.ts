@@ -20,6 +20,7 @@ import {
   type ScanInput,
 } from '../../src/scan/scanPipeline';
 import { isDateInput, listUnmatched, parsePageInput } from '../../src/scan/unmatchedModal';
+import { ScanImageDecodeError } from '../../src/scan/decode';
 
 const EXP = 'labnote/001_Assay';
 const NOTE = `${EXP}/001_WD010_Design.labnote.md`;
@@ -266,6 +267,16 @@ describe('ScanPipeline.run', () => {
     );
     expect(s.writes).toEqual([]);
     expect(s.edits).toEqual([]);
+  });
+
+  it('gives recovery instructions for undecodable scans (#599)', async () => {
+    const s = setup({}, { 'truncated.jpg': new ScanImageDecodeError('Chromium decode failure') });
+    const [result] = await s.pipeline.run([input('truncated.jpg')]);
+    expect(result).toMatchObject({
+      status: 'error',
+      message: 'This image could not be opened. Transfer the original file again or take a new photo.',
+    });
+    expect(s.writes).toEqual([]);
   });
 
   it('names the block it filed into, and warns when found by fingerprint or printed without one (#304)', async () => {

@@ -243,6 +243,13 @@ describe('sourceForItem', () => {
 });
 
 describe('formatStockLocation', () => {
+  it('keeps all distinct holes together and separates same-named boxes in different stores', () => {
+    expect(formatStockLocation([
+      { storage: { name: 'S1' }, stock_box: { name: 'B' }, hole_position: 'A1' },
+      { storage: { name: 'S1' }, stock_box: { name: 'B' }, hole_position: 'A2' },
+      { storage: { name: 'S2' }, stock_box: { name: 'B' }, hole_position: 'A1' },
+    ])).toBe('S1 / B / A1, A2; S2 / B / A1');
+  });
   it('writes storage / box / hole in the shape the registry already uses', () => {
     expect(
       formatStockLocation([

@@ -89,6 +89,28 @@ describe('re-exporting tables (#74)', () => {
     expect(Notice.shown.at(-1)).toBe(done('The CSV files are already up to date (1).', 1, '2 old CSV file(s) kept.'));
   });
 
+  it('keeps the exports when the note is restored while confirming', async () => {
+    const h = { fs, t, confirm: vi.fn(), notify: vi.fn() } as unknown as LabnoteHost;
+    vi.mocked(h.confirm).mockImplementationOnce(async () => {
+      await fs.write(`${DIR}/${NOTE}`, 'restored');
+      return true;
+    });
+    await offerTableCsvCleanupOnDelete(app, h, [`${DIR}/${NOTE}`]);
+    expect(trashed).toEqual([]);
+    expect(await fs.exists(csv(1))).toBe(true);
+  });
+
+  it('keeps a CSV edited during the cleanup prompt', async () => {
+    await fs.write(`${DIR}/${NOTE}`, TABLE);
+    vi.mocked(confirmModal).mockImplementationOnce(async () => {
+      await fs.write(csv(2), 'edited outside Obsidian\r\n');
+      return true;
+    });
+    await exportTablesToCsv(plugin(), noteFile());
+    expect(trashed).toEqual([csv(3)]);
+    expect(await fs.read(csv(2))).toBe('edited outside Obsidian\r\n');
+  });
+
   it('offers every CSV when the note has no table left', async () => {
     await fs.write(`${DIR}/${NOTE}`, 'no tables');
     vi.mocked(confirmModal).mockResolvedValue(true);
@@ -323,7 +345,7 @@ describe('re-exporting a note that reached ten tables', () => {
 
     expect(await fs.read(padded('01'))).toBe(CSV_A);
     expect(await fs.exists(csv(1))).toBe(true);
-    expect(vi.mocked(confirmModal).mock.calls.at(-1)?.[1]).toContain('001_WT020_A.labnote_table1.csv');
+    expect(confirmModal).not.toHaveBeenCalled();
     expect(Notice.shown.at(-1)).toContain('Could not rename 1 old CSV file(s); they keep their old names.');
   });
 });

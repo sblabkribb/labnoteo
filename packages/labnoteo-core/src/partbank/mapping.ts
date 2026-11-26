@@ -281,15 +281,21 @@ export interface PartbankStock {
 export function formatStockLocation(stocks: readonly PartbankStock[]): string {
   const mine = stocks.filter(s => s.is_owner);
   const others = stocks.filter(s => !s.is_owner);
-  const lines: string[] = [];
+  const locations = new Map<string, { prefix: string; holes: Set<string> }>();
   for (const stock of [...mine, ...others]) {
-    const parts = [stock.storage?.name, stock.stock_box?.name, stock.hole_position]
-      .map(p => p?.trim())
-      .filter((p): p is string => Boolean(p));
-    const text = parts.join(' / ');
-    if (text && !lines.includes(text)) lines.push(text);
+    const storage = stock.storage?.name?.trim() ?? '';
+    const box = stock.stock_box?.name?.trim() ?? '';
+    const hole = stock.hole_position?.trim() ?? '';
+    const prefix = (box && hole ? [storage, box] : [storage, box, hole]).filter(Boolean).join(' / ');
+    if (!prefix) continue;
+    const key = JSON.stringify(box && hole ? [storage, box] : [storage, box, hole]);
+    const location = locations.get(key) ?? { prefix, holes: new Set<string>() };
+    if (box && hole) location.holes.add(hole);
+    locations.set(key, location);
   }
-  return lines.join('; ');
+  return [...locations.values()].map(({ prefix, holes }) =>
+    holes.size ? `${prefix} / ${[...holes].join(', ')}` : prefix
+  ).join('; ');
 }
 
 /** A sample already in the vault, with where it is kept. */

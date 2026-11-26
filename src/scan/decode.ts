@@ -167,6 +167,12 @@ export async function renderJpeg(source: Source, rotation: Rotation, maxEdge: nu
 }
 
 /** Decode image bytes with the camera's EXIF orientation applied. */
-export function loadBitmap(bytes: ArrayBuffer): Promise<ImageBitmap> {
-  return createImageBitmap(new Blob([bytes]), { imageOrientation: 'from-image' });
+export class ScanImageDecodeError extends Error {}
+
+export async function loadBitmap(bytes: ArrayBuffer): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(new Blob([bytes]), { imageOrientation: 'from-image' });
+  } catch (error) {
+    throw new ScanImageDecodeError('Could not decode scan image', { cause: error });
+  }
 }
