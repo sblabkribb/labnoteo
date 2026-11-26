@@ -211,18 +211,18 @@
     {
       "id": "export-tables-csv",
       "lang": "en",
-      "version": "0.105.0",
-      "durationSec": 24.8,
-      "bytes": 783313,
-      "recordedAt": "2026-10-20T16:51:55.308Z"
+      "version": "0.143.0",
+      "durationSec": 51,
+      "bytes": 1356042,
+      "recordedAt": "2026-11-26T07:13:45.771Z"
     },
     {
       "id": "export-tables-csv",
       "lang": "ko",
-      "version": "0.105.0",
-      "durationSec": 24.4,
-      "bytes": 821472,
-      "recordedAt": "2026-10-20T16:50:17.890Z"
+      "version": "0.143.0",
+      "durationSec": 49.2,
+      "bytes": 1213433,
+      "recordedAt": "2026-11-26T07:11:05.286Z"
     },
     {
       "id": "insert-date",
@@ -243,18 +243,18 @@
     {
       "id": "insert-experiment-samples-table",
       "lang": "en",
-      "version": "0.136.1",
-      "durationSec": 42,
-      "bytes": 619398,
-      "recordedAt": "2026-11-01T19:11:41.133Z"
+      "version": "0.143.0",
+      "durationSec": 42.7,
+      "bytes": 648927,
+      "recordedAt": "2026-11-26T07:14:35.334Z"
     },
     {
       "id": "insert-experiment-samples-table",
       "lang": "ko",
-      "version": "0.136.1",
-      "durationSec": 36.7,
-      "bytes": 606682,
-      "recordedAt": "2026-11-01T19:02:00.935Z"
+      "version": "0.143.0",
+      "durationSec": 38,
+      "bytes": 544483,
+      "recordedAt": "2026-11-26T07:11:50.204Z"
     },
     {
       "id": "insert-unit-operation",

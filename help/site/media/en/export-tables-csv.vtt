@@ -1,17 +1,29 @@
 WEBVTT
 
 1
-00:00:00.011 --> 00:00:02.517
+00:00:00.030 --> 00:00:02.539
 Export tables to CSV
 
 2
-00:00:02.517 --> 00:00:14.254
+00:00:02.539 --> 00:00:14.614
 Open a workflow note that has a results table
 
 3
-00:00:14.254 --> 00:00:19.732
+00:00:14.614 --> 00:00:20.641
 Run Export tables to CSV from the palette
 
 4
-00:00:19.732 --> 00:00:24.777
-A CSV file per table appears next to the note
+00:00:20.641 --> 00:00:23.863
+Each table in the saved note gets a CSV
+
+5
+00:00:23.863 --> 00:00:32.003
+A missing blank line holds the existing CSVs
+
+6
+00:00:32.003 --> 00:00:37.499
+Preview the locations and add the blank lines
+
+7
+00:00:37.499 --> 00:00:51.022
+A marker inside a table stops export before any file changes
